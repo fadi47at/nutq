@@ -796,15 +796,7 @@ fn toggle_recording(app: &AppHandle, output: Output) {
                     *state.pending_output.lock().unwrap() = output;
                     *state.pending_mic.lock().unwrap() = state.recorder.current_device();
                     state.set_status(app, Status::Recording);
-                    // arm_escape must not run on this thread: we are inside
-                    // the plugin's own shortcut dispatch, and registering a
-                    // shortcut re-entrantly there deadlocked the main thread
-                    // (frozen window, ghosted tray, black overlay pill).
-                    // Off-thread, the plugin's lock is free to take it.
-                    let app2 = app.clone();
-                    tauri::async_runtime::spawn(async move {
-                        arm_escape(&app2);
-                    });
+                    arm_escape(app);
                 }
                 Err(e) => {
                     eprintln!("[nutq] start failed: {e:#}");
@@ -1203,10 +1195,26 @@ fn escape_shortcut() -> Shortcut {
 /// While the mic is live, Escape ends the session and keeps the clip - the
 /// same as pressing the hotkey again - instead of slipping through to
 /// whatever app is being dictated into, where it tends to close a dialog and
-/// take the dictation's destination with it. It is registered for the length
-/// of the recording only. If the user's own hotkey IS Escape, the normal
-/// handler already stops the recording and there is nothing to arm.
+/// take the dictation's destination with it.
+///
+/// Both the register and the unregister MUST run on the main thread: Windows
+/// delivers WM_HOTKEY to the thread that called RegisterHotKey, and only the
+/// main thread pumps that queue - a register from a worker thread succeeds
+/// and then silently never fires. And they must not run re-entrantly inside
+/// the plugin's own shortcut dispatch either, because that deadlocked the
+/// whole app. So the entry points hop to a worker first, which forces
+/// run_on_main_thread to enqueue for a later loop turn instead of running
+/// inline. If the user's own hotkey IS Escape, the normal handler already
+/// stops the recording and there is nothing to arm.
 fn arm_escape(app: &AppHandle) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let task = app.clone();
+        let _ = app.run_on_main_thread(move || arm_escape_now(&task));
+    });
+}
+
+fn arm_escape_now(app: &AppHandle) {
     let state = app.state::<AppState>();
     let escape = escape_shortcut();
     {
@@ -1215,14 +1223,27 @@ fn arm_escape(app: &AppHandle) {
             return;
         }
     }
+    if state.status() != Status::Recording {
+        // A stale request caught up after the recording ended.
+        return;
+    }
     match app.global_shortcut().register(escape) {
         Ok(()) => *state.escape_armed.lock().unwrap() = true,
         Err(e) => eprintln!("[nutq] could not arm Escape as the save key: {e}"),
     }
 }
 
-/// The recording is over: hand Escape back to the system.
+/// The recording is over (or about to be): hand Escape back to the system.
+/// Deferred for the same thread-affinity reasons as `arm_escape`.
 fn disarm_escape(app: &AppHandle) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let task = app.clone();
+        let _ = app.run_on_main_thread(move || disarm_escape_now(&task));
+    });
+}
+
+fn disarm_escape_now(app: &AppHandle) {
     let state = app.state::<AppState>();
     *state.escape_armed.lock().unwrap() = false;
     let escape = escape_shortcut();
