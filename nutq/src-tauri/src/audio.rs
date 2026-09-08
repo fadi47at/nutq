@@ -52,6 +52,9 @@ pub enum Capture {
 enum Cmd {
     Start(Option<String>, Sender<Result<()>>),
     Stop(Sender<Result<Capture>>),
+    /// Throw the capture away: the stream is dropped and the buffer cleared
+    /// without ever building a wav.
+    Cancel(Sender<Result<()>>),
 }
 
 pub struct Recorder {
@@ -89,6 +92,14 @@ impl Recorder {
     pub fn stop(&self) -> Result<Capture> {
         let (rtx, rrx) = mpsc::channel();
         self.tx.send(Cmd::Stop(rtx))?;
+        rrx.recv()?
+    }
+
+    /// Stops the stream and throws the capture away - a cancelled recording
+    /// never becomes a wav, touches a provider, or lands in history.
+    pub fn cancel(&self) -> Result<()> {
+        let (rtx, rrx) = mpsc::channel();
+        self.tx.send(Cmd::Cancel(rtx))?;
         rrx.recv()?
     }
 
@@ -175,6 +186,15 @@ fn audio_thread(rx: Receiver<Cmd>, level: Arc<AtomicU32>, device_name_out: Arc<M
                 };
                 buffer = Arc::new(Mutex::new(Vec::new()));
                 let _ = reply.send(result);
+            }
+
+            Cmd::Cancel(reply) => {
+                // Drop the stream and its buffer: a cancelled capture is
+                // never built into a wav, uploaded, or kept anywhere.
+                stream = None;
+                level.store(0f32.to_bits(), Ordering::Relaxed);
+                buffer = Arc::new(Mutex::new(Vec::new()));
+                let _ = reply.send(Ok(()));
             }
         }
     }

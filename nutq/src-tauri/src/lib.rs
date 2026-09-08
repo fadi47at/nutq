@@ -48,9 +48,9 @@ struct AppState {
     shortcuts: Mutex<(Option<Shortcut>, Option<Shortcut>)>,
     /// What each binding is actually doing, for the Settings page to show.
     hotkey_report: Mutex<HotkeyReport>,
-    /// Whether Escape is currently bound as the "end this recording and save
-    /// it" key. Only true while the mic is live; the rest of the time Escape
-    /// belongs to whatever app is being dictated into.
+    /// Whether Escape is currently bound as the "cancel this recording" key.
+    /// Only true while the mic is live; the rest of the time Escape belongs
+    /// to whatever app is being dictated into.
     escape_armed: Mutex<bool>,
 }
 
@@ -820,6 +820,29 @@ fn toggle_recording(app: &AppHandle, output: Output) {
     }
 }
 
+/// Escape pressed while the mic is live: throw the capture away. No
+/// transcription, no history row, no paste, no cost - the recording simply
+/// never happened, and nothing announces it (a cancelled dictation is the
+/// user's own "never mind", not an event worth interrupting them for).
+fn cancel_recording(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    if state.status() != Status::Recording {
+        return;
+    }
+    disarm_escape(app);
+    match state.recorder.cancel() {
+        Ok(()) => {
+            state.set_status(app, Status::Idle);
+            eprintln!("[nutq] recording cancelled with Escape - audio discarded");
+        }
+        Err(e) => {
+            eprintln!("[nutq] cancel failed: {e:#}");
+            state.set_status(app, Status::Idle);
+            emit_error(app, audio::friendly_error(&e));
+        }
+    }
+}
+
 async fn process(app: &AppHandle) -> anyhow::Result<()> {
     let state = app.state::<AppState>();
 
@@ -1192,20 +1215,13 @@ fn escape_shortcut() -> Shortcut {
     Shortcut::from_str("Escape").expect("Escape is a valid key name")
 }
 
-/// While the mic is live, Escape ends the session and keeps the clip - the
-/// same as pressing the hotkey again - instead of slipping through to
-/// whatever app is being dictated into, where it tends to close a dialog and
-/// take the dictation's destination with it.
-///
-/// Both the register and the unregister MUST run on the main thread: Windows
-/// delivers WM_HOTKEY to the thread that called RegisterHotKey, and only the
-/// main thread pumps that queue - a register from a worker thread succeeds
-/// and then silently never fires. And they must not run re-entrantly inside
-/// the plugin's own shortcut dispatch either, because that deadlocked the
-/// whole app. So the entry points hop to a worker first, which forces
-/// run_on_main_thread to enqueue for a later loop turn instead of running
-/// inline. If the user's own hotkey IS Escape, the normal handler already
-/// stops the recording and there is nothing to arm.
+/// While the mic is live, Escape cancels the session outright: no
+/// transcription, no history row, no paste, no cost. Without the binding the
+/// keystroke would slip through to whatever app is being dictated into,
+/// where it tends to close a dialog and take the dictation's destination
+/// with it. It is registered for the length of the recording only. If the
+/// user's own hotkey IS Escape, the normal handler already stops the
+/// recording and there is nothing to arm.
 fn arm_escape(app: &AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -1234,7 +1250,9 @@ fn arm_escape_now(app: &AppHandle) {
 }
 
 /// The recording is over (or about to be): hand Escape back to the system.
-/// Deferred for the same thread-affinity reasons as `arm_escape`.
+/// Deferred for the same thread-affinity and re-entrancy reasons as
+/// `arm_escape`: the register and unregister must happen on the main thread,
+/// but never inside the plugin's own shortcut dispatch.
 fn disarm_escape(app: &AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -1387,18 +1405,21 @@ pub fn run() {
                         return;
                     }
                     let state = app.state::<AppState>();
-                    let (main, draft) = *state.shortcuts.lock().unwrap();
 
+                    // Escape while the mic is live comes first, and it throws
+                    // the recording away - that is the whole point of the key.
+                    if *state.escape_armed.lock().unwrap() && shortcut == &escape_shortcut() {
+                        cancel_recording(app);
+                        return;
+                    }
+
+                    let (main, draft) = *state.shortcuts.lock().unwrap();
                     let output = if draft.as_ref() == Some(shortcut) {
                         Output::Draft
                     } else if main.as_ref() == Some(shortcut) {
                         // Whatever the user picked as the default for the
                         // plain hotkey.
                         state.settings.lock().unwrap().output
-                    } else if *state.escape_armed.lock().unwrap() && shortcut == &escape_shortcut() {
-                        // Escape while the mic is live: end the recording and
-                        // save the clip - a rescue key, not a discard.
-                        *state.pending_output.lock().unwrap()
                     } else {
                         return;
                     };
