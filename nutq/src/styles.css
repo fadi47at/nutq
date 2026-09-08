@@ -1,0 +1,1649 @@
+/*
+ * Two zones, like the reference: a dark sidebar rail and a light content area,
+ * with one dark "stage" island inside the light half for the recording panel.
+ *
+ * Tokens are scoped rather than global. `:root` carries the light content
+ * palette; `.sidebar` and `.stage` redefine the same names locally, so a
+ * component reads --text and gets whichever zone it happens to sit in.
+ */
+
+:root {
+  /* content zone (light) */
+  --bg: #f3f5f8;
+  --panel: #ffffff;
+  --panel-2: #eef1f5;
+  --line: #e1e6ed;
+  --text: #161b23;
+  --muted: #57626f;
+  --faint: #8895a4;
+  --accent: #0f9d76;
+  --accent-ink: #ffffff;
+  --danger: #c8384a;
+  --warn: #9a6400;
+  --shadow: 0 1px 2px rgba(22, 27, 35, 0.05), 0 6px 18px rgba(22, 27, 35, 0.04);
+
+  color-scheme: light;
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+}
+
+/* Both dark zones share one palette. */
+.sidebar,
+.stage {
+  --panel: #1c212b;
+  --panel-2: #232937;
+  --line: #2b3341;
+  --text: #e7ecf3;
+  --muted: #94a1b4;
+  --faint: #6c7a8c;
+  --accent: #2fd6a5;
+  --accent-ink: #06110d;
+  --danger: #ef6b6b;
+  --warn: #e5b062;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 11px;
+  outline: none;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(15, 157, 118, 0.13);
+}
+
+input:disabled,
+select:disabled {
+  background: var(--panel-2);
+  color: var(--faint);
+  cursor: not-allowed;
+}
+
+/* ---------------------------------------------------------------- shell */
+
+.shell {
+  display: grid;
+  grid-template-columns: 232px 1fr;
+  height: 100%;
+}
+
+.sidebar {
+  background: #12161d;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  padding: 22px 14px 14px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 8px 26px;
+}
+
+.brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(140deg, #2fd6a5, #1d8f6e);
+  display: grid;
+  place-items: center;
+  color: #06110d;
+  font-weight: 800;
+  font-size: 17px;
+}
+
+.brand-name {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+}
+
+.brand-sub {
+  font-size: 10.5px;
+  color: var(--faint);
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.nav-label {
+  font-size: 10.5px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--faint);
+  padding: 0 10px 9px;
+}
+
+.nav-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 11px 14px;
+  border-radius: 9px;
+  color: var(--muted);
+  font-weight: 500;
+  margin-bottom: 3px;
+}
+
+.nav-item:hover {
+  background: var(--panel);
+  color: var(--text);
+}
+
+.nav-item.active {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 650;
+}
+
+.sidebar-foot {
+  margin-top: auto;
+  border-top: 1px solid var(--line);
+  padding-top: 13px;
+}
+
+.status-chip {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 13px;
+  background: var(--panel);
+  border-radius: 9px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+
+.dot.busy {
+  background: var(--warn);
+  animation: pulse 1.1s ease-in-out infinite;
+}
+
+.dot.rec {
+  background: var(--danger);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.status-name {
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: capitalize;
+}
+
+.status-sub {
+  font-size: 11px;
+  color: var(--faint);
+}
+
+/* ---------------------------------------------------------------- main */
+
+.main {
+  overflow-y: auto;
+  padding: 30px 34px 40px;
+  background: var(--bg);
+}
+
+.eyebrow {
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+h1 {
+  font-size: 23px;
+  margin: 6px 0 4px;
+  letter-spacing: -0.02em;
+}
+
+.lede {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin: 0 0 16px;
+}
+
+h2 {
+  font-size: 15px;
+  margin: 0 0 14px;
+  letter-spacing: -0.01em;
+}
+
+/* ------------------------------------------------------------------ toasts */
+
+/* In the sidebar's reserved gap: no fixed positioning, no overlay, and no
+ * reflow of the page when one arrives or leaves. */
+.toasts {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 14px;
+}
+
+.toast {
+  border-radius: 9px;
+  padding: 9px 10px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  animation: toast-in 0.16s ease-out;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.toast-text {
+  /* The messages carry deliberate blank lines separating the cause, what the
+     provider said, and the URL. Collapsing them makes it one run-on. */
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.toast-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.toast-actions button {
+  font: inherit;
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+.toast-actions button:hover {
+  opacity: 1;
+}
+
+/* When the newest sidebar message arrived - the thing that makes "is this
+ * stale?" answerable at a glance. */
+.toast-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 3px;
+}
+
+/* Muted against the dark rail - a message should read, not shout. */
+.toast.warn {
+  background: rgba(229, 176, 98, 0.14);
+  border: 1px solid rgba(229, 176, 98, 0.35);
+  color: #e5b062;
+}
+
+.toast.error {
+  background: rgba(239, 107, 107, 0.14);
+  border: 1px solid rgba(239, 107, 107, 0.38);
+  color: #ef6b6b;
+}
+
+/* Provenance line under the latest result, matching a history row. */
+.result-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.banner {
+  display: flex;
+  /* Diagnostics run to several lines; centring them looks broken and hides
+     the first line behind the buttons on the right. */
+  align-items: flex-start;
+  gap: 12px;
+  padding: 13px 16px;
+  border-radius: 11px;
+  margin-bottom: 20px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.banner-text {
+  /* The messages carry deliberate blank lines separating the cause, what the
+     provider said, and the URL. Collapsing them makes the whole thing one
+     unreadable run-on. */
+  white-space: pre-wrap;
+  word-break: break-word;
+  flex: 1;
+  min-width: 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.banner-actions {
+  display: flex;
+  gap: 7px;
+  flex: none;
+}
+
+.banner.warn {
+  background: #fdf6e6;
+  border: 1px solid #eddcb4;
+  color: #7a5000;
+}
+
+.banner.error {
+  background: #fdeef0;
+  border: 1px solid #f2c6cd;
+  color: #9c2233;
+}
+
+.banner.ok {
+  background: #e9f8f2;
+  border: 1px solid #b8e5d4;
+  color: #0b6f53;
+}
+
+.banner button {
+  margin-left: auto;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.06);
+  flex: none;
+}
+
+/* Four figures across, collapsing to two on a narrow window. */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 12px;
+}
+
+@media (max-width: 860px) {
+  .stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.stage {
+  background: #131922;
+  color: var(--text);
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow: 0 6px 18px rgba(19, 25, 34, 0.14);
+}
+
+/* One row: control, state, level, mode. */
+.stage.bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.stage-copy {
+  flex: none;
+  min-width: 108px;
+}
+
+.stage-state {
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.stage-hint {
+  font-size: 11px;
+  color: var(--faint);
+  margin-top: 1px;
+}
+
+/* Takes the slack so the mode buttons stay pinned right. */
+.stage.bar .wave {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.stage-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12.5px;
+  color: var(--faint);
+}
+
+.stage-title {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.25;
+  margin: 20px 0 26px;
+  letter-spacing: -0.02em;
+}
+
+
+
+.mic {
+  width: 118px;
+  height: 118px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, #2fd6a5, #1d8f6e);
+  color: #06110d;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 0 0 9px rgba(47, 214, 165, 0.1);
+  transition: transform 0.15s, box-shadow 0.2s;
+}
+
+/* Inline size for the bar layout - the 118px circle was built for a panel
+ * that no longer exists. */
+.mic.small {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  box-shadow: 0 0 0 5px rgba(47, 214, 165, 0.1);
+}
+
+.mic:hover:not(:disabled) {
+  transform: scale(1.04);
+}
+
+.mic:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.mic.live {
+  background: radial-gradient(circle at 34% 28%, #ff8080, #c23c3c);
+  box-shadow: 0 0 0 9px rgba(239, 107, 107, 0.15);
+}
+
+.wave {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 26px;
+  margin-bottom: 22px;
+}
+
+.wave i {
+  width: 3px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+  display: block;
+}
+
+.wave.live i {
+  background: var(--accent);
+  animation: bounce 0.9s ease-in-out infinite;
+}
+
+@keyframes bounce {
+  50% {
+    height: 21px;
+  }
+}
+
+.mode-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.mode-label {
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.segmented {
+  display: flex;
+  background: var(--panel-2);
+  border-radius: 9px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.segmented button {
+  padding: 7px 14px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--muted);
+}
+
+.segmented button.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 650;
+}
+
+
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 11px 13px;
+  box-shadow: var(--shadow);
+}
+
+.card.accent {
+  background: #e9f8f2;
+  border-color: #c4e8da;
+}
+
+.card-label {
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.card-big {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.card-note {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 3px;
+  line-height: 1.45;
+}
+
+.result {
+  margin-top: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  padding: 19px 20px;
+  box-shadow: var(--shadow);
+}
+
+.result-head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 13px;
+  flex-wrap: wrap;
+}
+
+.pill {
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  background: var(--panel-2);
+  color: var(--muted);
+  padding: 4px 9px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.result-text {
+  white-space: pre-wrap;
+  line-height: 1.7;
+  font-size: 15px;
+  color: var(--text);
+  /* The tallest thing on the page on purpose: this is what the page is for. */
+  min-height: 190px;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.result-text.empty {
+  color: var(--faint);
+}
+
+.btn {
+  padding: 8px 15px;
+  border-radius: 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn.primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: transparent;
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: #0c8763;
+  color: var(--accent-ink);
+}
+
+/* Destructive confirm step: clear-history and per-entry delete both land on
+ * this after an explicit "are you sure", so it should read as final. */
+.btn.danger {
+  background: var(--danger);
+  color: #fff;
+  border-color: transparent;
+}
+
+.btn.danger:hover:not(:disabled) {
+  background: #b13241;
+  color: #fff;
+}
+
+.btn.ghost {
+  background: none;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.spacer {
+  margin-left: auto;
+}
+
+/* ---------------------------------------------------------------- forms */
+
+.field {
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  gap: 16px;
+  align-items: center;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.field:last-child {
+  border-bottom: none;
+}
+
+.field-name {
+  font-weight: 600;
+}
+
+.field-hint {
+  font-size: 12px;
+  color: var(--faint);
+  margin-top: 3px;
+  line-height: 1.45;
+  font-weight: 400;
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+}
+
+.row {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.switch {
+  width: 44px;
+  height: 25px;
+  border-radius: 13px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  position: relative;
+  flex: none;
+  transition: background 0.15s;
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: var(--faint);
+  transition: transform 0.15s, background 0.15s;
+}
+
+.switch.on {
+  background: var(--accent);
+  border-color: transparent;
+}
+
+.switch.on::after {
+  transform: translateX(19px);
+  background: #fff;
+}
+
+.link {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  padding: 0;
+}
+
+code {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 11.5px;
+  font-family: "Cascadia Mono", Consolas, monospace;
+}
+
+.tag-ok {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tag-missing {
+  color: #b06a00;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------- lists */
+
+.list-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 9px;
+  margin-bottom: 8px;
+}
+
+.icon-btn {
+  width: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+}
+
+.icon-btn:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.hist {
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 15px 17px;
+  margin-bottom: 10px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.hist-meta {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 11.5px;
+  color: var(--faint);
+  margin-bottom: 9px;
+  flex-wrap: wrap;
+}
+
+/* The model chain that produced this entry, e.g. "gemini-3.8-flash · backup → glm-5.3". */
+.hist-models {
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--panel-2);
+  border-radius: 6px;
+  padding: 2px 7px;
+}
+
+/* Provenance row: which mic this came from, and the clip itself. Sits between
+ * the meta line and the text so the text stays the thing you read first. */
+.hist-source {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.hist-mic {
+  font-size: 11.5px;
+  color: var(--muted);
+  background: var(--panel-2);
+  border-radius: 6px;
+  padding: 3px 8px;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The native control, toned down to the page: full width would dwarf the
+ * entry, and the default light chrome fights the panel. */
+.hist-audio {
+  height: 30px;
+  max-width: 320px;
+  flex: 1 1 240px;
+}
+
+.hist-audio-error {
+  font-size: 11.5px;
+  color: var(--danger);
+}
+
+.hist-text {
+  white-space: pre-wrap;
+  line-height: 1.6;
+  max-height: 130px;
+  overflow: hidden;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--faint);
+}
+
+/* ----------------------------------------------------------- logs page */
+
+/* One filed warning/error. Lighter than a history row - these are read once
+ * for context, not revisited like dictations. */
+.log-row {
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 13px 15px;
+  margin-bottom: 9px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.log-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 7px;
+}
+
+.log-level.warning {
+  background: #fdf3e2;
+  color: #9a6400;
+}
+
+.log-level.error {
+  background: #fdeef0;
+  color: #c8384a;
+}
+
+.log-time {
+  font-size: 11px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.log-msg {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--muted);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* ------------------------------------------------------------ usage chart */
+
+/* The daily-usage card at the top of History. One toggle switches between
+ * two faces of the same buckets: "Charts" (two stacked bar panels on a real
+ * SVG axis) and "Analysis" (heat strips, per-model table, computed notes). */
+.usage-card {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  padding: 15px 17px 13px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+
+.usage-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.usage-title {
+  font-size: 10.5px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: 700;
+}
+
+.usage-totals {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.usage-chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* The hover readout both views feed. Anchored to the card, so it can never
+ * spill past the card's rounded corners. */
+.usage-tip {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  max-width: 250px;
+  background: #161b23;
+  color: #e7ecf3;
+  border-radius: 9px;
+  padding: 9px 12px;
+  font-size: 12px;
+  line-height: 1.55;
+  box-shadow: 0 6px 20px rgba(22, 27, 35, 0.28);
+  font-variant-numeric: tabular-nums;
+}
+
+.usage-tip b {
+  display: block;
+  font-size: 12.5px;
+  margin-bottom: 3px;
+}
+
+.usage-tip .tip-total {
+  display: block;
+  color: #94a1b4;
+  margin-bottom: 5px;
+}
+
+.usage-tip .tip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.usage-tip .tip-row i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2.5px;
+  flex: none;
+}
+
+/* The Analysis view: two aligned heat strips (audio, then requests), the
+ * per-model table, and the auto-computed notes underneath. */
+.ledger-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 2px 0 7px;
+}
+
+.ledger-label span {
+  color: var(--faint);
+  font-weight: 400;
+  font-size: 11px;
+}
+
+.ledger-strip {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 4px;
+}
+
+.ledger-cell {
+  height: 26px;
+  border-radius: 5px;
+  cursor: default;
+}
+
+.ledger-cell.mini {
+  height: 14px;
+  border-radius: 4px;
+}
+
+.ledger-hours {
+  display: grid;
+  gap: 3px;
+  margin: 2px 0 18px;
+  font-size: 10px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger-hours span {
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.ledger-table-wrap {
+  overflow-x: auto;
+  margin: 4px 0 16px;
+}
+
+.ledger-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ledger-table th {
+  text-align: left;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--faint);
+  font-weight: 700;
+  padding: 0 10px 7px 0;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.ledger-table td {
+  padding: 9px 10px 9px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.ledger-table td:last-child {
+  width: 30%;
+  min-width: 130px;
+}
+
+.ledger-table em {
+  font-style: normal;
+  color: var(--faint);
+  font-size: 11px;
+  margin-left: 5px;
+}
+
+.ledger-model {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.ledger-model i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.ledger-share {
+  height: 9px;
+  border-radius: 5px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+
+.ledger-share span {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+}
+
+/* Which color belongs to which model. */
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 14px;
+  margin-top: 9px;
+}
+
+.chart-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chart-key i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2.5px;
+  flex: none;
+}
+
+/* The Analysis notes: one line per computed observation, each with a quiet
+ * accent dot. Values carry the weight, so the sentences stay muted. */
+.usage-reads {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.usage-reads li {
+  position: relative;
+  padding-left: 18px;
+  margin-bottom: 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.usage-reads li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0.5em;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.8;
+}
+
+.usage-reads b {
+  color: var(--text);
+  font-weight: 650;
+}
+
+/* ---------------------------------------------------------------- pager */
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 13px;
+  margin: 16px 0 4px;
+}
+
+.pager-info {
+  font-size: 11.5px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------- dialog */
+
+/* Clearing history is irreversible, so its confirmation is a real modal
+ * rather than buttons swapping in place - an inline change can be clicked
+ * through on momentum, a dimmed page cannot. */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 19, 26, 0.48);
+  display: grid;
+  place-items: center;
+  z-index: 60;
+}
+
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 20px 22px;
+  width: min(430px, calc(100vw - 70px));
+  box-shadow: 0 18px 50px rgba(22, 27, 35, 0.28);
+}
+
+.modal-title {
+  font-size: 15.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 8px;
+}
+
+.modal-text {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* The chart's range filter, compact enough to sit in the card header. */
+.segmented.small button {
+  padding: 4px 10px;
+  font-size: 11.5px;
+  border-radius: 6px;
+}
+
+/* ------------------------------------------------------------ settings tabs */
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 14px;
+  padding: 3px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  /* Five names fit a normal window; a narrow one scrolls rather than wraps
+     into a second row that shifts everything below it. */
+  overflow-x: auto;
+}
+
+.tab {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 7px 13px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.tab.on {
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+.section {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  padding: 4px 18px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow);
+}
+
+.section-title {
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+  padding: 14px 0 2px;
+  font-weight: 700;
+}
+
+/* ------------------------------------------------------ diagnostics box */
+
+.diag {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 13px 15px;
+  margin: 0 0 14px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  background: var(--panel-2);
+}
+
+.diag.ok {
+  background: #e9f8f2;
+  border-color: #b8e5d4;
+}
+
+.diag.bad {
+  background: #fdeef0;
+  border-color: #f2c6cd;
+}
+
+.diag-title {
+  font-weight: 700;
+  margin-bottom: 5px;
+}
+
+.diag-detail {
+  color: var(--muted);
+  word-break: break-word;
+}
+
+.diag-url {
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 11.5px;
+  color: var(--muted);
+  word-break: break-all;
+  margin-top: 5px;
+}
+
+/* --------------------------------------------------------- provider budget */
+
+/* Sits inside the dark stage panel under the stat cards, so it reads as part
+ * of the same summary rather than a separate widget. */
+.quota {
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px solid var(--line);
+}
+
+.quota-block + .quota-block {
+  margin-top: 13px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+/* A day's progress reads faster as a bar than as a percentage. */
+.quota-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--panel-2);
+  margin-top: 10px;
+  overflow: hidden;
+}
+
+.quota-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+/* Only appears when the instantaneous allowance is actually close. */
+.quota-tight {
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: var(--warn);
+}
+
+.quota-none {
+  font-size: 11.5px;
+  color: var(--faint);
+}
+
+.quota-head {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-bottom: 9px;
+}
+
+.quota-at {
+  color: var(--faint);
+  margin-left: 5px;
+}
+
+.quota-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+}
+
+.quota-kind {
+  font-size: 11px;
+  color: var(--faint);
+  text-transform: capitalize;
+}
+
+.quota-nums {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.quota-nums b {
+  color: var(--accent);
+}
+
+.quota-reset {
+  font-size: 10.5px;
+  color: var(--faint);
+}
+
+/* ------------------------------------------------------------- hotkey field */
+
+.hotkey-field {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: 220px;
+}
+
+/* Reads as an input, behaves as a button: clicking it starts listening. */
+.hotkey-capture {
+  font: inherit;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 13px;
+  min-width: 160px;
+  cursor: pointer;
+}
+
+.hotkey-capture:hover {
+  border-color: var(--faint);
+}
+
+.hotkey-capture.capturing {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--panel);
+}
+
+.hotkey-note {
+  font-size: 11px;
+  text-align: right;
+  max-width: 300px;
+}
+
+/* The spec as stored, so what got saved is never a mystery. */
+.hotkey-raw {
+  font-family: "Cascadia Mono", Consolas, monospace;
+  color: var(--faint);
+}
+
+.hotkey-bad {
+  color: var(--danger);
+}
+
+/* ------------------------------------------------------ recording overlay */
+
+/* The pill floats in its own window, and that window is exactly the pill: it
+ * is sized to this content and clipped to a rounded region on the Rust side,
+ * so there is no surface around the pill to show. Which means the page must
+ * fill its window edge to edge - any margin here would reappear as a visible
+ * dark rim. Solid rather than transparent on purpose: a transparent WebView2
+ * surface composites unreliably here, and an invisible indicator is worse
+ * than a plain one. */
+body.overlay-mode {
+  background: #12161d;
+  overflow: hidden;
+}
+
+.overlay-root {
+  height: 100%;
+}
+
+/* Compact whisper-style capture pill: dot, waveform, timer. */
+.overlay-pill {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  padding: 0 15px;
+  /* Matches the window region's corner radius (half its height), so the clip
+   * follows this edge instead of cutting across it. */
+  border-radius: 999px;
+  background: #12161d;
+  border: 1px solid #2b3341;
+  color: #e7ecf3;
+}
+
+.overlay-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef6b6b;
+  flex: none;
+  animation: overlay-pulse 1.1s ease-in-out infinite;
+}
+
+/* Amber: either a working state (transcribing/refining) or a mic that has
+ * been silent for over a second. */
+.overlay-dot.warn {
+  background: #e5b062;
+}
+
+@keyframes overlay-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.overlay-label {
+  font-weight: 600;
+  font-size: 12.5px;
+  letter-spacing: 0.01em;
+}
+
+.overlay-wave {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 20px;
+}
+
+.overlay-wave i {
+  width: 3px;
+  border-radius: 1.5px;
+  background: #2fd6a5;
+  transition: height 0.07s linear;
+}
+
+.overlay-timer {
+  font-variant-numeric: tabular-nums;
+  color: #94a1b4;
+  font-size: 12px;
+}
+
+/* --------------------------------------------------------- pending retries */
+
+.pending-box {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  padding: 14px 18px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow);
+}
+
+.pending-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.pending-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.pending-info {
+  min-width: 0;
+}
+
+.pending-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.pending-err {
+  color: var(--danger);
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}

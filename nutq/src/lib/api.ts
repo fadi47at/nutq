@@ -1,0 +1,440 @@
+import { invoke as tauriInvoke } from "@tauri-apps/api/core";
+import { listen as tauriListen, type UnlistenFn } from "@tauri-apps/api/event";
+import { mockInvoke, useMock } from "./devMock";
+
+/** Real Tauri command, or the dev mock when running in a plain browser. */
+function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  return useMock() ? mockInvoke<T>(cmd, args) : tauriInvoke<T>(cmd, args);
+}
+
+function listen<T>(event: string, fn: (e: { payload: T }) => void): Promise<UnlistenFn> {
+  return useMock() ? Promise.resolve(() => {}) : tauriListen<T>(event, fn);
+}
+
+export type Mode = "natural" | "verbatim" | "spec" | "summary";
+export type Output = "instant" | "draft";
+export type Status = "idle" | "recording" | "transcribing" | "refining";
+
+export interface DictEntry {
+  from: string;
+  to: string;
+}
+
+export interface Snippet {
+  trigger: string;
+  text: string;
+}
+
+export type SttProvider = "gemini" | "eleven_labs" | "openai_compatible";
+export type RefineProvider = "anthropic" | "gemini" | "openai_compatible";
+
+export interface Settings {
+  hotkey: string;
+  draftHotkey: string;
+  mode: Mode;
+  output: Output;
+  microphone: string;
+  sttProvider: SttProvider;
+  sttModel: string;
+  sttBaseUrl: string;
+  sttBackupEnabled: boolean;
+  sttBackupProvider: SttProvider;
+  sttBackupModel: string;
+  refineProvider: RefineProvider;
+  refineModel: string;
+  refineBaseUrl: string;
+  /** Anthropic-compatible base for the Claude provider; empty = official API. */
+  refineAnthropicBaseUrl: string;
+  refineBackupEnabled: boolean;
+  refineBackupProvider: RefineProvider;
+  refineBackupModel: string;
+  refineEnabled: boolean;
+  languageHint: string;
+  dictionary: DictEntry[];
+  snippets: Snippet[];
+  playSounds: boolean;
+  /** Keep each recording on disk so it can be replayed from History. */
+  saveAudio: boolean;
+}
+
+/** The Rust structs are snake_case on the wire; the UI speaks camelCase. */
+interface RawSettings {
+  hotkey: string;
+  draft_hotkey: string;
+  mode: Mode;
+  output: Output;
+  microphone: string;
+  stt_provider: SttProvider;
+  stt_model: string;
+  stt_base_url: string;
+  stt_backup_enabled: boolean;
+  stt_backup_provider: SttProvider;
+  stt_backup_model: string;
+  refine_provider: RefineProvider;
+  refine_model: string;
+  refine_base_url: string;
+  refine_anthropic_base_url: string;
+  refine_backup_enabled: boolean;
+  refine_backup_provider: RefineProvider;
+  refine_backup_model: string;
+  refine_enabled: boolean;
+  language_hint: string;
+  dictionary: DictEntry[];
+  snippets: Snippet[];
+  play_sounds: boolean;
+  save_audio: boolean;
+}
+
+const toUi = (r: RawSettings): Settings => ({
+  hotkey: r.hotkey,
+  draftHotkey: r.draft_hotkey,
+  mode: r.mode,
+  output: r.output,
+  microphone: r.microphone,
+  sttProvider: r.stt_provider,
+  sttModel: r.stt_model,
+  sttBaseUrl: r.stt_base_url,
+  sttBackupEnabled: r.stt_backup_enabled,
+  sttBackupProvider: r.stt_backup_provider,
+  sttBackupModel: r.stt_backup_model,
+  refineProvider: r.refine_provider,
+  refineModel: r.refine_model,
+  refineBaseUrl: r.refine_base_url,
+  refineAnthropicBaseUrl: r.refine_anthropic_base_url,
+  refineBackupEnabled: r.refine_backup_enabled,
+  refineBackupProvider: r.refine_backup_provider,
+  refineBackupModel: r.refine_backup_model,
+  refineEnabled: r.refine_enabled,
+  languageHint: r.language_hint,
+  dictionary: r.dictionary,
+  snippets: r.snippets,
+  playSounds: r.play_sounds,
+  saveAudio: r.save_audio,
+});
+
+const toRust = (s: Settings): RawSettings => ({
+  hotkey: s.hotkey,
+  draft_hotkey: s.draftHotkey,
+  mode: s.mode,
+  output: s.output,
+  microphone: s.microphone,
+  stt_provider: s.sttProvider,
+  stt_model: s.sttModel,
+  stt_base_url: s.sttBaseUrl,
+  stt_backup_enabled: s.sttBackupEnabled,
+  stt_backup_provider: s.sttBackupProvider,
+  stt_backup_model: s.sttBackupModel,
+  refine_provider: s.refineProvider,
+  refine_model: s.refineModel,
+  refine_base_url: s.refineBaseUrl,
+  refine_anthropic_base_url: s.refineAnthropicBaseUrl,
+  refine_backup_enabled: s.refineBackupEnabled,
+  refine_backup_provider: s.refineBackupProvider,
+  refine_backup_model: s.refineBackupModel,
+  refine_enabled: s.refineEnabled,
+  language_hint: s.languageHint,
+  dictionary: s.dictionary,
+  snippets: s.snippets,
+  play_sounds: s.playSounds,
+  save_audio: s.saveAudio,
+});
+
+export interface HistoryEntry {
+  id: string;
+  at: string;
+  mode: Mode;
+  raw: string;
+  refined: string;
+  seconds: number;
+  cost_usd: number;
+  /** Which model actually did each stage; absent on older entries. */
+  stt_model?: string;
+  stt_via_backup?: boolean;
+  refine_model?: string;
+  refine_via_backup?: boolean;
+  /** The microphone the audio actually came from; absent on older entries. */
+  microphone?: string;
+  /** Set when the recording was kept and is still on disk. */
+  audio_file?: string | null;
+}
+
+export interface ResultPayload {
+  refined: string;
+  mode: Mode;
+  output: Output;
+  seconds: number;
+  cost_usd: number;
+}
+
+/** One budget a provider reports, in whatever unit it bills by. */
+export interface QuotaItem {
+  /** The provider's own name for it, e.g. "audio-seconds" or "requests". */
+  kind: string;
+  limit: string;
+  remaining: string;
+  /** Time until it refills, as reported: "7.66s", "2m59.56s". */
+  reset: string;
+}
+
+/** One provider's last reported budget. Keyed by host, so the primary and the
+ *  backup each get their own reading instead of overwriting one another. */
+export interface Quota {
+  host: string;
+  at: string;
+  /** Requests this app sent to this host since it started - a cross-check
+   *  against the provider's own count. */
+  sent_this_session: number;
+  /** Requests sent to this host today, across restarts - the running total a
+   *  refilling provider allowance cannot report. */
+  sent_today: number;
+  items: QuotaItem[];
+}
+
+export interface Usage {
+  month_cost: number;
+  month_count: number;
+  today_count: number;
+  today_audio_seconds: number;
+  cost_complete: boolean;
+}
+
+/** The chart's range filters. "day" is hour-by-hour for today; the rest are
+ *  trailing windows of whole days ending today. */
+export type UsageRange = "day" | "week" | "month" | "quarter";
+
+/** One model's share of a usage bucket, for the stacked bar segments. */
+export interface UsageSlice {
+  /** STT model name; "unknown" on entries that predate model tracking. */
+  model: string;
+  count: number;
+  seconds: number;
+}
+
+/** One bar of the usage chart: an hour of today or a whole day. */
+export interface UsageBucket {
+  /** "HH:00" for the day range, "YYYY-MM-DD" otherwise. */
+  label: string;
+  count: number;
+  seconds: number;
+  /** The same two numbers split per STT model. */
+  models: UsageSlice[];
+}
+
+/** A failed call parked for retry: audio (stage 1) or transcript (stage 2). */
+export interface PendingEntry {
+  id: string;
+  created_at: string;
+  stage: "transcription" | "refinement" | string;
+  error: string;
+  seconds: number;
+  mode: Mode;
+  output: Output;
+  microphone?: string;
+  wav_file: string | null;
+  transcript: string | null;
+}
+
+/** One filed warning or error, newest first in the list. */
+export interface LogEntry {
+  id: string;
+  at: string;
+  level: "warning" | "error";
+  message: string;
+}
+
+/** Credential slot name -> whether a key is saved for it. */
+export type KeyStatus = Record<string, boolean>;
+
+/** Which credential slot each provider reads. Mirrors `key_slot()` in Rust. */
+export const STT_KEY_SLOT: Record<SttProvider, string> = {
+  gemini: "gemini",
+  eleven_labs: "elevenlabs",
+  openai_compatible: "stt_custom",
+};
+
+export const REFINE_KEY_SLOT: Record<RefineProvider, string> = {
+  anthropic: "anthropic",
+  gemini: "gemini",
+  openai_compatible: "refine_custom",
+};
+
+export const STT_PROVIDERS: {
+  id: SttProvider;
+  name: string;
+  hint: string;
+  models: string[];
+  custom: boolean;
+}[] = [
+  {
+    id: "gemini",
+    name: "Gemini",
+    hint: "Best on Levantine Arabic mixed with English. Takes audio directly.",
+    models: ["gemini-3.5-flash", "gemini-3.5-pro", "gemini-3.5-flash-lite"],
+    custom: false,
+  },
+  {
+    id: "eleven_labs",
+    name: "ElevenLabs Scribe",
+    hint: "Purpose-built transcriber, strong multilingual accuracy.",
+    models: ["scribe_v1"],
+    custom: false,
+  },
+  {
+    id: "openai_compatible",
+    name: "Any OpenAI-compatible endpoint",
+    hint: "POST {base}/audio/transcriptions — OpenAI, Groq, a local whisper server.",
+    models: [],
+    custom: true,
+  },
+];
+
+export const REFINE_PROVIDERS: {
+  id: RefineProvider;
+  name: string;
+  hint: string;
+  models: string[];
+  custom: boolean;
+}[] = [
+  {
+    id: "anthropic",
+    name: "Claude",
+    hint:
+      "The official Anthropic API, or an Anthropic-compatible base URL (GLM's coding endpoint).",
+    models: ["claude-opus-5", "claude-sonnet-5", "claude-haiku-4-5"],
+    custom: false,
+  },
+  {
+    id: "gemini",
+    name: "Gemini",
+    hint: "Reuses the Gemini key, so one provider covers both stages.",
+    models: ["gemini-3.5-flash", "gemini-3.5-pro"],
+    custom: false,
+  },
+  {
+    id: "openai_compatible",
+    name: "Any OpenAI-compatible endpoint",
+    hint: "POST {base}/chat/completions — GLM, DeepSeek, OpenRouter, Groq, local servers.",
+    models: [],
+    custom: true,
+  },
+];
+
+/**
+ * Shown under the endpoint field so the URL shape is not a guessing game.
+ *
+ * GLM is listed twice on purpose: Zhipu runs a mainland-China endpoint and an
+ * international one, each with its own accounts and keys. A key issued for one
+ * is rejected by the other with a plain 401, which reads exactly like a bad
+ * key — so the international host is listed first, being the one most accounts
+ * outside China are actually on.
+ */
+export const ENDPOINT_EXAMPLES = [
+  { name: "GLM · international", url: "https://api.z.ai/api/paas/v4" },
+  { name: "GLM · China", url: "https://open.bigmodel.cn/api/paas/v4" },
+  { name: "DeepSeek", url: "https://api.deepseek.com/v1" },
+  { name: "OpenRouter", url: "https://openrouter.ai/api/v1" },
+  { name: "Groq", url: "https://api.groq.com/openai/v1" },
+  { name: "OpenAI", url: "https://api.openai.com/v1" },
+];
+
+/**
+ * Claude-protocol bases for services that are not Anthropic but speak its
+ * Messages API. The GLM coding plan key only works here - pasting it at the
+ * official endpoint is the classic "invalid x-api-key" surprise.
+ */
+export const ANTHROPIC_BASE_EXAMPLES = [
+  { name: "GLM · coding plan", url: "https://api.z.ai/api/anthropic" },
+];
+
+/** What one binding is actually doing right now. */
+export interface HotkeyState {
+  spec: string;
+  bound: boolean;
+  error: string;
+  /** Non-empty when this was reset at startup because the saved spec was unusable. */
+  reset_from: string;
+}
+
+export interface HotkeyReport {
+  dictate: HotkeyState;
+  draft: HotkeyState;
+}
+
+export interface TestResult {
+  ok: boolean;
+  message: string;
+}
+
+export const api = {
+  async getSettings(): Promise<Settings> {
+    return toUi(await invoke<RawSettings>("get_settings"));
+  },
+  async saveSettings(s: Settings): Promise<void> {
+    return invoke("update_settings", { next: toRust(s) });
+  },
+  setMode: (mode: Mode) => invoke<void>("set_mode", { mode }),
+  setApiKey: (provider: string, key: string) =>
+    invoke<void>("set_api_key", { provider, key }),
+  keyStatus: () => invoke<KeyStatus>("key_status"),
+  listMicrophones: () => invoke<string[]>("list_microphones"),
+  /** Validates a hotkey spec without binding it. Rejects with the reason. */
+  checkHotkey: (spec: string) => invoke<void>("check_hotkey", { spec }),
+  /** Whether each hotkey is actually bound, and what went wrong if not. */
+  hotkeyStatus: () => invoke<HotkeyReport>("hotkey_status"),
+  getHistory: () => invoke<HistoryEntry[]>("get_history"),
+  /** Newest entry only - what the home page shows as the last result. */
+  getLatest: () => invoke<HistoryEntry | null>("get_latest"),
+  /** The kept recording for one entry, base64 wav. Rejects when it is gone. */
+  getHistoryAudio: (id: string) => invoke<string>("get_history_audio", { id }),
+  clearHistory: () => invoke<void>("clear_history"),
+  /** Removes one entry and its recording. */
+  deleteHistoryEntry: (id: string) => invoke<void>("delete_history_entry", { id }),
+  /** Usage buckets for the selected chart range: hours of today, or whole
+   *  days for week/month/quarter. */
+  getHistoryStats: (range: UsageRange) => invoke<UsageBucket[]>("get_history_stats", { range }),
+  getUsage: () => invoke<Usage>("get_usage"),
+  /** Allowance left on each provider's key, read from reply headers. */
+  getQuota: () => invoke<Quota[]>("get_quota"),
+  copyText: (text: string) => invoke<void>("copy_text", { text }),
+  getStatus: () => invoke<Status>("get_status"),
+  toggle: (output: Output) => invoke<void>("toggle", { output }),
+  /** Runs one real request against a stage's provider. `stage` is "stt" | "refine". */
+  testProvider: (stage: "stt" | "refine") =>
+    invoke<TestResult>("test_provider", { stage }),
+  /** Model names this key can actually reach. Rejects with a diagnostic string. */
+  listModels: (stage: "stt" | "refine") => invoke<string[]>("list_models", { stage }),
+  getPending: () => invoke<PendingEntry[]>("get_pending"),
+  retryPending: (id: string) => invoke<void>("retry_pending", { id }),
+  discardPending: (id: string) => invoke<void>("discard_pending", { id }),
+  /** Persistent warnings/errors, newest first. */
+  getLogs: () => invoke<LogEntry[]>("get_logs"),
+  clearLogs: () => invoke<void>("clear_logs"),
+  /** Diagnostics: reports the overlay webview is alive and what it sees. */
+  overlayAlive: (status: string) => invoke<void>("overlay_alive", { status }),
+  /** Status + live mic level in one call, for the overlay's poll loop. */
+  overlayState: () => invoke<{ status: Status; level: number }>("overlay_state"),
+};
+
+export const events = {
+  onStatus: (fn: (s: Status) => void): Promise<UnlistenFn> =>
+    listen<Status>("status", (e) => fn(e.payload)),
+  onResult: (fn: (r: ResultPayload) => void): Promise<UnlistenFn> =>
+    listen<ResultPayload>("result", (e) => fn(e.payload)),
+  onError: (fn: (m: string) => void): Promise<UnlistenFn> =>
+    listen<string>("error", (e) => fn(e.payload)),
+  onWarning: (fn: (m: string) => void): Promise<UnlistenFn> =>
+    listen<string>("warning", (e) => fn(e.payload)),
+  /** Live mic loudness (RMS 0..1), ~30 Hz while recording. */
+  onLevel: (fn: (v: number) => void): Promise<UnlistenFn> =>
+    listen<number>("level", (e) => fn(e.payload)),
+  /** The pending-retry list changed: a job was added, finished, or dropped. */
+  onPendingChanged: (fn: () => void): Promise<UnlistenFn> =>
+    listen<null>("pending-changed", () => fn()),
+};
+
+export const MODE_LABELS: Record<Mode, { name: string; hint: string }> = {
+  natural: { name: "Natural", hint: "Filler and false starts removed" },
+  verbatim: { name: "Verbatim", hint: "Exactly as spoken, punctuation fixed" },
+  spec: { name: "Spec", hint: "Rambling idea to a structured brief" },
+  summary: { name: "Summary", hint: "Tight bullet points" },
+};

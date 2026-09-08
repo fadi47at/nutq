@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "nutq-ui",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "nutq", "run", "dev"],
+      "port": 1420
+    }
+  ]
+}
