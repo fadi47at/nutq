@@ -153,7 +153,10 @@ select:disabled {
 }
 
 .nav-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
   width: 100%;
   text-align: left;
   padding: 11px 14px;
@@ -161,6 +164,24 @@ select:disabled {
   color: var(--muted);
   font-weight: 500;
   margin-bottom: 3px;
+}
+
+.nav-ico {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+/* Unseen-log signal for the folded rail; hidden while the toast that carries
+ * the text is visible. */
+.nav-dot {
+  display: none;
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
 }
 
 .nav-item:hover {
@@ -313,6 +334,53 @@ h2 {
 
 .toast-actions button:hover {
   opacity: 1;
+}
+
+/* Compact mode: below 760px the window is too narrow to spend 232px on a
+ * text sidebar, so the rail folds to icons only. The signals survive the
+ * fold - the status chip keeps its dot, and unseen warnings keep the Logs
+ * dot (hover either for the text). This query lives after the sidebar and
+ * toast rules so its display:none wins the cascade. */
+@media (max-width: 760px) {
+  .shell {
+    grid-template-columns: 62px 1fr;
+  }
+
+  .sidebar {
+    padding: 16px 9px 12px;
+  }
+
+  .brand {
+    justify-content: center;
+    padding: 0 0 18px;
+  }
+
+  .brand-name,
+  .brand-sub,
+  .nav-label,
+  .nav-txt,
+  .toasts,
+  .status-txt {
+    display: none;
+  }
+
+  .nav-item {
+    justify-content: center;
+    padding: 11px 0;
+  }
+
+  .nav-dot {
+    display: block;
+  }
+
+  .status-chip {
+    justify-content: center;
+    padding: 10px 0;
+  }
+
+  .main {
+    padding: 18px 16px 30px;
+  }
 }
 
 /* When the newest sidebar message arrived - the thing that makes "is this

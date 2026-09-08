@@ -16,8 +16,8 @@
         "title": "nutq",
         "width": 1100,
         "height": 760,
-        "minWidth": 900,
-        "minHeight": 620,
+        "minWidth": 400,
+        "minHeight": 540,
         "resizable": true,
         "center": true,
         "theme": "Dark"

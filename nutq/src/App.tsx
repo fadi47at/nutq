@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactElement } from "react";
 import {
   api,
   events,
@@ -18,6 +18,37 @@ import HistoryView from "./views/HistoryView";
 import LogsView from "./views/LogsView";
 
 type View = "home" | "history" | "settings" | "logs";
+
+/** One drawn glyph per page, so the sidebar can fold to a rail of icons when
+ *  the window gets phone-sized. Stroke-based on a 20px grid. */
+const NAV_ICONS: Record<View, ReactElement> = {
+  home: (
+    <>
+      <path d="M3.6 10.1 10 4.4l6.4 5.7" />
+      <path d="M5.4 9.2v7.2h9.2V9.2" />
+    </>
+  ),
+  history: (
+    <>
+      <circle cx="10" cy="10" r="6.3" />
+      <path d="M10 6.7V10l2.4 1.6" />
+    </>
+  ),
+  settings: (
+    <>
+      <path d="M4.2 6.2h11.6M4.2 10h11.6M4.2 13.8h11.6" />
+      <circle cx="8" cy="6.2" r="1.7" />
+      <circle cx="12.6" cy="10" r="1.7" />
+      <circle cx="7.2" cy="13.8" r="1.7" />
+    </>
+  ),
+  logs: (
+    <>
+      <rect x="4.6" y="3.6" width="10.8" height="12.8" rx="1.6" />
+      <path d="M7.4 7.4h5.2M7.4 10h5.2M7.4 12.6h3.2" />
+    </>
+  ),
+};
 
 const STATUS_SUB: Record<Status, string> = {
   idle: "waiting for your hotkey",
@@ -112,6 +143,9 @@ export default function App() {
       ? `The dictate hotkey ${prettyHotkey(dictate.spec)} is not active. ${dictate.error}`
       : null;
   const missingKeys = missingStt || missingRefine;
+  /** Shared by the sidebar toast and the Logs rail dot: something the user
+   *  has not dismissed yet. */
+  const latestLog = logs.find((l) => !dismissed.includes(l.id));
 
   return (
     <div className="shell">
@@ -137,8 +171,30 @@ export default function App() {
             key={id}
             className={`nav-item${view === id ? " active" : ""}`}
             onClick={() => setView(id)}
+            title={label}
           >
-            {label}
+            <svg
+              className="nav-ico"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.7}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              {NAV_ICONS[id]}
+            </svg>
+            <span className="nav-txt">{label}</span>
+            {id === "logs" && latestLog && (
+              <span
+                className="nav-dot"
+                style={{
+                  background: latestLog.level === "error" ? "var(--danger)" : "var(--warn)",
+                }}
+                title={latestLog.message}
+              />
+            )}
           </button>
         ))}
 
@@ -154,28 +210,24 @@ export default function App() {
          * a provider problem that was worked around is still something the
          * user asked to see. The full list lives on the Logs page. */}
         <div className="toasts">
-          {(() => {
-            const latest = logs.find((l) => !dismissed.includes(l.id));
-            if (!latest) return null;
-            return (
-              <div className={`toast ${latest.level}`}>
-                <div className="toast-head">
-                  <span className="log-time">{latest.at}</span>
-                </div>
-                <div className="toast-text">{latest.message}</div>
-                <div className="toast-actions">
-                  <button onClick={() => void api.copyText(latest.message)}>
-                    Copy
-                  </button>
-                  <button
-                    onClick={() => setDismissed((d) => [...d, latest.id])}
-                  >
-                    Dismiss
-                  </button>
-                </div>
+          {latestLog ? (
+            <div className={`toast ${latestLog.level}`}>
+              <div className="toast-head">
+                <span className="log-time">{latestLog.at}</span>
               </div>
-            );
-          })()}
+              <div className="toast-text">{latestLog.message}</div>
+              <div className="toast-actions">
+                <button onClick={() => void api.copyText(latestLog.message)}>
+                  Copy
+                </button>
+                <button
+                  onClick={() => setDismissed((d) => [...d, latestLog.id])}
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <div className="sidebar-foot">
@@ -186,7 +238,7 @@ export default function App() {
                 (status === "recording" ? " rec" : status === "idle" ? "" : " busy")
               }
             />
-            <div>
+            <div className="status-txt">
               <div className="status-name">{status}</div>
               <div className="status-sub">{STATUS_SUB[status]}</div>
             </div>
