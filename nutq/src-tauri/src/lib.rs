@@ -796,7 +796,15 @@ fn toggle_recording(app: &AppHandle, output: Output) {
                     *state.pending_output.lock().unwrap() = output;
                     *state.pending_mic.lock().unwrap() = state.recorder.current_device();
                     state.set_status(app, Status::Recording);
-                    arm_escape(app);
+                    // arm_escape must not run on this thread: we are inside
+                    // the plugin's own shortcut dispatch, and registering a
+                    // shortcut re-entrantly there deadlocked the main thread
+                    // (frozen window, ghosted tray, black overlay pill).
+                    // Off-thread, the plugin's lock is free to take it.
+                    let app2 = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        arm_escape(&app2);
+                    });
                 }
                 Err(e) => {
                     eprintln!("[nutq] start failed: {e:#}");
