@@ -48,6 +48,10 @@ struct AppState {
     shortcuts: Mutex<(Option<Shortcut>, Option<Shortcut>)>,
     /// What each binding is actually doing, for the Settings page to show.
     hotkey_report: Mutex<HotkeyReport>,
+    /// Whether Escape is currently bound as the "end this recording and save
+    /// it" key. Only true while the mic is live; the rest of the time Escape
+    /// belongs to whatever app is being dictated into.
+    escape_armed: Mutex<bool>,
 }
 
 impl AppState {
@@ -792,6 +796,7 @@ fn toggle_recording(app: &AppHandle, output: Output) {
                     *state.pending_output.lock().unwrap() = output;
                     *state.pending_mic.lock().unwrap() = state.recorder.current_device();
                     state.set_status(app, Status::Recording);
+                    arm_escape(app);
                 }
                 Err(e) => {
                     eprintln!("[nutq] start failed: {e:#}");
@@ -817,6 +822,10 @@ fn toggle_recording(app: &AppHandle, output: Output) {
 
 async fn process(app: &AppHandle) -> anyhow::Result<()> {
     let state = app.state::<AppState>();
+
+    // The recording ended the moment stop() runs below, so Escape goes back
+    // to being a normal key whatever this function goes on to do.
+    disarm_escape(app);
 
     // A clip with no speech in it is dropped here, before anything is uploaded:
     // no API call, no cost, no history row, and - the point of the exercise -
@@ -1178,6 +1187,46 @@ fn parse_hotkey(spec: &str) -> Result<Shortcut, String> {
     })
 }
 
+/// The Escape binding used as the mid-recording rescue key.
+fn escape_shortcut() -> Shortcut {
+    Shortcut::from_str("Escape").expect("Escape is a valid key name")
+}
+
+/// While the mic is live, Escape ends the session and keeps the clip - the
+/// same as pressing the hotkey again - instead of slipping through to
+/// whatever app is being dictated into, where it tends to close a dialog and
+/// take the dictation's destination with it. It is registered for the length
+/// of the recording only. If the user's own hotkey IS Escape, the normal
+/// handler already stops the recording and there is nothing to arm.
+fn arm_escape(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let escape = escape_shortcut();
+    {
+        let (main, draft) = state.shortcuts.lock().unwrap().clone();
+        if main.as_ref() == Some(&escape) || draft.as_ref() == Some(&escape) {
+            return;
+        }
+    }
+    match app.global_shortcut().register(escape) {
+        Ok(()) => *state.escape_armed.lock().unwrap() = true,
+        Err(e) => eprintln!("[nutq] could not arm Escape as the save key: {e}"),
+    }
+}
+
+/// The recording is over: hand Escape back to the system.
+fn disarm_escape(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    *state.escape_armed.lock().unwrap() = false;
+    let escape = escape_shortcut();
+    {
+        let (main, draft) = state.shortcuts.lock().unwrap().clone();
+        if main.as_ref() == Some(&escape) || draft.as_ref() == Some(&escape) {
+            return;
+        }
+    }
+    let _ = app.global_shortcut().unregister(escape);
+}
+
 /// Records what each binding is actually doing.
 ///
 /// A hotkey can fail in two unrelated ways - the spec does not parse, or it
@@ -1251,6 +1300,13 @@ fn register_hotkeys(app: &AppHandle) -> anyhow::Result<()> {
         dictate: main_state,
         draft: draft_state,
     };
+
+    // unregister_all() above wiped an armed Escape along with everything
+    // else, so put it back if a recording happens to be live right now.
+    if state.status() == Status::Recording {
+        arm_escape(app);
+    }
+
     Ok(())
 }
 
@@ -1310,6 +1366,10 @@ pub fn run() {
                         // Whatever the user picked as the default for the
                         // plain hotkey.
                         state.settings.lock().unwrap().output
+                    } else if *state.escape_armed.lock().unwrap() && shortcut == &escape_shortcut() {
+                        // Escape while the mic is live: end the recording and
+                        // save the clip - a rescue key, not a discard.
+                        *state.pending_output.lock().unwrap()
                     } else {
                         return;
                     };
@@ -1326,6 +1386,7 @@ pub fn run() {
             pending_mic: Mutex::new(String::new()),
             shortcuts: Mutex::new((None, None)),
             hotkey_report: Mutex::new(HotkeyReport::default()),
+            escape_armed: Mutex::new(false),
         })
         .invoke_handler(tauri::generate_handler![
             get_settings,
@@ -1433,6 +1494,11 @@ mod tests {
         ] {
             assert!(parse_hotkey(spec).is_ok(), "should parse: {spec}");
         }
+    }
+
+    #[test]
+    fn escape_parses_for_the_rescue_binding() {
+        assert!(parse_hotkey("Escape").is_ok());
     }
 
     #[test]
