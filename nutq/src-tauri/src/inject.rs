@@ -107,8 +107,10 @@ fn send_paste() -> Result<()> {
     let source = CGEventSource::new(CGEventSourceStateID::CombinedSessionState)
         .map_err(|_| anyhow!("could not create the event source"))?;
     let post = |source: &CGEventSource, key_down: bool| -> Result<()> {
-        let ev = CGEvent::new_keyboard_event(source.clone(), V_KEY, key_down)
-            .ok_or_else(|| anyhow!("could not create the paste event"))?;
+        let ev = match CGEvent::new_keyboard_event(source.clone(), V_KEY, key_down) {
+            Ok(ev) => ev,
+            Err(_) => return Err(anyhow!("could not create the paste event")),
+        };
         ev.set_flags(CMD_FLAG);
         ev.post(CGEventTapLocation::Session);
         Ok(())
