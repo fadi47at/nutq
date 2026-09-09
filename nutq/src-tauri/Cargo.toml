@@ -51,6 +51,9 @@ windows = { version = "0.58", features = [
 [target.'cfg(target_os = "macos")'.dependencies]
 keyring = { version = "3", features = ["apple-native"] }
 core-graphics = "0.24"
+# Transparent overlay windows are gated behind Apple's "private API" switch
+# in Tauri; enabling it here keeps the Windows build untouched.
+tauri = { version = "2", features = ["macos-private-api"] }
 
 [profile.release]
 codegen-units = 1

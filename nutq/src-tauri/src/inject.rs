@@ -97,7 +97,7 @@ fn send_paste() -> Result<()> {
 
     // kVK_ANSI_V = 9; the command flag marks it as Cmd+V for the frontmost app.
     const V_KEY: u16 = 9;
-    const CMD_FLAG: CGEventFlags = CGEventFlags(1 << 20);
+    const CMD_FLAG: CGEventFlags = CGEventFlags::CGEventFlagCommand;
 
     // Posting synthesized key events requires the user to have granted this
     // app Accessibility (System Settings > Privacy & Security > Accessibility).
@@ -105,7 +105,7 @@ fn send_paste() -> Result<()> {
     // the clipboard fallback message below is what the user acts on.
     let post = |key_down: bool| -> Result<()> {
         let ev = CGEvent::new_keyboard_event(None, V_KEY, key_down)
-            .map_err(|e| anyhow!("could not create the paste event: {e}"))?;
+            .ok_or_else(|| anyhow!("could not create the paste event"))?;
         ev.set_flags(CMD_FLAG);
         ev.post(CGEventTapLocation::Session);
         Ok(())
