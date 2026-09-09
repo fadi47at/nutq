@@ -4,19 +4,27 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Readex+Pro:wght@500;600&display=swap">
 
 <style>
-  /* One committed visual world: the dark "stage" the recording overlay lives
-     on, so the page looks like the moment the app is used in. Every color is
-     painted explicitly — nothing is borrowed from the host theme. */
+  /* One committed world: a dark desktop with a light Windows app on it, the
+     way nutq is actually seen — a mint pill floating over someone else's app. */
   :root {
-    --ink: #10141b;
-    --ink-2: #171d26;
-    --ink-3: #1e2631;
-    --line: #262f3c;
+    --ink: #0d1117;
+    --ink-2: #151b24;
+    --line: #232c39;
     --text: #e8edf4;
     --muted: #93a1b3;
-    --faint: #6b7889;
+    --faint: #67748699;
+
+    /* the light app window */
+    --app: #ffffff;
+    --app-2: #f1f4f8;
+    --app-line: #e0e6ee;
+    --app-text: #18202b;
+    --app-muted: #667586;
+
     --accent: #2fd6a5;
     --accent-deep: #0f9d76;
+    --rec: #ff6b6b;
+    --warn: #e5b062;
 
     --display: "Readex Pro", "IBM Plex Sans Arabic", system-ui, sans-serif;
     --body: "IBM Plex Sans Arabic", "Segoe UI", system-ui, sans-serif;
@@ -33,348 +41,488 @@
     color: var(--text);
     font-family: var(--body);
     font-size: 16px;
-    line-height: 1.75;
+    line-height: 1.7;
     -webkit-font-smoothing: antialiased;
   }
 
   .page {
-    max-width: 720px;
+    max-width: 880px;
     margin: 0 auto;
-    padding: 56px 24px 72px;
+    padding: 40px 20px 48px;
     display: flex;
     flex-direction: column;
-    gap: 64px;
+    gap: 26px;
   }
 
-  /* Latin fragments inside Arabic sentences: isolate them so the bidi
-     algorithm does not drag punctuation to the wrong end. */
-  .ltr {
-    direction: ltr;
-    unicode-bidi: isolate;
-    font-family: var(--mono);
-    font-size: 0.9em;
-  }
+  .ltr { direction: ltr; unicode-bidi: isolate; }
 
-  /* ---------- hero ---------- */
+  /* ---------- masthead: two lines, nothing more ---------- */
 
-  .eyebrow {
-    margin: 0 0 20px;
-    display: inline-flex;
-    align-items: center;
-    gap: 9px;
-    font-size: 13px;
-    letter-spacing: 0.06em;
-    color: var(--muted);
-  }
-  .eyebrow::before {
-    content: "";
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--accent);
-    box-shadow: 0 0 12px rgba(47, 214, 165, 0.7);
-  }
-
-  h1 {
-    margin: 0 0 18px;
+  .mast { display: flex; flex-direction: column; gap: 6px; }
+  .mast h1 {
+    margin: 0;
     font-family: var(--display);
     font-weight: 600;
-    font-size: clamp(30px, 6vw, 44px);
-    line-height: 1.35;
-    letter-spacing: -0.01em;
-    text-wrap: balance;
+    font-size: 26px;
+    letter-spacing: 0.01em;
+  }
+  .mast p {
+    margin: 0;
+    font-size: 15px;
+    color: var(--muted);
   }
 
   kbd {
     font-family: var(--mono);
-    font-size: 0.72em;
+    font-size: 0.78em;
     font-weight: 500;
     direction: ltr;
     unicode-bidi: isolate;
     display: inline-block;
-    padding: 0.14em 0.5em 0.22em;
+    padding: 0.12em 0.45em 0.2em;
     border: 1px solid var(--accent-deep);
     border-bottom-width: 3px;
-    border-radius: 7px;
-    background: rgba(47, 214, 165, 0.08);
+    border-radius: 6px;
+    background: rgba(47, 214, 165, 0.1);
     color: var(--accent);
-    vertical-align: 0.12em;
+    vertical-align: 0.1em;
   }
 
-  .lede {
-    margin: 0;
-    max-width: 56ch;
-    font-size: 17px;
-    color: var(--muted);
-  }
+  /* ---------- the mock machine ---------- */
 
-  /* the recording pill — the app's own overlay, at rest and breathing */
-  .pill {
-    margin-top: 32px;
-    display: inline-flex;
-    align-items: center;
-    gap: 14px;
-    padding: 11px 20px 11px 22px;
+  .machine {
     border: 1px solid var(--line);
-    border-radius: 999px;
+    border-radius: 16px;
+    overflow: hidden;
     background: var(--ink-2);
-    box-shadow: 0 0 0 1px rgba(47, 214, 165, 0.1), 0 14px 40px rgba(0, 0, 0, 0.5);
-    width: fit-content;
+    box-shadow: 0 30px 70px rgba(0, 0, 0, 0.55);
   }
-  .pill span {
-    font-size: 14px;
-    color: var(--muted);
-  }
-  .bars {
+
+  /* the instruction strip across the top */
+  .strip {
     display: flex;
     align-items: center;
-    gap: 3px;
-    height: 20px;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+    background: #111823;
   }
+  .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: #55637a;
+    flex: none;
+    transition: background 0.2s, box-shadow 0.2s;
+  }
+  .strip .state { font-size: 14px; color: var(--muted); }
+  .strip .grow { flex: 1; }
+  .cue {
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--text);
+    background: rgba(47, 214, 165, 0.07);
+    border: 1px solid rgba(47, 214, 165, 0.28);
+    border-radius: 999px;
+    padding: 6px 14px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .cue:hover { background: rgba(47, 214, 165, 0.14); }
+  .cue:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  [data-state="listening"] .dot { background: var(--rec); box-shadow: 0 0 12px var(--rec); }
+  [data-state="refining"] .dot { background: var(--warn); box-shadow: 0 0 12px rgba(229, 176, 98, 0.6); }
+  [data-state="pasted"]   .dot { background: var(--accent); box-shadow: 0 0 12px rgba(47, 214, 165, 0.7); }
+
+  /* the desktop the window sits on */
+  .desktop {
+    position: relative;
+    padding: 34px 26px 74px;
+    min-height: 420px;
+    background:
+      radial-gradient(120% 90% at 78% 8%, rgba(47, 214, 165, 0.13), transparent 60%),
+      radial-gradient(110% 80% at 12% 100%, rgba(79, 120, 214, 0.16), transparent 62%),
+      #0b1017;
+  }
+
+  /* ---------- the app window (mirrored, like Arabic Windows) ---------- */
+
+  .win {
+    max-width: 560px;
+    margin: 0 auto;
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--app);
+    color: var(--app-text);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+    color-scheme: light;
+  }
+  .titlebar {
+    display: flex;
+    align-items: center;
+    height: 38px;
+    padding-inline-end: 14px;
+    background: var(--app-2);
+    border-bottom: 1px solid var(--app-line);
+  }
+  .titlebar .name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--app-muted);
+    margin-inline-start: auto;
+  }
+  .caption { display: flex; }
+  .caption i {
+    width: 42px; height: 38px;
+    display: grid; place-items: center;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-style: normal;
+    color: var(--app-muted);
+  }
+  .caption i:first-child:hover { background: #e6ebf2; }
+
+  .thread {
+    padding: 18px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: var(--app);
+  }
+  .bubble {
+    max-width: 78%;
+    padding: 9px 13px;
+    border-radius: 14px;
+    font-size: 14.5px;
+    line-height: 1.6;
+  }
+  .them {
+    align-self: flex-start;
+    background: var(--app-2);
+    border-top-right-radius: 5px;
+  }
+  .them .who {
+    display: block;
+    font-size: 11px;
+    color: var(--app-muted);
+    margin-bottom: 2px;
+  }
+
+  .composer {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    padding: 12px;
+    border-top: 1px solid var(--app-line);
+    background: var(--app-2);
+  }
+  .field {
+    flex: 1;
+    min-height: 44px;
+    padding: 11px 13px;
+    border: 1px solid var(--app-line);
+    border-radius: 10px;
+    background: var(--app);
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--app-text);
+    /* the field the caret is in — nutq pastes here */
+    box-shadow: 0 0 0 3px rgba(47, 214, 165, 0.16);
+    border-color: var(--accent-deep);
+  }
+  .field .ph { color: #9aa7b6; }
+  .caret {
+    display: inline-block;
+    width: 1.5px;
+    height: 1.05em;
+    background: var(--app-text);
+    vertical-align: -0.16em;
+    margin-inline-start: 1px;
+    animation: blink 1.1s steps(1) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .send {
+    height: 44px;
+    padding: 0 18px;
+    border: 1px solid var(--app-line);
+    border-radius: 10px;
+    background: var(--app);
+    color: #97a3b2;
+    font: inherit;
+    font-size: 14px;
+    cursor: default;
+    transition: background 0.25s, color 0.25s, border-color 0.25s;
+  }
+  .send.ready {
+    background: var(--accent-deep);
+    border-color: var(--accent-deep);
+    color: #ffffff;
+  }
+
+  /* ---------- the overlay pill ---------- */
+
+  .pill {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 78px;
+    margin: 0 auto;
+    width: fit-content;
+    max-width: min(520px, calc(100% - 52px));
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 18px;
+    border: 1px solid #2b3542;
+    border-radius: 999px;
+    background: #171e28;
+    box-shadow: 0 0 0 1px rgba(47, 214, 165, 0.12), 0 16px 40px rgba(0, 0, 0, 0.6);
+    opacity: 0;
+    transform: translateY(12px);
+    transition: opacity 0.22s ease, transform 0.22s ease;
+    pointer-events: none;
+  }
+  [data-state="listening"] .pill,
+  [data-state="refining"] .pill { opacity: 1; transform: translateY(0); }
+
+  .bars { display: flex; align-items: center; gap: 3px; height: 20px; flex: none; }
   .bars i {
-    width: 3px;
-    height: 6px;
-    border-radius: 2px;
+    width: 3px; height: 6px; border-radius: 2px;
     background: var(--accent);
-    animation: pulse 1.1s ease-in-out infinite;
   }
-  .bars i:nth-child(2) { animation-delay: 0.12s; }
-  .bars i:nth-child(3) { animation-delay: 0.24s; }
-  .bars i:nth-child(4) { animation-delay: 0.36s; }
-  .bars i:nth-child(5) { animation-delay: 0.48s; }
-  .bars i:nth-child(6) { animation-delay: 0.6s; }
+  [data-state="listening"] .bars i { animation: pulse 1s ease-in-out infinite; }
+  .bars i:nth-child(2) { animation-delay: 0.1s; }
+  .bars i:nth-child(3) { animation-delay: 0.2s; }
+  .bars i:nth-child(4) { animation-delay: 0.3s; }
+  .bars i:nth-child(5) { animation-delay: 0.4s; }
+  .bars i:nth-child(6) { animation-delay: 0.5s; }
   @keyframes pulse {
     0%, 100% { height: 6px; opacity: 0.55; }
     50%      { height: 18px; opacity: 1; }
   }
-  @media (prefers-reduced-motion: reduce) {
-    .bars i { animation: none; }
-    .bars i:nth-child(odd) { height: 14px; }
-  }
 
-  /* ---------- shared section furniture ---------- */
-
-  .label {
-    margin: 0 0 18px;
-    font-size: 12px;
-    font-weight: 500;
-    letter-spacing: 0.12em;
-    color: var(--faint);
-  }
-
-  /* ---------- before / after ---------- */
-
-  .sample {
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    background: var(--ink-2);
+  .heard {
+    font-size: 14px;
+    color: #cbd6e4;
+    white-space: nowrap;
     overflow: hidden;
+    text-overflow: ellipsis;
+    direction: rtl;
   }
-  .sample > div {
-    padding: 20px 22px;
+  .heard .w { opacity: 0; animation: land 0.28s ease forwards; }
+  @keyframes land { from { opacity: 0; } to { opacity: 1; } }
+  .heard.wait { color: var(--warn); }
+
+  /* ---------- taskbar ---------- */
+
+  .taskbar {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    height: 46px;
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    background: rgba(16, 22, 30, 0.82);
+    backdrop-filter: blur(14px);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
   }
-  .sample .raw {
-    border-bottom: 1px solid var(--line);
-    color: var(--faint);
-  }
-  .sample .final {
-    border-right: 2px solid var(--accent);
-    background: rgba(47, 214, 165, 0.04);
-  }
-  .sample b {
-    display: block;
-    margin-bottom: 6px;
+  .tray {
+    display: flex;
+    align-items: center;
+    gap: 10px;
     font-family: var(--mono);
     font-size: 11px;
-    font-weight: 500;
-    letter-spacing: 0.1em;
-    color: var(--faint);
+    color: #7f8ca0;
   }
-  .sample .final b { color: var(--accent-deep); }
-  .sample p {
-    margin: 0;
-    font-size: 16px;
+  .tray .mic {
+    width: 22px; height: 22px;
+    display: grid; place-items: center;
+    border-radius: 6px;
+    background: rgba(47, 214, 165, 0.12);
   }
-  .sample .final p { font-size: 17px; }
+  .tray .mic svg { display: block; }
+  [data-state="listening"] .tray .mic { background: rgba(255, 107, 107, 0.18); }
+  .icons { margin: 0 auto; display: flex; gap: 12px; }
+  .icons span {
+    width: 26px; height: 26px;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.09);
+  }
+  .icons span:nth-child(2) { background: rgba(255, 255, 255, 0.16); }
 
-  /* ---------- the pipeline: a real sequence, so it is numbered ---------- */
+  /* ---------- three short facts, then done ---------- */
 
-  .flow {
+  .facts {
     display: grid;
-    gap: 1px;
-    background: var(--line);
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    overflow: hidden;
-  }
-  @media (min-width: 620px) {
-    .flow { grid-template-columns: repeat(3, 1fr); }
-  }
-  .step {
-    padding: 22px;
-    background: var(--ink);
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .step em {
-    font-family: var(--mono);
-    font-style: normal;
-    font-size: 12px;
-    color: var(--accent);
-    letter-spacing: 0.08em;
-  }
-  .step h3 {
-    margin: 0;
-    font-family: var(--display);
-    font-weight: 500;
-    font-size: 18px;
-  }
-  .step p {
-    margin: 0;
+    gap: 10px 26px;
+    grid-template-columns: 1fr;
     font-size: 14px;
-    line-height: 1.65;
     color: var(--muted);
   }
-
-  /* ---------- modes ---------- */
-
-  .modes {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  .mode {
-    display: flex;
-    align-items: baseline;
-    gap: 14px;
-    padding: 13px 4px;
-    border-bottom: 1px solid var(--line);
-  }
-  .mode:last-child { border-bottom: none; }
-  .mode > span:first-child {
-    flex: 0 0 84px;
-    font-family: var(--mono);
-    font-size: 13px;
-    color: var(--text);
-    direction: ltr;
-    unicode-bidi: isolate;
-    text-align: right;
-  }
-  .mode > span:last-child {
-    font-size: 15px;
-    color: var(--muted);
+  @media (min-width: 640px) { .facts { grid-template-columns: repeat(3, 1fr); } }
+  .facts div { display: flex; gap: 8px; align-items: baseline; }
+  .facts div::before {
+    content: "";
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--accent-deep);
+    flex: none;
+    transform: translateY(-2px);
   }
 
-  /* ---------- close ---------- */
-
-  .notes {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    padding: 24px 22px;
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    background: var(--ink-2);
-  }
-  .notes p {
-    margin: 0;
-    font-size: 15px;
-    color: var(--muted);
-    max-width: 60ch;
-  }
-  .notes p strong {
-    color: var(--text);
-    font-weight: 600;
-  }
-
-  footer {
-    padding-top: 8px;
-    border-top: 1px solid var(--line);
-    font-size: 13px;
-    color: var(--faint);
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px 18px;
+  @media (prefers-reduced-motion: reduce) {
+    .bars i, .caret { animation: none !important; }
+    .bars i:nth-child(odd) { height: 14px; }
+    .pill { transition: none; }
+    .heard .w { animation: none; opacity: 1; }
   }
 </style>
 
 <div class="page" dir="rtl" lang="ar">
 
-  <header>
-    <p class="eyebrow">إملاء صوتي لويندوز</p>
-    <h1>اضغط <kbd>F8</kbd>، احكي، ولاقي النص مكتوب محلّك.</h1>
-    <p class="lede">
-      nutq بيسجّل صوتك من أي مكان بالويندوز — واتساب، إيميل، محرّر كود —
-      بيحوّله نص، بينظّفه، وبيلزقه بالحقل اللي كنت واقف فيه. ما في نافذة
-      بتفتح ولا نسخ ولزق بإيدك.
-    </p>
+  <div class="mast">
+    <h1>nutq</h1>
+    <p>اضغط <kbd>F8</kbd> بأي مكان بالويندوز، احكي، والنص بينلزق محلّ ما كان المؤشر.</p>
+  </div>
 
-    <div class="pill">
-      <div class="bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
-      <span>عم يسجّل… اضغط <kbd>F8</kbd> لتخلص</span>
+  <div class="machine" id="machine" data-state="idle">
+
+    <div class="strip">
+      <span class="dot" aria-hidden="true"></span>
+      <span class="state" id="stateLabel">جاهز</span>
+      <span class="grow"></span>
+      <button class="cue" id="cue" type="button">جرّب: اضغط <kbd>F8</kbd></button>
     </div>
-  </header>
 
-  <section>
-    <p class="label">مثال</p>
-    <div class="sample">
-      <div class="raw">
-        <b>اللي حكيته</b>
-        <p>يعني… بدي أبعتلك، آه، الملف اليوم بس ما لحقت، لحظة، بكرا الصبح بكون جاهز إن شاء الله.</p>
+    <div class="desktop">
+
+      <div class="win">
+        <div class="titlebar">
+          <div class="caption" aria-hidden="true"><i>✕</i><i>▢</i><i>─</i></div>
+          <span class="name">الرسائل</span>
+        </div>
+
+        <div class="thread">
+          <div class="bubble them">
+            <span class="who">سامر</span>
+            وصلك الملف؟ محتاجه اليوم إذا بتقدر.
+          </div>
+        </div>
+
+        <div class="composer">
+          <div class="field" id="field"><span class="ph" id="ph">اكتب رسالة…</span><span id="typed"></span><span class="caret" aria-hidden="true"></span></div>
+          <button class="send" id="send" type="button">إرسال</button>
+        </div>
       </div>
-      <div class="final">
-        <b>اللي انلزق</b>
-        <p>بدّي أبعتلك الملف، بس ما لحقت اليوم. بكرا الصبح بكون جاهز.</p>
+
+      <div class="pill" aria-hidden="true">
+        <div class="bars"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="heard" id="heard"></div>
       </div>
+
+      <div class="taskbar" aria-hidden="true">
+        <div class="tray">
+          <span class="mic">
+            <svg width="12" height="12" viewBox="0 0 20 20" fill="none" stroke="#2fd6a5" stroke-width="1.7" stroke-linecap="round">
+              <rect x="7.4" y="2.6" width="5.2" height="9" rx="2.6"></rect>
+              <path d="M4.6 9.4a5.4 5.4 0 0 0 10.8 0M10 14.8v2.6"></path>
+            </svg>
+          </span>
+          <span class="ltr">nutq · F8</span>
+        </div>
+        <div class="icons"><span></span><span></span><span></span></div>
+      </div>
+
     </div>
-  </section>
+  </div>
 
-  <section>
-    <p class="label">شو بيصير لما تضغط المفتاح</p>
-    <div class="flow">
-      <div class="step">
-        <em>٠١</em>
-        <h3>الصوت</h3>
-        <p>تسجيل <span class="ltr">16 kHz</span> بالذاكرة فقط. ما بينكتب ولا ملف على القرص.</p>
-      </div>
-      <div class="step">
-        <em>٠٢</em>
-        <h3>النص الخام</h3>
-        <p>مرحلة تفريغ لحالها — Gemini أو ElevenLabs Scribe أو أي endpoint متوافق مع OpenAI.</p>
-      </div>
-      <div class="step">
-        <em>٠٣</em>
-        <h3>النص النهائي</h3>
-        <p>مرحلة تحرير لحالها — Claude أو Gemini — بعدها <span class="ltr">Ctrl+V</span> بالحقل المفتوح.</p>
-      </div>
-    </div>
-  </section>
-
-  <section>
-    <p class="label">أربع أوضاع كتابة</p>
-    <div class="modes">
-      <div class="mode"><span>Natural</span><span>بيشيل التردّد والتكرار وبيطلع الكلام مرتّب متل ما قصدته.</span></div>
-      <div class="mode"><span>Verbatim</span><span>حرفياً متل ما حكيت، بس بترقيم وإملاء صحيحين.</span></div>
-      <div class="mode"><span>Spec</span><span>خمس دقايق حكي عن فكرة بترجع: الهدف، المتطلبات، القيود، والأسئلة المفتوحة.</span></div>
-      <div class="mode"><span>Summary</span><span>نقاط مختصرة بدل الفقرة الطويلة.</span></div>
-    </div>
-  </section>
-
-  <section>
-    <p class="label">قبل ما تسأل</p>
-    <div class="notes">
-      <p><strong>الصوت ما بيلمس القرص.</strong> بينمسك بالذاكرة، بينبعت، وبينمسح.</p>
-      <p><strong>مفاتيح الـ API بتنحفظ بـ <span class="ltr">Windows Credential Manager</span></strong> — مش بملف إعدادات ولا بأي شي بينرفع مع المشروع.</p>
-      <p><strong>المزوّد اختيارك.</strong> كل مرحلة بتختار مزوّدها ونموذجها من الإعدادات، وفي زر <span class="ltr">Test this stage</span> بيقلّك بالضبط وين الغلط لو ما اشتغل.</p>
-      <p><strong>مفتاحين:</strong> <span class="ltr">F8</span> بيلزق النص على طول، و<span class="ltr">Ctrl+F8</span> بيرجّعلك النافذة تقرا وتعدّل قبل ما تاخده.</p>
-    </div>
-  </section>
-
-  <footer>
-    <span>nutq</span>
-    <span>ويندوز 11 · Tauri</span>
-    <span>عربي شامي مخلوط بإنجليزي، بدون ما تبدّل لغة</span>
-  </footer>
+  <div class="facts">
+    <div>الصوت بيضل بالذاكرة، ما بينحفظ على القرص.</div>
+    <div>أربع أوضاع: تنظيف، حرفي، مواصفات، تلخيص.</div>
+    <div><span class="ltr">Ctrl+F8</span> بيوقفك على النص تراجعه قبل اللزق.</div>
+  </div>
 
 </div>
+
+<script>
+  (function () {
+    var machine = document.getElementById("machine");
+    var stateLabel = document.getElementById("stateLabel");
+    var cue = document.getElementById("cue");
+    var heard = document.getElementById("heard");
+    var typed = document.getElementById("typed");
+    var ph = document.getElementById("ph");
+    var send = document.getElementById("send");
+
+    var RAW = ["يعني…", "بدي", "أبعتلك،", "آه،", "الملف", "اليوم", "بس", "ما", "لحقت،", "لحظة،", "بكرا", "الصبح", "بكون", "جاهز"];
+    var FINAL = "بدّي أبعتلك الملف، بس ما لحقت اليوم. بكرا الصبح بكون جاهز.";
+
+    var still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var state = "idle";
+    var timers = [];
+
+    function later(fn, ms) { timers.push(setTimeout(fn, ms)); }
+    function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+
+    function setState(next, label, cueText) {
+      state = next;
+      machine.setAttribute("data-state", next);
+      stateLabel.textContent = label;
+      cue.innerHTML = cueText;
+    }
+
+    function listen() {
+      clearTimers();
+      typed.textContent = "";
+      heard.textContent = "";
+      heard.classList.remove("wait");
+      ph.hidden = false;
+      send.classList.remove("ready");
+      setState("listening", "عم يسجّل", 'اضغط <kbd>F8</kbd> لتخلص');
+
+      RAW.forEach(function (word, i) {
+        later(function () {
+          var w = document.createElement("span");
+          w.className = "w";
+          w.textContent = (i ? " " : "") + word;
+          heard.appendChild(w);
+        }, still ? 0 : 220 + i * 340);
+      });
+    }
+
+    function refine() {
+      clearTimers();
+      heard.classList.add("wait");
+      heard.textContent = "عم يجهّز النص…";
+      setState("refining", "عم يحرّر", "لحظة…");
+      later(paste, still ? 200 : 900);
+    }
+
+    function paste() {
+      setState("pasted", "انلزق بالحقل", 'اضغط <kbd>F8</kbd> لتعيد');
+      ph.hidden = true;
+      if (still) {
+        typed.textContent = FINAL;
+        send.classList.add("ready");
+        return;
+      }
+      var i = 0;
+      (function type() {
+        typed.textContent = FINAL.slice(0, ++i);
+        if (i < FINAL.length) later(type, 22);
+        else send.classList.add("ready");
+      })();
+    }
+
+    function press() {
+      if (state === "idle" || state === "pasted") listen();
+      else if (state === "listening") refine();
+    }
+
+    cue.addEventListener("click", press);
+    window.addEventListener("keydown", function (e) {
+      if (e.key === "F8") { e.preventDefault(); press(); }
+    });
+  })();
+</script>

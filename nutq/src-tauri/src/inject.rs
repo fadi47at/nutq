@@ -93,6 +93,7 @@ fn send_paste() -> Result<()> {
 #[cfg(target_os = "macos")]
 fn send_paste() -> Result<()> {
     use core_graphics::event::{CGEvent, CGEventFlags, CGEventTapLocation};
+    use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
     use std::thread::sleep;
 
     // kVK_ANSI_V = 9; the command flag marks it as Cmd+V for the frontmost app.
@@ -103,17 +104,19 @@ fn send_paste() -> Result<()> {
     // app Accessibility (System Settings > Privacy & Security > Accessibility).
     // Without it the events post "successfully" but no app receives them, so
     // the clipboard fallback message below is what the user acts on.
-    let post = |key_down: bool| -> Result<()> {
-        let ev = CGEvent::new_keyboard_event(None, V_KEY, key_down)
+    let source = CGEventSource::new(CGEventSourceStateID::CombinedSessionState)
+        .map_err(|_| anyhow!("could not create the event source"))?;
+    let post = |source: &CGEventSource, key_down: bool| -> Result<()> {
+        let ev = CGEvent::new_keyboard_event(source.clone(), V_KEY, key_down)
             .ok_or_else(|| anyhow!("could not create the paste event"))?;
         ev.set_flags(CMD_FLAG);
         ev.post(CGEventTapLocation::Session);
         Ok(())
     };
 
-    post(true)?;
+    post(&source, true)?;
     sleep(Duration::from_millis(20));
-    post(false)?;
+    post(&source, false)?;
     Ok(())
 }
 
