@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   api,
   ANTHROPIC_BASE_EXAMPLES,
@@ -10,6 +10,7 @@ import {
   type HotkeyReport,
   type HotkeyState,
   type KeyStatus,
+  type OverlayStyle,
   type RefineProvider,
   type Settings,
   type SttProvider,
@@ -42,7 +43,7 @@ const KEY_FIELDS: { slot: string; name: string; where: string; placeholder: stri
   },
 ];
 
-type TabId = "stt" | "refine" | "keys" | "capture" | "words";
+type TabId = "stt" | "refine" | "keys" | "capture" | "words" | "overlay";
 
 /** Ordered the way the pipeline runs, so the list reads as the flow itself. */
 const TABS: { id: TabId; name: string }[] = [
@@ -50,8 +51,241 @@ const TABS: { id: TabId; name: string }[] = [
   { id: "refine", name: "Refinement" },
   { id: "keys", name: "Keys" },
   { id: "capture", name: "Capture" },
+  { id: "overlay", name: "Recording pill" },
   { id: "words", name: "Vocabulary" },
 ];
+
+/** The wave shapes that can run inside the recording pill. */
+const OVERLAY_STYLES: { id: OverlayStyle; name: string; hint: string }[] = [
+  { id: "bars", name: "Bars", hint: "The classic dancing columns" },
+  { id: "ribbon", name: "Breathing band", hint: "A soft band that swells with your voice" },
+  { id: "blobs", name: "Syllables", hint: "One block per spoken syllable, gaps for pauses" },
+  { id: "meter", name: "Level meter", hint: "A gradient bar with a peak-hold marker" },
+  { id: "ring", name: "Pulse", hint: "Rings around the dot, no wave at all" },
+];
+
+/** Coordinated color themes for the pill. One pick sets the glow-and-wave
+ *  color and the background together, so the result always matches. Light
+ *  ("Day") themes keep the wave dark enough to read on a pale pill. */
+const OVERLAY_THEMES: { id: string; name: string; aura: string; bg: string }[] = [
+  { id: "teal_night", name: "Teal Night", aura: "#2fd6a5", bg: "#12161d" },
+  { id: "pure_day", name: "Pure Day", aura: "#0f9d8f", bg: "#f3f6f8" },
+  { id: "desert", name: "Desert", aura: "#e8b45a", bg: "#1d1712" },
+  { id: "day_sand", name: "Day Sand", aura: "#a56a20", bg: "#f7f1e4" },
+  { id: "ocean", name: "Ocean", aura: "#4aa8ff", bg: "#0e1520" },
+  { id: "day_sky", name: "Day Sky", aura: "#1668c9", bg: "#eef4fc" },
+  { id: "rose", name: "Rose", aura: "#ff7d9c", bg: "#1c1218" },
+  { id: "day_blossom", name: "Day Blossom", aura: "#c2436a", bg: "#fdeff3" },
+  { id: "violet", name: "Violet", aura: "#a78bfa", bg: "#151021" },
+  { id: "emerald", name: "Emerald", aura: "#34d399", bg: "#0d1a14" },
+  { id: "day_mint", name: "Day Mint", aura: "#0e8a63", bg: "#eefaf3" },
+  { id: "amber", name: "Amber", aura: "#f59e0b", bg: "#1a120a" },
+  { id: "crimson", name: "Crimson", aura: "#ef6b6b", bg: "#1a0f0f" },
+  { id: "frost", name: "Frost", aura: "#9be8e0", bg: "#101820" },
+  { id: "day_slate", name: "Day Slate", aura: "#3b4c63", bg: "#eef1f5" },
+];
+
+function hexRgb(hex: string): [number, number, number] {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return [47, 214, 165];
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function isLightBg(hex: string): boolean {
+  const [r, g, b] = hexRgb(hex);
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > 0.6;
+}
+
+/** A live miniature of the pill with the chosen look, driven by a simulated
+ *  voice so colors and shapes can be judged without dictating. Mirrors the
+ *  glow composition the real overlay uses: two independent parts. */
+function PillPreview({
+  style,
+  glowInner,
+  glowOuter,
+  auraColor,
+  bg,
+}: {
+  style: OverlayStyle;
+  glowInner: boolean;
+  glowOuter: boolean;
+  auraColor: string;
+  bg: string;
+}) {
+  const pill = useRef<HTMLDivElement | null>(null);
+  const canvas = useRef<HTMLCanvasElement | null>(null);
+  const fill = useRef<HTMLElement | null>(null);
+  const ring = useRef<HTMLElement | null>(null);
+  const wave = useRef<HTMLSpanElement | null>(null);
+  const peak = useRef(0.02);
+  const hist = useRef<number[]>([]);
+  const phase = useRef(0);
+
+  useEffect(() => {
+    let raf = 0;
+    let last = performance.now();
+    const loop = (now: number) => {
+      const dt = Math.min(0.1, (now - last) / 1000);
+      last = now;
+      phase.current += dt;
+      // A speech-like envelope: syllable bursts with pauses.
+      const syl = 0.55 + 0.45 * Math.sin(phase.current * 2 * Math.PI * 3.6);
+      const phrase = (Math.sin(phase.current * 0.9) + Math.sin(phase.current * 0.23)) / 2;
+      const talking = phrase > -0.25;
+      const level = talking ? 0.012 + 0.09 * Math.max(0, syl) * (0.8 + 0.2 * phrase) : 0.0015;
+      peak.current = Math.max(level, peak.current * 0.995);
+      const db = 20 * Math.log10(Math.max(level, 1e-5));
+      const dbN = Math.min(1, Math.max(0.04, (db + 58) / 40));
+      const agc = Math.min(1, Math.max(0.04, (level / Math.max(peak.current, 0.018)) * 0.88));
+      const v = Math.min(1, Math.max(0.04, agc * 0.65 + dbN * 0.35));
+      const silent = !talking;
+
+      const el = pill.current;
+      if (el) {
+        const m = /^#?([0-9a-f]{6})$/i.exec(auraColor.trim());
+        const n = m ? parseInt(m[1], 16) : 0x2fd6a5;
+        const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+        if (!glowInner && !glowOuter) {
+          el.style.borderColor = "#2b3341";
+          el.style.boxShadow = "none";
+        } else {
+          const outer = glowOuter
+            ? `0 0 ${(5 + v * 12) * 1.3}px rgba(${r},${g},${b},${0.14 + v * 0.42}),` +
+              `0 0 ${(13 + v * 30) * 1.3}px rgba(${r},${g},${b},${0.08 + v * 0.34})`
+            : "";
+          const inner = glowInner
+            ? `${outer ? "," : ""}inset 0 0 ${(2 + v * 15) * 1.3}px rgba(${r},${g},${b},${0.07 + v * 0.26})`
+            : "";
+          el.style.borderColor = glowOuter
+            ? `rgba(${r},${g},${b},${0.28 + v * 0.6})`
+            : "#2b3341";
+          el.style.boxShadow = `${outer}${inner}` || "none";
+        }
+      }
+
+      const color = silent ? "#e5b062" : auraColor;
+      if (wave.current) {
+        wave.current.querySelectorAll<HTMLElement>("i").forEach((bar, i, all) => {
+          const t = (phase.current * 0.62 + i / all.length) % 1;
+          const h = talking ? Math.max(2.4, Math.abs(Math.sin(t * Math.PI * 3)) * v * 24) : 2.4;
+          bar.style.height = `${h}px`;
+          bar.style.background = color;
+        });
+      }
+      const c = canvas.current;
+      if (c) {
+        const ctx = c.getContext("2d");
+        if (ctx) {
+          if (!c.width) {
+            const dpr = 2;
+            c.width = Math.max(1, c.clientWidth) * dpr;
+            c.height = Math.max(1, c.clientHeight) * dpr;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          }
+          const w = c.clientWidth, h = c.clientHeight, mid = h / 2;
+          ctx.clearRect(0, 0, w, h);
+          if (style === "ribbon") {
+            hist.current.push(v);
+            if (hist.current.length > 62) hist.current.shift();
+          } else {
+            hist.current.push(talking && level > 0.01 ? Math.max(0.12, v) : 0);
+            if (hist.current.length > 62) hist.current.shift();
+          }
+          const vals = hist.current;
+          if (vals.length > 2) {
+            const step = w / 62;
+            const x0 = w - vals.length * step;
+            if (style === "ribbon") {
+              const y = (val: number) => 2 + val * (mid - 3);
+              const yT = (val: number) => mid - (y(val) - mid);
+              ctx.beginPath();
+              ctx.moveTo(x0, yT(vals[0]));
+              for (let i = 1; i < vals.length; i++) {
+                const xa = x0 + (i - 1) * step, xb = x0 + i * step;
+                ctx.quadraticCurveTo(xa, yT(vals[i - 1]), (xa + xb) / 2, (yT(vals[i - 1]) + yT(vals[i])) / 2);
+              }
+              for (let i = vals.length - 1; i >= 0; i--) {
+                const xa = x0 + i * step, xb = x0 + (i + 1) * step;
+                const prev = i > 0 ? vals[i - 1] : vals[i];
+                ctx.quadraticCurveTo(xa, y(vals[i]), (xa + xb) / 2, (y(vals[i]) + y(prev)) / 2);
+              }
+              ctx.closePath();
+              ctx.globalAlpha = silent ? 0.55 : 1;
+              ctx.fillStyle = color;
+              ctx.fill();
+              ctx.globalAlpha = 1;
+            } else {
+              ctx.fillStyle = color;
+              vals.forEach((b, i) => {
+                if (b <= 0) return;
+                const bh = 4 + b * (h - 8);
+                ctx.globalAlpha = silent ? 0.5 : 0.35 + b * 0.65;
+                ctx.beginPath();
+                ctx.roundRect(x0 + i * step, mid - bh / 2, Math.max(2, step - 1), bh, 1.5);
+                ctx.fill();
+              });
+              ctx.globalAlpha = 1;
+            }
+          }
+        }
+      }
+      if (fill.current) {
+        fill.current.style.width = `${v * 100}%`;
+        fill.current.style.background = `linear-gradient(90deg, ${color} 0%, ${color} 62%, #e5b062 84%, #ef6b6b 97%)`;
+      }
+      if (ring.current) {
+        const d = 10 + v * 28;
+        ring.current.style.width = `${d}px`;
+        ring.current.style.height = `${d}px`;
+        ring.current.style.opacity = `${0.2 + v * 0.7}`;
+        ring.current.style.borderColor = color;
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [style, glowInner, glowOuter, auraColor, bg]);
+
+  const resetCanvas = (el: HTMLCanvasElement | null) => {
+    canvas.current = el;
+    if (el) el.width = 0;
+  };
+
+  return (
+    <div className="pill-preview">
+      <div className="overlay-pill" ref={pill} style={{ background: bg }}>
+        {style === "ring" ? (
+          <span className="overlay-ringbox">
+            <span className="overlay-dot" />
+            <i className="overlay-ring" ref={ring} />
+          </span>
+        ) : (
+          <span className="overlay-dot" />
+        )}
+        {style === "bars" && (
+          <span className="overlay-wave" ref={wave}>
+            {Array.from({ length: 16 }, (_, i) => (
+              <i key={i} />
+            ))}
+          </span>
+        )}
+        {(style === "ribbon" || style === "blobs") && <canvas className="overlay-canvas" ref={resetCanvas} />}
+        {style === "meter" && (
+          <span className="overlay-meter">
+            <i ref={fill} />
+          </span>
+        )}
+        <span
+          className="overlay-timer"
+          style={isLightBg(bg) ? { color: "#4a5563" } : undefined}
+        >
+          0:07
+        </span>
+      </div>
+    </div>
+  );
+}
 
 function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
   return <button className={`switch${on ? " on" : ""}`} onClick={onClick} />;
@@ -847,6 +1081,108 @@ export default function SettingsView({ settings, keys, onSave }: Props) {
             <option value="instant">Paste into the focused field</option>
             <option value="draft">Show it here for review</option>
           </select>
+        </div>
+      </div>
+      )}
+
+      {/* ------------------------------------------------------ overlay pill */}
+      {tab === "overlay" && (
+      <div className="section">
+        <div className="section-title">Recording pill</div>
+        <div style={{ padding: "2px 0 14px" }}>
+          <div className="field-hint" style={{ marginBottom: 12 }}>
+            The little indicator above the taskbar while the microphone is live. The preview
+            below runs on a simulated voice, so the real pill behaves the same.
+          </div>
+          <PillPreview
+            style={draft.overlayStyle}
+            glowInner={draft.overlayGlowInner}
+            glowOuter={draft.overlayGlowOuter}
+            auraColor={draft.overlayAuraColor}
+            bg={draft.overlayBg}
+          />
+        </div>
+
+        <div className="field">
+          <div>
+            <div className="field-name">Wave shape</div>
+            <div className="field-hint">What runs inside the pill while you speak.</div>
+          </div>
+          <select
+            value={draft.overlayStyle}
+            onChange={(e) => set("overlayStyle", e.target.value as OverlayStyle)}
+          >
+            {OVERLAY_STYLES.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} — {s.hint}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="field">
+          <div>
+            <div className="field-name">Theme</div>
+            <div className="field-hint">
+              One pick sets the glow, wave, and background together, so the colors always
+              match.
+            </div>
+          </div>
+          <div className="theme-grid">
+            {OVERLAY_THEMES.map((t) => {
+              const on = draft.overlayTheme === t.id;
+              return (
+                <button
+                  key={t.id}
+                  className={`theme-chip${on ? " on" : ""}`}
+                  onClick={() =>
+                    setDraft((d) => ({
+                      ...d,
+                      overlayTheme: t.id,
+                      overlayAuraColor: t.aura,
+                      overlayBg: t.bg,
+                    }))
+                  }
+                >
+                  <span
+                    className="theme-dot"
+                    style={{ background: t.aura, boxShadow: `0 0 8px ${t.aura}` }}
+                  />
+                  <span
+                    className="theme-bg"
+                    style={{ background: t.bg, border: `1px solid ${t.aura}55` }}
+                  />
+                  {t.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="field">
+          <div>
+            <div className="field-name">Glow — inner</div>
+            <div className="field-hint">
+              Light on the pill's own edges, brightening with your voice.
+            </div>
+          </div>
+          <Toggle
+            on={draft.overlayGlowInner}
+            onClick={() => set("overlayGlowInner", !draft.overlayGlowInner)}
+          />
+        </div>
+
+        <div className="field">
+          <div>
+            <div className="field-name">Glow — outer</div>
+            <div className="field-hint">
+              Light cast around the pill onto the screen behind it.
+            </div>
+          </div>
+          <Toggle
+            on={draft.overlayGlowOuter}
+            onClick={() => set("overlayGlowOuter", !draft.overlayGlowOuter)}
+          />
         </div>
       </div>
       )}

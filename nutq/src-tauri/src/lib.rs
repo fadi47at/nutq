@@ -69,28 +69,42 @@ impl AppState {
 
 /// Shows or hides the little bottom-edge recording indicator.
 ///
-/// This must go through the Webview's show/hide (wry's set_visible), which
-/// flips BOTH the OS window and the WebView2 controller. WebviewWindow::show
-/// alone leaves the controller hidden, and a transparent window with a hidden
-/// controller paints nothing at all. Focus stealing is prevented by the
-/// WS_EX_NOACTIVATE style set at creation, not by a special show command.
+/// The window and its WebView2 controller are never hidden once shown.
+/// WebView2 suspends rendering for hidden webviews, and a webview shown
+/// again after a long idle can fail to paint at all - which read as
+/// "recording started but no pill appeared". Hiding now just parks the
+/// window far off-screen, so showing it is a move the compositor makes
+/// immediately, never a repaint from a cold renderer.
 fn set_overlay_visible(app: &AppHandle, visible: bool) {
     let Some(w) = app.get_webview_window("overlay") else {
         eprintln!("[nutq] overlay: window not found");
         return;
     };
-    // Two separate layers must move together: the OS window (Window::show)
-    // and the WebView2 controller (Webview::show). Either one alone leaves
-    // the overlay painted on a hidden surface - or an empty surface on a
-    // visible window.
-    let a = if visible { w.show() } else { w.hide() };
-    let b = if visible {
-        w.as_ref().show()
+    // Defensive: the window was shown once at build; these are no-ops after
+    // that, but guarantee the renderer is never left in a hidden state.
+    let _ = w.show();
+    let _ = w.as_ref().show();
+    let moved = if let Ok(Some(mon)) = w.primary_monitor() {
+        let m = mon.size();
+        let size = w.outer_size().unwrap_or_default();
+        let x = (m.width.saturating_sub(size.width)) / 2;
+        let margin = (64.0 * mon.scale_factor()) as i32;
+        let y: i32 = if visible {
+            // Just above the taskbar, dead center - same spot as before.
+            m.height.saturating_sub(size.height + margin as u32) as i32
+        } else {
+            // The classic parking spot: far outside any conceivable monitor
+            // arrangement, so no amount of display reconfiguration lands a
+            // screen on top of it.
+            -32000
+        };
+        w.set_position(tauri::PhysicalPosition::new(x as i32, y as i32))
     } else {
-        w.as_ref().hide()
+        eprintln!("[nutq] overlay: primary monitor unavailable, position unchanged");
+        Ok(())
     };
     eprintln!(
-        "[nutq] overlay {}: {a:?} / {b:?}, is_visible now: {}",
+        "[nutq] overlay {}: moved: {moved:?}, is_visible now: {}",
         if visible { "show" } else { "hide" },
         w.is_visible().unwrap_or(false)
     );
@@ -100,13 +114,12 @@ fn set_overlay_visible(app: &AppHandle, visible: bool) {
 /// that appears while the mic is live, so it is obvious from anywhere that
 /// recording is happening. Click-through, and not in the taskbar.
 ///
-/// The window is deliberately opaque and sized to the pill itself rather than
-/// being a larger transparent surface: a transparent WebView2 surface
-/// composites unreliably here and can paint nothing at all, and an invisible
-/// recording indicator is the worst possible outcome. The rectangle that an
-/// opaque window would otherwise show around the pill is removed instead by
-/// clipping the window to a rounded region below, so what reaches the screen
-/// is the pill and nothing else.
+/// The window is a transparent surface larger than the pill itself. The
+/// margin gives the outer glow room to render, and the pill's rounded corners
+/// come from CSS anti-aliasing instead of a Win32 region clip, which drew
+/// hard stair-stepped edges users could see. The old cold-render worry is
+/// gone for a different reason: the window and its WebView are never hidden
+/// after startup, they only ever move.
 fn build_overlay(app: &AppHandle) -> tauri::Result<()> {
     let overlay = tauri::WebviewWindowBuilder::new(
         app,
@@ -114,10 +127,11 @@ fn build_overlay(app: &AppHandle) -> tauri::Result<()> {
         tauri::WebviewUrl::App("index.html#overlay".into()),
     )
     .title("nutq")
-    // Sized to the pill's own content - dot, waveform, timer - so no window
-    // edge is left showing around it.
-    .inner_size(196.0, 38.0)
+    // Pill (236x46) centered inside a transparent margin, so even the widest
+    // glow setting never clips at the window edge.
+    .inner_size(296.0, 106.0)
     .decorations(false)
+    .transparent(true)
     .always_on_top(true)
     .skip_taskbar(true)
     .resizable(false)
@@ -130,56 +144,33 @@ fn build_overlay(app: &AppHandle) -> tauri::Result<()> {
     // on it must not move focus either.
     let _ = overlay.set_ignore_cursor_events(true);
 
-    // Two things that can only be said to Win32 directly: never take focus,
-    // and be pill-shaped rather than rectangular.
+    // Never take focus on show. Without this, any SW_SHOW would pull keyboard
+    // focus away from the app the user is dictating into, breaking the paste
+    // at the end.
     #[cfg(windows)]
     {
-        use windows::Win32::Foundation::{BOOL, HWND};
-        use windows::Win32::Graphics::Gdi::{CreateRoundRectRgn, SetWindowRgn};
+        use windows::Win32::Foundation::HWND;
         use windows::Win32::UI::WindowsAndMessaging::{
             GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_NOACTIVATE,
         };
         if let Ok(hwnd) = overlay.hwnd() {
             let hwnd = HWND(hwnd.0 as *mut _);
-            // Never activate on show. Without this, any SW_SHOW - including
-            // the one inside wry's set_visible - would pull keyboard focus
-            // away from the app the user is dictating into, breaking the
-            // paste at the end.
             unsafe {
                 let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
                 SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style | WS_EX_NOACTIVATE.0 as isize);
             }
-
-            // Clip the window to a pill. Without this the opaque webview
-            // paints its full rectangle, and the pill appears to sit on a
-            // slab. The corner radius is half the height, which is exactly
-            // the pill's own CSS radius, so the clip lands on the shape the
-            // page already draws instead of cutting across it.
-            if let Ok(size) = overlay.outer_size() {
-                let (w, h) = (size.width as i32, size.height as i32);
-                unsafe {
-                    // Ends are exclusive, hence the +1; SetWindowRgn takes
-                    // ownership of the region, so it must not be deleted here.
-                    let rgn = CreateRoundRectRgn(0, 0, w + 1, h + 1, h, h);
-                    if !rgn.is_invalid() {
-                        SetWindowRgn(hwnd, rgn, BOOL(1));
-                    }
-                }
-            }
         }
     }
 
-    // Small pill sitting just above the taskbar, dead center - like the
-    // little capture indicator other dictation apps use. Big enough to read
-    // at a glance, small enough to never be in the way.
-    if let Ok(Some(mon)) = overlay.primary_monitor() {
-        let m = mon.size();
-        let w = overlay.outer_size().unwrap_or_default();
-        let x = (m.width.saturating_sub(w.width)) / 2;
-        let margin = (64.0 * mon.scale_factor()) as i32;
-        let y = m.height.saturating_sub(w.height + margin as u32);
-        let _ = overlay.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
-    }
+    // Show the renderer immediately and park the window off-screen. From
+    // here on the webview is always visible to the OS, so WebView2 never
+    // suspends it: the first hotkey press just moves the pill into place
+    // instead of waking a cold renderer that may never paint. Built hidden
+    // so the show below happens only after WS_EX_NOACTIVATE is in place and
+    // the window can never steal focus, even for a frame.
+    let _ = overlay.show();
+    let _ = overlay.as_ref().show();
+    let _ = overlay.set_position(tauri::PhysicalPosition::new(0, -32000));
 
     Ok(())
 }
@@ -1162,11 +1153,18 @@ fn overlay_alive(status: String) {
     eprintln!("[nutq] overlay webview alive, sees status: {status}");
 }
 
-#[derive(Serialize, Clone, Copy)]
+#[derive(Serialize, Clone)]
 struct OverlayState {
     status: Status,
     /// Current mic RMS in [0, 1]; zero when not recording.
     level: f32,
+    /// The pill's personalization, read fresh on every poll so a settings
+    /// save lands on the very next frame without any event plumbing.
+    style: String,
+    glow_inner: bool,
+    glow_outer: bool,
+    aura_color: String,
+    bg: String,
 }
 
 /// One poll = everything the indicator needs. Event delivery to a hidden,
@@ -1174,6 +1172,7 @@ struct OverlayState {
 /// its state at ~25 Hz instead of waiting to be pushed.
 #[tauri::command]
 fn overlay_state(state: State<AppState>) -> OverlayState {
+    let s = state.settings.lock().unwrap();
     OverlayState {
         status: state.status(),
         level: f32::from_bits(
@@ -1182,6 +1181,11 @@ fn overlay_state(state: State<AppState>) -> OverlayState {
                 .level_handle()
                 .load(std::sync::atomic::Ordering::Relaxed),
         ),
+        style: s.overlay_style.clone(),
+        glow_inner: s.overlay_glow_inner,
+        glow_outer: s.overlay_glow_outer,
+        aura_color: s.overlay_aura_color.clone(),
+        bg: s.overlay_bg.clone(),
     }
 }
 
@@ -1469,6 +1473,13 @@ pub fn run() {
             overlay_state,
         ])
         .setup(|app| {
+            // macOS: run as an accessory app - no Dock icon, and the overlay
+            // window appears without stealing focus, the role WS_EX_NOACTIVATE
+            // plays on Windows. The settings window still takes focus when the
+            // user clicks it.
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
             register_hotkeys(app.handle())?;
             build_tray(app.handle())?;
             build_overlay(app.handle())?;

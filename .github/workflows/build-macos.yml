@@ -1,0 +1,38 @@
+name: Build macOS app
+
+# Builds the macOS .app/.dmg on Apple hardware (GitHub's licensed Mac
+# runners), since Apple's toolchain cannot run on Windows. Trigger manually
+# from the Actions tab, or on every push to main. The unsigned artifact is
+# fine for personal use; distribution needs codesigning + notarization.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build-macos:
+    runs-on: macos-14 # Apple Silicon; use macos-13 for an Intel build
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: nutq
+
+      - name: Build the app bundle
+        run: npm run tauri build -- --bundles app,dmg
+        working-directory: nutq
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nutq-macos
+          path: |
+            nutq/src-tauri/target/release/bundle/dmg/*.dmg
+            nutq/src-tauri/target/release/bundle/macos/*.app
+          if-no-files-found: error

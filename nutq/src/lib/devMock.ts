@@ -26,6 +26,12 @@ const settings = {
   snippets: [],
   play_sounds: false,
   save_audio: true,
+  overlay_glow_inner: true,
+  overlay_glow_outer: true,
+  overlay_theme: "teal_night",
+  overlay_aura_color: "#2fd6a5",
+  overlay_bg: "#12161d",
+  overlay_style: "bars",
 };
 
 /** Enough entries to push the History page past two pages of ten, spread over

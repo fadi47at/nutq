@@ -163,6 +163,25 @@ pub struct Settings {
     /// Keep the recording on disk next to its history entry so it can be
     /// played back. Off means nothing but text is ever written.
     pub save_audio: bool,
+
+    /// The bottom-of-screen recording pill: which wave runs inside it, an
+    /// optional two-part glow, and the theme that coordinates its colors.
+    /// The glow's inner part lights the pill's own edges; the outer part
+    /// casts light around it. Both default on and either works alone.
+    pub overlay_glow_inner: bool,
+    pub overlay_glow_outer: bool,
+    /// Which coordinated theme is active, e.g. "teal_night" or "desert".
+    /// Themes set the glow/wave color and the pill background together; the
+    /// two color fields hold the active theme's values so the overlay only
+    /// ever reads colors.
+    pub overlay_theme: String,
+    /// Hex color for the glow and the wave, e.g. "#2fd6a5" or "#ffffff".
+    pub overlay_aura_color: String,
+    /// Hex color behind the pill's content, e.g. "#12161d".
+    pub overlay_bg: String,
+    /// Which wave runs inside the pill: "bars", "ribbon", "blobs", "meter",
+    /// or "ring".
+    pub overlay_style: String,
 }
 
 impl Default for Settings {
@@ -194,6 +213,15 @@ impl Default for Settings {
             snippets: Vec::new(),
             play_sounds: false,
             save_audio: true,
+            // The glow sits between the plain and the charged preview strengths
+            // and always breathes with the voice; teal night is the identity
+            // the rest of the app already speaks.
+            overlay_glow_inner: true,
+            overlay_glow_outer: true,
+            overlay_theme: "teal_night".into(),
+            overlay_aura_color: "#2fd6a5".into(),
+            overlay_bg: "#12161d".into(),
+            overlay_style: "bars".into(),
         }
     }
 }

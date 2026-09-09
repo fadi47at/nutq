@@ -14,6 +14,8 @@ function listen<T>(event: string, fn: (e: { payload: T }) => void): Promise<Unli
 export type Mode = "natural" | "verbatim" | "spec" | "summary";
 export type Output = "instant" | "draft";
 export type Status = "idle" | "recording" | "transcribing" | "refining";
+/** The wave shape that runs inside the recording pill. */
+export type OverlayStyle = "bars" | "ribbon" | "blobs" | "meter" | "ring";
 
 export interface DictEntry {
   from: string;
@@ -55,6 +57,14 @@ export interface Settings {
   playSounds: boolean;
   /** Keep each recording on disk so it can be replayed from History. */
   saveAudio: boolean;
+  /** The recording pill: which wave runs inside it, the two-part glow, and
+   *  the coordinated theme behind its colors. */
+  overlayGlowInner: boolean;
+  overlayGlowOuter: boolean;
+  overlayTheme: string;
+  overlayAuraColor: string;
+  overlayBg: string;
+  overlayStyle: OverlayStyle;
 }
 
 /** The Rust structs are snake_case on the wire; the UI speaks camelCase. */
@@ -83,6 +93,12 @@ interface RawSettings {
   snippets: Snippet[];
   play_sounds: boolean;
   save_audio: boolean;
+  overlay_glow_inner: boolean;
+  overlay_glow_outer: boolean;
+  overlay_theme: string;
+  overlay_aura_color: string;
+  overlay_bg: string;
+  overlay_style: OverlayStyle;
 }
 
 const toUi = (r: RawSettings): Settings => ({
@@ -110,6 +126,12 @@ const toUi = (r: RawSettings): Settings => ({
   snippets: r.snippets,
   playSounds: r.play_sounds,
   saveAudio: r.save_audio,
+  overlayGlowInner: r.overlay_glow_inner,
+  overlayGlowOuter: r.overlay_glow_outer,
+  overlayTheme: r.overlay_theme,
+  overlayAuraColor: r.overlay_aura_color,
+  overlayBg: r.overlay_bg,
+  overlayStyle: r.overlay_style,
 });
 
 const toRust = (s: Settings): RawSettings => ({
@@ -137,6 +159,12 @@ const toRust = (s: Settings): RawSettings => ({
   snippets: s.snippets,
   play_sounds: s.playSounds,
   save_audio: s.saveAudio,
+  overlay_glow_inner: s.overlayGlowInner,
+  overlay_glow_outer: s.overlayGlowOuter,
+  overlay_theme: s.overlayTheme,
+  overlay_aura_color: s.overlayAuraColor,
+  overlay_bg: s.overlayBg,
+  overlay_style: s.overlayStyle,
 });
 
 export interface HistoryEntry {
@@ -411,8 +439,18 @@ export const api = {
   clearLogs: () => invoke<void>("clear_logs"),
   /** Diagnostics: reports the overlay webview is alive and what it sees. */
   overlayAlive: (status: string) => invoke<void>("overlay_alive", { status }),
-  /** Status + live mic level in one call, for the overlay's poll loop. */
-  overlayState: () => invoke<{ status: Status; level: number }>("overlay_state"),
+  /** Status + live mic level + the pill's personalization in one call, for
+   *  the overlay's poll loop. */
+  overlayState: () =>
+    invoke<{
+      status: Status;
+      level: number;
+      style: OverlayStyle;
+      glow_inner: boolean;
+      glow_outer: boolean;
+      aura_color: string;
+      bg: string;
+    }>("overlay_state"),
 };
 
 export const events = {

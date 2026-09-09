@@ -37,16 +37,20 @@ chrono = { version = "0.4", features = ["serde"] }
 # clipboard (save / set / restore around the paste)
 arboard = "3"
 
-# API keys go to Windows Credential Manager, never to a plaintext file
-keyring = { version = "3", features = ["windows-native"] }
-
+# API keys go to the OS credential store, never to a plaintext file. The
+# platform features are per-target: Windows Credential Manager, macOS Keychain.
 [target.'cfg(windows)'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }
 windows = { version = "0.58", features = [
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_WindowsAndMessaging",
 ] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3", features = ["apple-native"] }
+core-graphics = "0.24"
 
 [profile.release]
 codegen-units = 1

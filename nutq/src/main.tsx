@@ -2,6 +2,10 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import Overlay from "./views/Overlay";
+import "@fontsource/vazirmatn/400.css";
+import "@fontsource/vazirmatn/500.css";
+import "@fontsource/vazirmatn/600.css";
+import "@fontsource/vazirmatn/700.css";
 import "./styles.css";
 
 // The overlay window loads the same bundle with #overlay; it must not render

@@ -23,7 +23,9 @@
   --shadow: 0 1px 2px rgba(22, 27, 35, 0.05), 0 6px 18px rgba(22, 27, 35, 0.04);
 
   color-scheme: light;
-  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  /* Vazirmatn everywhere: it is bundled with the app (@fontsource), so text
+   * renders identically offline, and its Arabic covers the UI's mixed copy. */
+  font-family: "Vazirmatn", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
   font-size: 14px;
 }
 
@@ -1597,36 +1599,56 @@ code {
  * dark rim. Solid rather than transparent on purpose: a transparent WebView2
  * surface composites unreliably here, and an invisible indicator is worse
  * than a plain one. */
+/* The pill floats in its own window, which is a transparent surface larger
+ * than the pill: the margin around it is where the outer glow renders. The
+ * rounded corners come from CSS here, with real anti-aliasing, instead of a
+ * Win32 region clip whose stair-stepped edges showed on every screenshot. */
 body.overlay-mode {
-  background: #12161d;
+  background: transparent;
   overflow: hidden;
 }
 
 .overlay-root {
   height: 100%;
+  display: grid;
+  place-items: center;
 }
 
-/* Compact whisper-style capture pill: dot, waveform, timer. */
+/* Compact whisper-style capture pill: dot, wave, timer. All sizes are 20%
+ * above the original 196x38 window so the wave reads from arm's length. The
+ * window centers it inside a transparent margin where the outer glow lives. */
 .overlay-pill {
   box-sizing: border-box;
-  width: 100%;
-  height: 100%;
+  width: 236px;
+  height: 46px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 11px;
-  padding: 0 15px;
-  /* Matches the window region's corner radius (half its height), so the clip
-   * follows this edge instead of cutting across it. */
+  gap: 13px;
+  padding: 0 18px;
   border-radius: 999px;
   background: #12161d;
   border: 1px solid #2b3341;
   color: #e7ecf3;
+  /* The glow breathes at 25 Hz; these transitions turn the steps into one
+   * smooth light, and the mount animation is the pill's entrance. */
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+  animation: overlay-in 0.26s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
 }
 
 .overlay-dot {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: #ef6b6b;
   flex: none;
@@ -1647,20 +1669,20 @@ body.overlay-mode {
 
 .overlay-label {
   font-weight: 600;
-  font-size: 12.5px;
+  font-size: 15px;
   letter-spacing: 0.01em;
 }
 
 .overlay-wave {
   display: flex;
   align-items: center;
-  gap: 2px;
-  height: 20px;
+  gap: 2.5px;
+  height: 24px;
 }
 
 .overlay-wave i {
-  width: 3px;
-  border-radius: 1.5px;
+  width: 3.6px;
+  border-radius: 1.8px;
   background: #2fd6a5;
   transition: height 0.07s linear;
 }
@@ -1668,7 +1690,145 @@ body.overlay-mode {
 .overlay-timer {
   font-variant-numeric: tabular-nums;
   color: #94a1b4;
-  font-size: 12px;
+  font-size: 14.5px;
+}
+
+/* Optional wave shapes, chosen in Settings. The canvas fills the pill's
+ * middle for the ribbon and syllable styles. */
+.overlay-canvas {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 34px;
+}
+
+.overlay-meter {
+  flex: 1 1 auto;
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  /* Neutral translucent track: readable on dark and light themes alike. */
+  background: rgba(128, 140, 155, 0.28);
+  overflow: hidden;
+}
+
+.overlay-meter i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0%;
+  border-radius: 3px;
+  background: #2fd6a5;
+  transition: width 0.07s linear;
+}
+
+.overlay-meter b {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  left: 0;
+  width: 2px;
+  border-radius: 1px;
+  background: rgba(90, 100, 115, 0.85);
+}
+
+.overlay-ringbox {
+  position: relative;
+  width: 10px;
+  height: 10px;
+  flex: none;
+}
+
+.overlay-ringbox .overlay-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  animation: none;
+}
+
+.overlay-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.8px solid #2fd6a5;
+  opacity: 0.2;
+  pointer-events: none;
+  transition:
+    width 0.08s linear,
+    height 0.08s linear,
+    opacity 0.08s linear,
+    border-color 0.18s ease;
+}
+
+.overlay-ring.lag {
+  opacity: 0.06;
+}
+
+/* ------------------------------------------------------- pill customization */
+
+/* The Settings page's live miniature of the recording pill. */
+.pill-preview {
+  width: 100%;
+  max-width: 320px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #171d28, #0d1118);
+  border: 1px solid #1a2230;
+  padding: 22px 14px;
+  display: grid;
+  place-items: center;
+}
+
+.pill-preview .overlay-pill {
+  width: 236px;
+  height: 46px;
+}
+
+/* Theme chips: one coordinated pick sets glow, wave, and background. */
+.theme-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.theme-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.theme-chip:hover {
+  border-color: var(--faint);
+}
+
+.theme-chip.on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 9%, var(--panel));
+  font-weight: 600;
+}
+
+.theme-dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.theme-bg {
+  width: 16px;
+  height: 12px;
+  border-radius: 4px;
+  flex: none;
 }
 
 /* --------------------------------------------------------- pending retries */

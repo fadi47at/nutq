@@ -90,7 +90,34 @@ fn send_paste() -> Result<()> {
     Ok(())
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
 fn send_paste() -> Result<()> {
-    Err(anyhow!("automatic pasting is only implemented on Windows"))
+    use core_graphics::event::{CGEvent, CGEventFlags, CGEventTapLocation};
+    use std::thread::sleep;
+
+    // kVK_ANSI_V = 9; the command flag marks it as Cmd+V for the frontmost app.
+    const V_KEY: u16 = 9;
+    const CMD_FLAG: CGEventFlags = CGEventFlags(1 << 20);
+
+    // Posting synthesized key events requires the user to have granted this
+    // app Accessibility (System Settings > Privacy & Security > Accessibility).
+    // Without it the events post "successfully" but no app receives them, so
+    // the clipboard fallback message below is what the user acts on.
+    let post = |key_down: bool| -> Result<()> {
+        let ev = CGEvent::new_keyboard_event(None, V_KEY, key_down)
+            .map_err(|e| anyhow!("could not create the paste event: {e}"))?;
+        ev.set_flags(CMD_FLAG);
+        ev.post(CGEventTapLocation::Session);
+        Ok(())
+    };
+
+    post(true)?;
+    sleep(Duration::from_millis(20));
+    post(false)?;
+    Ok(())
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
+fn send_paste() -> Result<()> {
+    Err(anyhow!("automatic pasting is only implemented on Windows and macOS"))
 }

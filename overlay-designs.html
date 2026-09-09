@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nutq — معاينة تصميمات مؤشر التسجيل</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e14;
+    --card: #10151d;
+    --card-edge: #1e2633;
+    --pill-bg: #12161d;
+    --pill-edge: #2b3341;
+    --text: #e7ecf3;
+    --muted: #94a1b4;
+    --accent: #2fd6a5;
+    --red: #ef6b6b;
+    --amber: #e5b062;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+    padding-bottom: 80px;
+  }
+
+  .bar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--card-edge);
+    padding: 18px clamp(16px, 4vw, 40px);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px 28px;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+  .bar h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+  .bar p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  .controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .seg { display: flex; border: 1px solid var(--pill-edge); border-radius: 999px; overflow: hidden; }
+  .seg button {
+    appearance: none; border: 0; cursor: pointer;
+    background: transparent; color: var(--muted);
+    font: inherit; font-size: 13px; font-weight: 500;
+    padding: 7px 16px;
+    border-inline-start: 1px solid var(--pill-edge);
+  }
+  .seg button:first-child { border-inline-start: 0; }
+  .seg button.on { background: var(--accent); color: #06251b; font-weight: 700; }
+  .seg button:not(.on):hover { color: var(--text); }
+  .dbread {
+    direction: ltr; font-variant-numeric: tabular-nums;
+    color: var(--muted); font-size: 13px; min-width: 96px; text-align: right;
+  }
+  .dbread b { color: var(--accent); font-weight: 600; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 22px;
+    padding: 26px clamp(16px, 4vw, 40px) 0;
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--card-edge);
+    border-radius: 18px;
+    padding: 20px 22px 24px;
+    animation: rise .55s cubic-bezier(.2,.7,.2,1) both;
+    animation-delay: calc(var(--i) * 55ms);
+  }
+  .card.wide { grid-column: 1 / -1; }
+  .card.pick { border-color: color-mix(in srgb, var(--accent) 45%, var(--card-edge)); }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(14px); }
+  }
+  .card header { display: flex; gap: 14px; align-items: baseline; margin-bottom: 6px; }
+  .card .num {
+    flex: none;
+    width: 30px; height: 30px;
+    display: grid; place-items: center;
+    border-radius: 50%;
+    border: 1px solid var(--pill-edge);
+    color: var(--muted);
+    font-size: 14px; font-weight: 700;
+    transform: translateY(4px);
+  }
+  .card.pick .num { border-color: var(--accent); color: var(--accent); }
+  .card h2 { margin: 0; font-size: 17px; font-weight: 700; }
+  .card header p { margin: 2px 0 0; color: var(--muted); font-size: 13px; max-width: 72ch; }
+  .tag {
+    display: inline-block; margin-inline-start: 8px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
+    border-radius: 999px; padding: 2px 10px;
+    transform: translateY(-2px);
+  }
+  .tag.problem { background: color-mix(in srgb, var(--red) 16%, transparent); color: var(--red); }
+  .tag.pick { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
+
+  .stage {
+    margin-top: 18px;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #171d28 0%, #12161d 62%, #0d1118 100%);
+    border: 1px solid #1a2230;
+    padding: 26px 12px 0;
+    display: grid;
+    justify-items: center;
+    gap: 0;
+  }
+  .stage .desk {
+    width: 100%;
+    padding: 10px 0 14px;
+    display: grid;
+    place-items: center;
+  }
+  .taskbar {
+    width: 100%;
+    height: 14px;
+    background: #0b0f16;
+    border-top: 1px solid #1a2230;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 14px;
+    direction: ltr;
+  }
+  .taskbar i { width: 7px; height: 7px; border-radius: 2.5px; background: #222c3c; }
+  .taskbar i:first-child { background: #2fd6a54d; }
+  .zoombox {
+    width: 100%;
+    padding: 30px 0 34px;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+  }
+  .zoom { transform: scale(2.2); }
+
+  .pill {
+    direction: ltr;
+    box-sizing: border-box;
+    width: 196px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 11px;
+    padding: 0 15px;
+    border-radius: 999px;
+    background: var(--pill-bg);
+    border: 1px solid var(--pill-edge);
+    color: var(--text);
+    position: relative;
+  }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--red);
+    flex: none;
+    animation: pulse 1.1s ease-in-out infinite;
+  }
+  .dot.warn { background: var(--amber); }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .time { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; }
+
+  .wave { display: flex; align-items: center; gap: 2px; height: 20px; }
+  .wave i { width: 3px; border-radius: 1.5px; background: var(--accent); transition: height .07s linear; height: 2px; }
+
+  .ringbox { position: relative; width: 12px; height: 12px; flex: none; }
+  .ringbox .core {
+    position: absolute; left: 50%; top: 50%;
+    width: 8px; height: 8px; border-radius: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--red);
+  }
+  .ringbox .core.warn { background: var(--amber); }
+  .ringbox i {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 1.5px solid var(--accent);
+    opacity: .65;
+    width: 10px; height: 10px;
+  }
+  .ringbox i.r2 { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+
+  .meter { position: relative; width: 92px; height: 5px; border-radius: 3px; background: #232b3a; overflow: hidden; }
+  .meter .fill {
+    position: absolute; inset: 0 auto 0 0; width: 0%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--accent) 0%, #57d9a0 62%, var(--amber) 84%, var(--red) 97%);
+  }
+  .meter .pk {
+    position: absolute; top: -1px; bottom: -1px; left: 0;
+    width: 2px; border-radius: 1px;
+    background: #e7ecf3cc;
+  }
+
+  canvas.sc { width: 150px; height: 38px; display: block; }
+  .pill.wide { width: 244px; }
+
+  .foot {
+    max-width: 1180px;
+    margin: 26px auto 0;
+    padding: 0 clamp(16px, 4vw, 40px);
+    color: var(--muted);
+    font-size: 13.5px;
+  }
+  .foot b { color: var(--text); }
+
+  @media (max-width: 860px) {
+    .grid { grid-template-columns: 1fr; }
+    .zoom { transform: scale(1.7); }
+  }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div>
+    <h1>مؤشر التسجيل: 7 اتجاهات للمعاينة</h1>
+    <p>كل تصميم معروض بحجمه الحقيقي (196×38) ومكبّرًا، بمحاكاة كلام واقعية حية. جرّب السيناريوهات وقارن الاستجابة.</p>
+  </div>
+  <div class="controls">
+    <div class="seg" role="group" aria-label="سيناريو الصوت">
+      <button data-sc="silence">صمت</button>
+      <button data-sc="quiet">كلام هادئ</button>
+      <button data-sc="normal" class="on">كلام عادي</button>
+      <button data-sc="loud">كلام مرتفع</button>
+    </div>
+    <div class="dbread">المستوى <b id="dbval">−40.0</b> dB</div>
+  </div>
+</header>
+
+<main class="grid">
+
+  <section class="card wide" style="--i:0">
+    <header>
+      <span class="num">1</span>
+      <div>
+        <h2>الحالي — كما هو مثبّت الآن <span class="tag problem">المشكلة اللي بتشتكي منها</span></h2>
+        <p>نفس كود البرنامج بالضبط: تكبير ثابت ×9 على الإشارة الخام. لاحظ كيف يبقى الرسم شبه ساكن حتى وأنت تتكلم. السبب طريقة قراءة الإشارة، مش الشكل، وأي تصميم تختاره رح يستفيد من القراءة المصحّحة.</p>
+      </div>
+    </header>
+    <div class="stage">
+      <div class="desk"><div data-design="current"></div></div>
+      <div class="taskbar"><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
+  </section>
+
+  <section class="card pick" style="--i:1">
+    <header>
+      <span class="num">2</span>
+      <div>
+        <h2>الأعمدة الحسّاسة <span class="tag pick">الترشيح الأول</span></h2>
+        <p>نفس شكل البرنامج تمامًا، بس القراءة صارت مقياس ديسيبل مع ضبط تلقائي للمدى (AGC): الأعمدة تمشي مع نبرتك سواء هامست أو صخبت، والذروات تبان بوضوح.</p>
+      </div>
+    </header>
+    <div class="stage"><div class="desk"><div data-design="bars"></div></div></div>
+    <div class="zoombox"><div class="zoom" data-design="bars"></div></div>
+  </section>
+
+  <section class="card" style="--i:2">
+    <header>
+      <span class="num">3</span>
+      <div>
+        <h2>الموجة</h2>
+        <p>خط مستمر يرسم كلامك كمنحنى حي، والوقفات تنزل لخط مستقيم، فتقرأ منه إيقاع جملتك كأنه تخطيط قلب. الأوضح لتمييز الكلام من الصمت.</p>
+      </div>
+    </header>
+    <div class="stage"><div class="desk"><div data-design="scope"></div></div></div>
+    <div class="zoombox"><div class="zoom" data-design="scope"></div></div>
+  </section>
+
+  <section class="card" style="--i:3">
+    <header>
+      <span class="num">4</span>
+      <div>
+        <h2>النبضة</h2>
+        <p>حلقة تتنفس حول النقطة بقدر قوة صوتك، مع موجة ثانية متأخرة تعطي إحساس Ripple. أخف تصميم على العين، بدون رسم بياني إطلاقًا.</p>
+      </div>
+    </header>
+    <div class="stage"><div class="desk"><div data-design="ring"></div></div></div>
+    <div class="zoombox"><div class="zoom" data-design="ring"></div></div>
+  </section>
+
+  <section class="card" style="--i:4">
+    <header>
+      <span class="num">5</span>
+      <div>
+        <h2>المقياس</h2>
+        <p>شريط مستوى واحد بتدرّج أخضر ← كهرماني ← أحمر، مع علامة ذروة بيضاء تحتفظ بأعلى صوت وصلته. أوضح قراءة «رقمية» لقوة الصوت.</p>
+      </div>
+    </header>
+    <div class="stage"><div class="desk"><div data-design="meter"></div></div></div>
+    <div class="zoombox"><div class="zoom" data-design="meter"></div></div>
+  </section>
+
+  <section class="card" style="--i:5">
+    <header>
+      <span class="num">6</span>
+      <div>
+        <h2>المقاطع</h2>
+        <p>كتلة لكل مقطع صوتي تمشي مع كلامك، والسكتات تصير فراغات — تبيّن حدود كلماتك وتميّز الكلام الحقيقي من الضجيج بنظرة.</p>
+      </div>
+    </header>
+    <div class="stage"><div class="desk"><div data-design="blobs"></div></div></div>
+    <div class="zoombox"><div class="zoom" data-design="blobs"></div></div>
+  </section>
+
+  <section class="card" style="--i:6">
+    <header>
+      <span class="num">7</span>
+      <div>
+        <h2>الهالة <span class="tag pick">اتجاهك المختار</span></h2>
+        <p>الحبة نفسها هي المؤشر: حدّها وتوهجها يشتدّ مع الصوت ويرتاح مع السكوت، والنقطة تبقى للتنبيه فقط. أنعم حضور، شبه صامت.</p>
+      </div>
+    </header>
+    <div class="stage"><div class="desk"><div data-design="aura"></div></div></div>
+    <div class="zoombox"><div class="zoom" data-design="aura"></div></div>
+  </section>
+
+  <section class="card" style="--i:7">
+    <header>
+      <span class="num">8</span>
+      <div>
+        <h2>الهالة الموجية <span class="tag pick">أكثر موجية</span></h2>
+        <p>الهالة اللي اخترتها، بس جواها موجة حقيقية ترسم صوتك وتتوهج معاه. التوهج حول الحبة بإحساس مضاعف لأن الحركة موجودة داخل الحبة وخارجها بنفس اللحظة.</p>
+      </div>
+    </header>
+    <div class="stage"><div class="desk"><div data-design="aurawave"></div></div></div>
+    <div class="zoombox"><div class="zoom" data-design="aurawave"></div></div>
+  </section>
+
+  <section class="card" style="--i:8">
+    <header>
+      <span class="num">9</span>
+      <div>
+        <h2>الهالة المشحونة <span class="tag pick">أكثر وضوحًا</span></h2>
+        <p>نفس فكرة الهالة بس بقوة إضاءة أعلى بكثير: طبقتا توهج حول الحبة + إضاءة داخلية على الحواف، ومستوى إشعاع أساسي ما يختفي وقت السكوت. إذا حسّيت السابع «هايد» فهذه هي النسخة اللي دايمًا بتبين.</p>
+      </div>
+    </header>
+    <div class="stage"><div class="desk"><div data-design="charged"></div></div></div>
+    <div class="zoombox"><div class="zoom" data-design="charged"></div></div>
+  </section>
+
+  <section class="card" style="--i:9">
+    <header>
+      <span class="num">10</span>
+      <div>
+        <h2>الموجة التوأم</h2>
+        <p>خطين موجيين متعاكسين بتماثل بينا منحين ينزاحوا عن بعض مع تفاوت الصوت، داخل هالة متوهجة. إحساس اهتزاز مستمر، أخف من الموجة الممتلئة.</p>
+      </div>
+    </header>
+    <div class="stage"><div class="desk"><div data-design="twin"></div></div></div>
+    <div class="zoombox"><div class="zoom" data-design="twin"></div></div>
+  </section>
+
+  <section class="card" style="--i:10">
+    <header>
+      <span class="num">11</span>
+      <div>
+        <h2>الشريط المتنفس</h2>
+        <p>حزمة ضوء عرضية قلب الحبة، سماكتها تتمدد مع صوتك وترتاح مع سكوتك، وحولها توهج الهالة. نص الطريق بين الهالة والمقياس: موجية وواضحة بنفس الوقت.</p>
+      </div>
+    </header>
+    <div class="stage"><div class="desk"><div data-design="ribbon"></div></div></div>
+    <div class="zoombox"><div class="zoom" data-design="ribbon"></div></div>
+  </section>
+
+</main>
+
+<p class="foot">
+  <b>كيف تختار:</b> البطاقات 8 إلى 11 كلها من عائلة الهالة اللي اخترتها، بس أقوى حضورًا وأكثر إحساس بالحركة: جرّبها على السيناريوهات الأربعة وقارن. اكتب لي رقم التصميم، أو تركيبة مثلًا «8 بتوهج 9»، وأطبّقه على البرنامج مباشرة.
+</p>
+
+<script>
+(() => {
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+  /* محاكاة صوت واقعي: عبارات كلام + مقاطع لفظية + وقفات، بمستويات RMS الحقيقية */
+  const SCN = {
+    silence: { base: 0.0008, jit: 0.0003, speech: false },
+    quiet:   { base: 0.020,  jit: 0.012,  speech: true  },
+    normal:  { base: 0.055,  jit: 0.030,  speech: true  },
+    loud:    { base: 0.150,  jit: 0.080,  speech: true  },
+  };
+  let scenario = "normal";
+  const voice = { mode: "pause", until: 0, sylF: 3.8, amp: 1, phase: 0, level: 0.001, silent: 0 };
+
+  function simTick(dt, now) {
+    const s = SCN[scenario];
+    let target = s.base + (Math.random() - 0.5) * 2 * s.jit;
+    if (s.speech) {
+      if (now > voice.until) {
+        if (voice.mode === "speak") { voice.mode = "pause"; voice.until = now + 280 + Math.random() * 900; }
+        else { voice.mode = "speak"; voice.until = now + 1100 + Math.random() * 1900; voice.sylF = 3 + Math.random() * 2; voice.amp = 0.75 + Math.random() * 0.5; }
+      }
+      if (voice.mode === "speak") {
+        voice.phase += dt * voice.sylF * Math.PI * 2;
+        const syl = 0.6 + 0.4 * Math.sin(voice.phase);
+        target = (s.base + s.jit * Math.random()) * voice.amp * syl * (0.85 + Math.random() * 0.3);
+      } else {
+        target = s.base * 0.35 + Math.random() * s.jit * 0.3;
+      }
+    }
+    const k = target > voice.level ? 1 - Math.exp(-dt / 0.025) : 1 - Math.exp(-dt / 0.09);
+    voice.level += (target - voice.level) * k;
+    if (voice.level > 0.006) voice.silent = 0; else voice.silent += dt;
+  }
+
+  /* قراءات الإشارة: الحالي ×9 خطي، والمصحّح ديسيبل + AGC */
+  const MAP = {
+    linear9: (l) => clamp(l * 9, 0.05, 1),
+    db: (l) => { const db = 20 * Math.log10(Math.max(l, 1e-5)); return clamp((db + 58) / 40, 0.04, 1); },
+  };
+  function agc(l, st) {
+    st.peak = Math.max(l, (st.peak || 0) * 0.996);
+    return clamp((l / Math.max(st.peak, 0.018)) * 0.88, 0.04, 1);
+  }
+
+  /* بناء الحبة — نفس أبعاد وألوان البرنامج بالضبط */
+  const pillCSS = (extra) => {
+    const el = document.createElement("div");
+    el.className = "pill";
+    el.innerHTML = extra;
+    return el;
+  };
+  const dot = () => `<span class="dot"></span>`;
+  const dotCore = () => `<span class="ringbox"><span class="core"></span><i class="r1"></i><i class="r2"></i></span>`;
+  const timer = () => `<span class="time">0:00</span>`;
+  const waveHTML = () => `<span class="wave">${"<i></i>".repeat(16)}</span>`;
+
+  function makePill(kind) {
+    const st = { bars: new Array(16).fill(0.05), hist: [], hist2: [], prevTop: 0.02, blobs: [], peak: 0, pk: 0, vprev: [], sec: 0 };
+    let el;
+    if (kind === "current" || kind === "bars") el = pillCSS(dot() + waveHTML() + timer());
+    else if (kind === "scope" || kind === "blobs") {
+      el = document.createElement("div");
+      el.className = "pill wide";
+      el.innerHTML = dot() + `<canvas class="sc" width="600" height="152"></canvas>` + timer();
+      el.querySelector("canvas").getContext("2d").setTransform(4, 0, 0, 4, 0, 0);
+    }
+    else if (kind === "ring") el = pillCSS(dotCore() + `<span class="time">0:00</span>`);
+    else if (kind === "meter") el = pillCSS(dot() + `<span class="meter"><i class="fill"></i><i class="pk"></i></span>` + timer());
+    else if (kind === "aura" || kind === "charged") {
+      el = pillCSS(dot() + `<span class="wave" style="gap:3px">${"<i style='width:2px'></i>".repeat(9)}</span>` + timer());
+      if (kind === "charged") el.querySelectorAll(".wave i").forEach((b) => { b.style.background = "#7ff0cd"; });
+    }
+    else if (kind === "aurawave" || kind === "twin" || kind === "ribbon") {
+      el = document.createElement("div");
+      el.className = "pill wide";
+      el.innerHTML = dot() + `<canvas class="sc" width="600" height="152"></canvas>` + timer();
+      el.querySelector("canvas").getContext("2d").setTransform(4, 0, 0, 4, 0, 0);
+    }
+
+    /* توهج الهالة المشترك: دائم الظهور حتى وقت السكوت، ويتضاعف مع الصوت */
+    function applyAura(s, k) {
+      el.style.borderColor = `rgba(47,214,165,${clamp((0.22 + s * 0.68) * k, 0, 1)})`;
+      el.style.boxShadow =
+        `0 0 ${(4 + s * 11) * k}px rgba(47,214,165,${clamp((0.12 + s * 0.40) * k, 0, 1)}),` +
+        `0 0 ${(11 + s * 27) * k}px rgba(47,214,165,${clamp((0.07 + s * 0.32) * k, 0, 1)}),` +
+        `inset 0 0 ${(2 + s * 13) * k}px rgba(47,214,165,${clamp((0.06 + s * 0.24) * k, 0, 1)})`;
+    }
+
+    function render(level, warn, dt) {
+      st.sec += dt;
+      el.querySelector(".time").textContent = `${Math.floor(st.sec / 60)}:${String(Math.floor(st.sec % 60)).padStart(2, "0")}`;
+      const d = el.querySelector(".dot, .core");
+      if (d) d.classList.toggle("warn", warn);
+
+      if (kind === "current" || kind === "bars") {
+        const v = kind === "current" ? MAP.linear9(level) : clamp(MAP.db(level) * 0.75 + agc(level, st) * 0.25, 0.04, 1);
+        st.bars.push(v); st.bars.shift();
+        el.querySelectorAll(".wave i").forEach((b, i) => { b.style.height = Math.max(2, st.bars[i] * 20) + "px"; });
+      }
+      else if (kind === "scope") {
+        const v = clamp(agc(level, st) * 0.85 + MAP.db(level) * 0.15, 0.03, 1);
+        st.hist.push(v); if (st.hist.length > 74) st.hist.shift();
+        const ctx = el.querySelector("canvas").getContext("2d");
+        const W = 150, H = 38, mid = H / 2;
+        ctx.clearRect(0, 0, W, H);
+        ctx.strokeStyle = "#1d2531"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0, mid); ctx.lineTo(W, mid); ctx.stroke();
+        const n = st.hist.length, x0 = W - n * 2;
+        const y = (v) => mid - v * (mid - 3) * 0.92;
+        ctx.beginPath();
+        ctx.moveTo(x0, y(st.hist[0]));
+        for (let i = 1; i < n; i++) {
+          const xa = x0 + (i - 1) * 2, xb = x0 + i * 2;
+          ctx.quadraticCurveTo(xa, y(st.hist[i - 1]), (xa + xb) / 2, (y(st.hist[i - 1]) + y(st.hist[i])) / 2);
+        }
+        ctx.lineTo(W, y(st.hist[n - 1]));
+        ctx.strokeStyle = "#2fd6a5"; ctx.lineWidth = 1.6; ctx.stroke();
+        ctx.lineTo(W, mid); ctx.lineTo(x0, mid); ctx.closePath();
+        ctx.fillStyle = "rgba(47,214,165,0.13)"; ctx.fill();
+      }
+      else if (kind === "ring") {
+        const v = clamp(MAP.db(level) * 0.7 + agc(level, st) * 0.3, 0.04, 1);
+        st.vprev.push(v); if (st.vprev.length > 8) st.vprev.shift();
+        const v2 = st.vprev[0];
+        const r1 = el.querySelector(".r1"), r2 = el.querySelector(".r2");
+        r1.style.width = r1.style.height = 10 + v * 24 + "px";
+        r1.style.opacity = 0.15 + v * 0.6;
+        r2.style.width = r2.style.height = 10 + v2 * 24 + "px";
+        r2.style.opacity = 0.05 + v2 * 0.3;
+      }
+      else if (kind === "meter") {
+        const v = MAP.db(level);
+        st.pk = Math.max(v, st.pk - dt * 0.25);
+        el.querySelector(".fill").style.width = v * 100 + "%";
+        el.querySelector(".pk").style.left = `calc(${clamp(st.pk, 0, 1) * 100}% - 1px)`;
+      }
+      else if (kind === "blobs") {
+        const v = level > 0.01 ? clamp(agc(level, st), 0.12, 1) : 0;
+        st.blobs.push(v); if (st.blobs.length > 49) st.blobs.shift();
+        const ctx = el.querySelector("canvas").getContext("2d");
+        const H = 38, mid = H / 2;
+        ctx.clearRect(0, 0, 150, H);
+        ctx.fillStyle = "#2fd6a5";
+        st.blobs.forEach((b, i) => {
+          if (b <= 0) return;
+          const x = i * 3, h = 4 + b * 24;
+          ctx.globalAlpha = 0.35 + b * 0.65;
+          ctx.beginPath();
+          ctx.roundRect(x, mid - h / 2, 2, h, 1);
+          ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+      }
+      else if (kind === "aurawave" || kind === "twin" || kind === "ribbon") {
+        const v = clamp(agc(level, st) * 0.85 + MAP.db(level) * 0.15, 0.03, 1);
+        st.hist.push(v); if (st.hist.length > 74) st.hist.shift();
+        st.vprev.push(v); if (st.vprev.length > 6) st.vprev.shift();
+        const s = st.vprev.reduce((a, b) => a + b, 0) / st.vprev.length;
+        applyAura(s, kind === "twin" ? 1.15 : 1.25);
+
+        const ctx = el.querySelector("canvas").getContext("2d");
+        const W = 150, H = 38, mid = H / 2, n = st.hist.length, x0 = W - n * 2;
+        ctx.clearRect(0, 0, W, H);
+
+        if (kind === "aurawave") {
+          const y = (val) => mid - val * (mid - 3) * 0.94;
+          ctx.beginPath();
+          ctx.moveTo(x0, y(st.hist[0]));
+          for (let i = 1; i < n; i++) {
+            const xa = x0 + (i - 1) * 2, xb = x0 + i * 2;
+            ctx.quadraticCurveTo(xa, y(st.hist[i - 1]), (xa + xb) / 2, (y(st.hist[i - 1]) + y(st.hist[i])) / 2);
+          }
+          ctx.lineTo(W, y(st.hist[n - 1]));
+          ctx.strokeStyle = "rgba(63,230,181,0.30)"; ctx.lineWidth = 4; ctx.stroke();
+          ctx.strokeStyle = "#3fe6b5"; ctx.lineWidth = 1.7; ctx.stroke();
+          ctx.lineTo(W, mid); ctx.lineTo(x0, mid); ctx.closePath();
+          ctx.fillStyle = "rgba(47,214,165,0.15)"; ctx.fill();
+        }
+        else if (kind === "twin") {
+          st.hist2.push(st.prevTop); if (st.hist2.length > 74) st.hist2.shift();
+          st.prevTop = v;
+          const y = (val) => mid - 2.5 - val * (mid - 6);
+          const yB = (val) => mid + 2.5 + val * (mid - 6);
+          ctx.beginPath();
+          ctx.moveTo(x0, y(st.hist[0]));
+          for (let i = 1; i < n; i++) {
+            const xa = x0 + (i - 1) * 2, xb = x0 + i * 2;
+            ctx.quadraticCurveTo(xa, y(st.hist[i - 1]), (xa + xb) / 2, (y(st.hist[i - 1]) + y(st.hist[i])) / 2);
+          }
+          ctx.strokeStyle = "#3fe6b5"; ctx.lineWidth = 1.5; ctx.stroke();
+          const m = st.hist2.length, x02 = W - m * 2;
+          ctx.beginPath();
+          ctx.moveTo(x02, yB(st.hist2[0]));
+          for (let i = 1; i < m; i++) {
+            const xa = x02 + (i - 1) * 2, xb = x02 + i * 2;
+            ctx.quadraticCurveTo(xa, yB(st.hist2[i - 1]), (xa + xb) / 2, (yB(st.hist2[i - 1]) + yB(st.hist2[i])) / 2);
+          }
+          ctx.strokeStyle = "rgba(63,230,181,0.65)"; ctx.lineWidth = 1.5; ctx.stroke();
+        }
+        else {
+          const y = (val) => 1.5 + val * (mid - 3);
+          const yT = (val) => mid - (y(val) - mid);
+          ctx.beginPath();
+          ctx.moveTo(x0, yT(st.hist[0]));
+          for (let i = 1; i < n; i++) {
+            const xa = x0 + (i - 1) * 2, xb = x0 + i * 2;
+            ctx.quadraticCurveTo(xa, yT(st.hist[i - 1]), (xa + xb) / 2, (yT(st.hist[i - 1]) + yT(st.hist[i])) / 2);
+          }
+          for (let i = n - 1; i >= 0; i--) {
+            const xa = x0 + i * 2, xb = x0 + (i + 1) * 2;
+            const prev = i > 0 ? st.hist[i - 1] : st.hist[i];
+            ctx.quadraticCurveTo(xa, y(st.hist[i]), (xa + xb) / 2, (y(st.hist[i]) + y(prev)) / 2);
+          }
+          ctx.closePath();
+          const g = ctx.createLinearGradient(0, 2, 0, H - 2);
+          g.addColorStop(0, `rgba(63,230,181,${0.30 + s * 0.35})`);
+          g.addColorStop(0.5, `rgba(47,214,165,${0.55 + s * 0.35})`);
+          g.addColorStop(1, `rgba(63,230,181,${0.30 + s * 0.35})`);
+          ctx.fillStyle = g;
+          ctx.fill();
+          ctx.strokeStyle = "rgba(210,255,240,0.55)"; ctx.lineWidth = 0.8; ctx.stroke();
+        }
+      }
+      else if (kind === "aura" || kind === "charged") {
+        const v = MAP.db(level);
+        st.vprev.push(v); if (st.vprev.length > 6) st.vprev.shift();
+        const s = st.vprev.reduce((a, b) => a + b, 0) / st.vprev.length;
+        applyAura(s, kind === "charged" ? 1.6 : 1);
+        st.bars.push(s); st.bars.shift();
+        el.querySelectorAll(".wave i").forEach((b, i) => {
+          b.style.height = Math.max(1.5, st.bars[i] * (kind === "charged" ? 10 : 8)) + "px";
+        });
+      }
+    }
+    return { el, render };
+  }
+
+  const slots = document.querySelectorAll("[data-design]");
+  const pills = [];
+  slots.forEach((slot) => {
+    const p = makePill(slot.dataset.design);
+    slot.appendChild(p.el);
+    pills.push(p);
+  });
+
+  document.querySelectorAll(".seg button").forEach((b) => {
+    b.addEventListener("click", () => {
+      document.querySelectorAll(".seg button").forEach((x) => x.classList.remove("on"));
+      b.classList.add("on");
+      scenario = b.dataset.sc;
+      voice.mode = "pause"; voice.until = 0; voice.silent = 0;
+    });
+  });
+
+  const dbval = document.getElementById("dbval");
+  let last = performance.now(), acc = 0, dbT = 0, uiT = 0;
+  const STEP = 0.02;
+  function frame(now) {
+    const dt = Math.min(0.1, (now - last) / 1000);
+    last = now;
+    acc += dt; dbT += dt; uiT += dt;
+    while (acc >= STEP) {
+      simTick(STEP, now / 1000);
+      acc -= STEP;
+    }
+    const warn = voice.silent > 1.2;
+    pills.forEach((p) => p.render(voice.level, warn, dt));
+    if (dbT > 0.15) {
+      const db = 20 * Math.log10(Math.max(voice.level, 1e-5));
+      dbval.textContent = (db <= -79 ? "−∞" : db.toFixed(1).replace("-", "−"));
+      dbT = 0;
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
