@@ -1473,13 +1473,13 @@ pub fn run() {
             overlay_state,
         ])
         .setup(|app| {
-            // macOS: provisional activation - the app keeps no Dock icon, but
-            // unlike Accessory its windows can still become key and receive
-            // keyboard input, without which the settings page and the hotkey
-            // capture field are dead. The overlay never calls show() after
-            // startup (it only moves), so it cannot steal focus.
+            // macOS: keep the standard Regular policy. Accessory hides the
+            // Dock icon but its windows never become key on click, which left
+            // the whole UI without keyboard input on real Macs. The overlay
+            // never calls show() after startup (it only moves), so it cannot
+            // steal focus during dictation either way.
             #[cfg(target_os = "macos")]
-            app.set_activation_policy(tauri::ActivationPolicy::Provisional);
+            app.set_activation_policy(tauri::ActivationPolicy::Regular);
 
             register_hotkeys(app.handle())?;
             build_tray(app.handle())?;
