@@ -51,11 +51,11 @@ jobs:
           STAGE=$(mktemp -d)
           cp -R "$BUNDLE/nutq.app" "$STAGE/"
           hdiutil create -volname nutq -srcfolder "$STAGE" -ov -format UDZO \
-            nutq_0.1.0_universal.dmg
+            "$GITHUB_WORKSPACE/nutq_0.1.0_universal.dmg"
           cd "$BUNDLE"
           ditto -c -k --sequesterRsrc --keepParent nutq.app nutq-macos.zip
           mkdir -p "$GITHUB_WORKSPACE/artifact/dmg" "$GITHUB_WORKSPACE/artifact/macos"
-          cp nutq_0.1.0_universal.dmg "$GITHUB_WORKSPACE/artifact/dmg/"
+          cp "$GITHUB_WORKSPACE/nutq_0.1.0_universal.dmg" "$GITHUB_WORKSPACE/artifact/dmg/"
           cp nutq-macos.zip "$GITHUB_WORKSPACE/artifact/macos/"
 
       - uses: actions/upload-artifact@v4
