@@ -1473,12 +1473,13 @@ pub fn run() {
             overlay_state,
         ])
         .setup(|app| {
-            // macOS: run as an accessory app - no Dock icon, and the overlay
-            // window appears without stealing focus, the role WS_EX_NOACTIVATE
-            // plays on Windows. The settings window still takes focus when the
-            // user clicks it.
+            // macOS: provisional activation - the app keeps no Dock icon, but
+            // unlike Accessory its windows can still become key and receive
+            // keyboard input, without which the settings page and the hotkey
+            // capture field are dead. The overlay never calls show() after
+            // startup (it only moves), so it cannot steal focus.
             #[cfg(target_os = "macos")]
-            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            app.set_activation_policy(tauri::ActivationPolicy::Provisional);
 
             register_hotkeys(app.handle())?;
             build_tray(app.handle())?;
