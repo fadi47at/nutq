@@ -2,9 +2,13 @@ name: Build macOS app
 
 # Builds the macOS .app/.dmg on Apple hardware (GitHub's licensed Mac
 # runners), since Apple's toolchain cannot run on Windows. Produces a
-# UNIVERSAL binary (Apple Silicon + Intel in one app). The .app is zipped
-# with ditto because upload-artifact alone strips the executable bit and a
-# re-downloaded app then refuses to open.
+# UNIVERSAL binary (Apple Silicon + Intel in one app).
+#
+# The app is explicitly ad-hoc signed and strictly verified inside the job:
+# without this step, CI-built Tauri apps can carry a broken signature and
+# refuse to launch on other Macs with a bare "can't be opened" dialog and no
+# Gatekeeper prompt. The .app is then zipped with ditto, because
+# upload-artifact alone strips the executable bit.
 on:
   workflow_dispatch:
   push:
@@ -29,18 +33,33 @@ jobs:
         working-directory: nutq
 
       - name: Build universal app (Apple Silicon + Intel)
-        run: npm run tauri build -- --target universal-apple-darwin --bundles app,dmg
+        run: npm run tauri build -- --target universal-apple-darwin --bundles app
         working-directory: nutq
 
-      - name: Zip the app preserving Unix permissions
+      - name: Ad-hoc sign and verify
         run: |
-          cd nutq/src-tauri/target/universal-apple-darwin/release/bundle/macos
+          APP=nutq/src-tauri/target/universal-apple-darwin/release/bundle/macos/nutq.app
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --deep --strict "$APP"
+          codesign -dv --verbose=2 "$APP" || true
+          lipo -info "$APP/Contents/MacOS/nutq"
+          ls -l "$APP/Contents/MacOS/nutq"
+
+      - name: Package dmg and permission-preserving zip
+        run: |
+          BUNDLE=nutq/src-tauri/target/universal-apple-darwin/release/bundle/macos
+          STAGE=$(mktemp -d)
+          cp -R "$BUNDLE/nutq.app" "$STAGE/"
+          hdiutil create -volname nutq -srcfolder "$STAGE" -ov -format UDZO \
+            nutq_0.1.0_universal.dmg
+          cd "$BUNDLE"
           ditto -c -k --sequesterRsrc --keepParent nutq.app nutq-macos.zip
+          mkdir -p "$GITHUB_WORKSPACE/artifact/dmg" "$GITHUB_WORKSPACE/artifact/macos"
+          cp nutq_0.1.0_universal.dmg "$GITHUB_WORKSPACE/artifact/dmg/"
+          cp nutq-macos.zip "$GITHUB_WORKSPACE/artifact/macos/"
 
       - uses: actions/upload-artifact@v4
         with:
           name: nutq-macos
-          path: |
-            nutq/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
-            nutq/src-tauri/target/universal-apple-darwin/release/bundle/macos/nutq-macos.zip
+          path: artifact/
           if-no-files-found: error
