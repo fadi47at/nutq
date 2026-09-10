@@ -1,9 +1,10 @@
 name: Build macOS app
 
 # Builds the macOS .app/.dmg on Apple hardware (GitHub's licensed Mac
-# runners), since Apple's toolchain cannot run on Windows. Trigger manually
-# from the Actions tab, or on every push to main. The unsigned artifact is
-# fine for personal use; distribution needs codesigning + notarization.
+# runners), since Apple's toolchain cannot run on Windows. Produces a
+# UNIVERSAL binary (Apple Silicon + Intel in one app). The .app is zipped
+# with ditto because upload-artifact alone strips the executable bit and a
+# re-downloaded app then refuses to open.
 on:
   workflow_dispatch:
   push:
@@ -11,7 +12,7 @@ on:
 
 jobs:
   build-macos:
-    runs-on: macos-14 # Apple Silicon; use macos-13 for an Intel build
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
 
@@ -20,19 +21,26 @@ jobs:
           node-version: 20
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
 
       - name: Install frontend dependencies
         run: npm ci
         working-directory: nutq
 
-      - name: Build the app bundle
-        run: npm run tauri build -- --bundles app,dmg
+      - name: Build universal app (Apple Silicon + Intel)
+        run: npm run tauri build -- --target universal-apple-darwin --bundles app,dmg
         working-directory: nutq
+
+      - name: Zip the app preserving Unix permissions
+        run: |
+          cd nutq/src-tauri/target/universal-apple-darwin/release/bundle/macos
+          ditto -c -k --sequesterRsrc --keepParent nutq.app nutq-macos.zip
 
       - uses: actions/upload-artifact@v4
         with:
           name: nutq-macos
           path: |
-            nutq/src-tauri/target/release/bundle/dmg/*.dmg
-            nutq/src-tauri/target/release/bundle/macos/*.app
+            nutq/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            nutq/src-tauri/target/universal-apple-darwin/release/bundle/macos/nutq-macos.zip
           if-no-files-found: error
