@@ -38,7 +38,9 @@ if ($tagged -ne $tag) {
   throw "tag $tag does not exist yet - commit and tag before publishing"
 }
 
-$env:TAURI_SIGNING_PRIVATE_KEY_PATH = $key
+# The bundler signs only when TAURI_SIGNING_PRIVATE_KEY holds the key
+# itself (a path is not accepted), so read the file into the env var.
+$env:TAURI_SIGNING_PRIVATE_KEY = (Get-Content -LiteralPath $key -Raw).Trim()
 
 Write-Host "building nutq $tag (signed) ..."
 Push-Location $root
