@@ -39,8 +39,11 @@ if ($tagged -ne $tag) {
 }
 
 # The bundler signs only when TAURI_SIGNING_PRIVATE_KEY holds the key
-# itself (a path is not accepted), so read the file into the env var.
+# itself (a path is not accepted), so read the file into the env var. The
+# password var must be set too - even empty - or the bundler PROMPTS for
+# it, and a prompt in a non-interactive shell hangs the build forever.
 $env:TAURI_SIGNING_PRIVATE_KEY = (Get-Content -LiteralPath $key -Raw).Trim()
+$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""
 
 Write-Host "building nutq $tag (signed) ..."
 Push-Location $root
