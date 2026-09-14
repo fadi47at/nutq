@@ -43,7 +43,10 @@ Rules:
   `releases/latest/download/latest.json`, compares versions, and offers the
   update on its Home page; one click downloads the signed installer,
   verifies it, installs it, and relaunches. This exists from v0.3.0 on —
-  older installs need one manual update first.
+  older installs need one manual update first. The repo
+  (`github.com/fadi47at/nutq`) is **public** on purpose: unauthenticated
+  installs cannot see a private repo's releases, so privacy here would
+  silently break every update.
 - The updater signing key lives at `%USERPROFILE%\.nutq\updater.key`
   (private) — outside the repo, never committed; the matching public key is
   in `tauri.conf.json`. **Losing the private key breaks all future
