@@ -94,6 +94,12 @@ if ($LASTEXITCODE -ne 0) { throw "git push of the tag failed" }
 Write-Host "creating GitHub release $tag ..."
 gh release create $tag $setup.FullName $latestPath --title "nutq $tag" --notes $Notes
 
+# The local copy for handing to someone, one folder away from the source -
+# part of the ritual, so the script owns it rather than memory.
+$versionsDir = Join-Path (Split-Path -Parent $root) "versions"
+New-Item -ItemType Directory -Path $versionsDir -Force | Out-Null
+Copy-Item -LiteralPath $setup.FullName -Destination $versionsDir -Force
+
 Write-Host ""
 Write-Host "published: https://github.com/$ownerRepo/releases/tag/$tag"
-Write-Host "install locally from: $($setup.FullName)"
+Write-Host "installer copied to: $versionsDir"

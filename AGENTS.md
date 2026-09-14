@@ -38,7 +38,10 @@ Rules:
   apart later — a release without a tag does not exist.
 - Release ritual, in order: bump the three files → commit → tag `v<version>`
   → `powershell -File scripts\publish-release.ps1 -Notes "what's new"`
-  (in `nutq/`: signed build, push, GitHub Release with `latest.json`).
+  (in `nutq/`: signed build, push, GitHub Release with `latest.json`,
+  installer copied to `versions/`). The only step left outside the script
+  is installing on this machine - deliberately, so a release never kills
+  the running app on its own.
 - **Distribution is GitHub Releases + the built-in updater.** `nutq` reads
   `releases/latest/download/latest.json`, compares versions, and offers the
   update on its Home page; one click downloads the signed installer,

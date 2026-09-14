@@ -52,6 +52,9 @@ export default function Home({
   const [update, setUpdate] = useState<{ version: string; notes: string } | null>(null);
   const [updateBusy, setUpdateBusy] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
+  const [checkBusy, setCheckBusy] = useState(false);
+  /** What the manual check wants said: up to date, or why not. */
+  const [checkNote, setCheckNote] = useState<string | null>(null);
 
   // One check when the page opens and one every four hours after that -
   // enough to catch a release the same day without polling GitHub on every
@@ -74,6 +77,22 @@ export default function Home({
       clearInterval(t);
     };
   }, []);
+
+  // The manual twin of the automatic check, for "a release just went out
+  // and I want it NOW" - no waiting for a restart or the four-hour tick.
+  async function checkNow() {
+    setCheckBusy(true);
+    setCheckNote(null);
+    try {
+      const u = await api.checkForUpdate();
+      if (u) setUpdate(u);
+      else setCheckNote("You're on the latest version.");
+    } catch {
+      setCheckNote("Couldn't reach GitHub - check your connection and try again.");
+    } finally {
+      setCheckBusy(false);
+    }
+  }
 
   // Pulled on a timer rather than driven by the result event.
   //
@@ -400,6 +419,16 @@ export default function Home({
         <div className={`result-text${latest ? "" : " empty"}`} dir="auto">
           {latest ? latest.refined : "Your latest result will appear here."}
         </div>
+      </div>
+
+      {/* Version housekeeping: the automatic check is quiet by design, so
+       *  this is the explicit "did anything ship while I was away" button -
+       *  it either surfaces the update card or says there is nothing. */}
+      <div className="row" style={{ marginTop: 18 }}>
+        <button className="btn ghost" disabled={checkBusy || updateBusy} onClick={() => void checkNow()}>
+          {checkBusy ? "Checking…" : "Check for updates"}
+        </button>
+        {checkNote && <span className="field-hint">{checkNote}</span>}
       </div>
     </>
   );
