@@ -40,10 +40,15 @@ if ($tagged -ne $tag) {
 
 # The bundler signs only when TAURI_SIGNING_PRIVATE_KEY holds the key
 # itself (a path is not accepted), so read the file into the env var. The
-# password var must be set too - even empty - or the bundler PROMPTS for
-# it, and a prompt in a non-interactive shell hangs the build forever.
+# key has a REAL password - an empty one is treated as unset and the
+# bundler prompts for it, and a prompt in a non-interactive shell hangs
+# the build forever. The password lives beside the key, outside the repo.
+$passFile = Join-Path $env:USERPROFILE ".nutq\updater.key.pass"
+if (-not (Test-Path -LiteralPath $passFile)) {
+  throw "password file not found at $passFile - it is kept outside the repo with the key"
+}
 $env:TAURI_SIGNING_PRIVATE_KEY = (Get-Content -LiteralPath $key -Raw).Trim()
-$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""
+$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = (Get-Content -LiteralPath $passFile -Raw).Trim()
 
 Write-Host "building nutq $tag (signed) ..."
 Push-Location $root

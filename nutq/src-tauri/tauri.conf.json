@@ -29,7 +29,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdDNTk0QjNFOTFCNzQxNzYKUldSMlFiZVJQa3RaZkxNVmtsUUhLRkViQjRjdHVGenBvcWJTUDhTajVmTUJiTXBhMmNUV21jeHgK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEE1NDhCNkU3QjkzNzQzQjcKUldTM1F6ZTU1N1pJcGQ1Z1NaVnJSWnNncjdVUXJIYncyYSs0ZzFuRC9ZTWJYZ2lFVDRRakxXYlMK",
       "endpoints": [
         "https://github.com/fadi47at/nutq/releases/latest/download/latest.json"
       ]
