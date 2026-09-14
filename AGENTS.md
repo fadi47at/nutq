@@ -44,6 +44,11 @@ Rules:
   new NSIS setup `.exe` with `/S`, start `%LOCALAPPDATA%\nutq\nutq.exe`
   again, and confirm the sidebar shows the new version number. A release
   that is tagged but not installed is not done.
+- **Every release's installer is also copied to `versions/`**, next to the
+  `nutq-for-friend/` folder at the repo root, so the current build is
+  always one folder away to hand to someone. Like the friend folder it is
+  local-only (gitignored); git history stays source-only — tags are how
+  releases are told apart, not committed binaries.
 - Windows installers land in `nutq/src-tauri/target/release/bundle/nsis/`.
   The running app shows its version in the sidebar (bottom of the rail), so
   "did the install take?" is answerable at a glance.
