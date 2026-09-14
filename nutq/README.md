@@ -168,6 +168,16 @@ exists — a bad transcription gets a second chance too — and over the saved
 raw transcript once the audio has aged out. Calls that failed on every
 provider are a different thing: those are parked for retry on the Home page.
 
+### Updating
+
+From v0.3.0 on, the app updates itself. Releases live on GitHub, and on
+open (plus every four hours) the Home page quietly asks GitHub whether a
+newer one exists. When it does, a **New version available** card appears:
+one click downloads the installer, verifies its signature against the public
+key baked into the app, installs it, and relaunches — no browser, no manual
+download. `scripts/publish-release.ps1` is the publishing side of that:
+signed build, `latest.json`, push, GitHub Release, in one command.
+
 ## Source map
 
 | File | Responsibility |
@@ -178,6 +188,7 @@ provider are a different thing: those are parked for retry on the Home page.
 | `src-tauri/src/modes.rs` | Every prompt in the app |
 | `src-tauri/src/inject.rs` | Clipboard save / paste / restore |
 | `src-tauri/src/settings.rs` | Settings, history, credential store |
+| `nutq/scripts/publish-release.ps1` | Signed build + GitHub Release + `latest.json` |
 | `src-tauri/src/lib.rs` | Commands, hotkeys, tray, pipeline |
 | `src/lib/api.ts` | Typed bridge to the Rust commands |
 

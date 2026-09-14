@@ -1,6 +1,6 @@
 [package]
 name = "nutq"
-version = "0.2.1"
+version = "0.3.0"
 description = "Voice in, finished text out."
 authors = ["Fadi"]
 edition = "2021"
@@ -36,6 +36,8 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # clipboard (save / set / restore around the paste)
 arboard = "3"
+tauri-plugin-updater = "2.11.0"
+tauri-plugin-process = "2.3.1"
 
 # API keys go to the OS credential store, never to a plaintext file. The
 # platform features are per-target: Windows Credential Manager, macOS Keychain.

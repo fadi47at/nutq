@@ -47,6 +47,33 @@ export default function Home({
   const [copied, setCopied] = useState(false);
   const [retryBusy, setRetryBusy] = useState<string | null>(null);
   const [retryError, setRetryError] = useState<string | null>(null);
+  /** A newer release on GitHub, when one exists. The update section shows
+   *  only then - otherwise the page stays exactly as it was. */
+  const [update, setUpdate] = useState<{ version: string; notes: string } | null>(null);
+  const [updateBusy, setUpdateBusy] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+
+  // One check when the page opens and one every four hours after that -
+  // enough to catch a release the same day without polling GitHub on every
+  // visit. Being offline is not an error worth showing: the section simply
+  // stays hidden and the next tick tries again.
+  useEffect(() => {
+    let alive = true;
+    const check = async () => {
+      try {
+        const u = await api.checkForUpdate();
+        if (alive) setUpdate(u);
+      } catch {
+        /* offline or the endpoint is unreachable - nothing to offer */
+      }
+    };
+    void check();
+    const t = setInterval(() => void check(), 4 * 60 * 60 * 1000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, []);
 
   // Pulled on a timer rather than driven by the result event.
   //
@@ -227,6 +254,46 @@ export default function Home({
               })()}
               </div>
             ))}
+        </div>
+      )}
+
+      {update && (
+        <div className="pending-box">
+          <div className="pending-head">
+            <h2 style={{ margin: 0 }}>New version available</h2>
+            <span className="pill">v{update.version}</span>
+          </div>
+          <div className="field-hint" style={{ marginBottom: 10 }}>
+            {update.notes
+              ? update.notes.split("\n")[0]
+              : "A newer build is out on GitHub. Download, install, restart - all in one click."}
+          </div>
+          {updateError && (
+            <div className="diag bad" style={{ marginBottom: 10 }}>
+              <div className="diag-detail" style={{ whiteSpace: "pre-wrap" }}>
+                {updateError}
+              </div>
+            </div>
+          )}
+          <div className="row" style={{ flex: "none" }}>
+            <button
+              className="btn primary"
+              disabled={updateBusy}
+              onClick={() => {
+                setUpdateBusy(true);
+                setUpdateError(null);
+                void api
+                  .installUpdate()
+                  .catch((e) => setUpdateError(String(e)))
+                  .finally(() => setUpdateBusy(false));
+              }}
+            >
+              {updateBusy ? "Downloading and installing…" : "Update now"}
+            </button>
+            <button className="btn ghost" disabled={updateBusy} onClick={() => setUpdate(null)}>
+              Later
+            </button>
+          </div>
         </div>
       )}
 

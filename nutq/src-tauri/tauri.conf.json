@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "nutq",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "identifier": "com.nutq.app",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -24,12 +24,21 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset: http://asset.localhost; media-src 'self' data: blob:"
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: asset: http://asset.localhost; media-src 'self' data: blob:; connect-src 'self' https://github.com https://*.github.com https://*.githubusercontent.com"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdDNTk0QjNFOTFCNzQxNzYKUldSMlFiZVJQa3RaZkxNVmtsUUhLRkViQjRjdHVGenBvcWJTUDhTajVmTUJiTXBhMmNUV21jeHgK",
+      "endpoints": [
+        "https://github.com/fadi47at/nutq/releases/latest/download/latest.json"
+      ]
     }
   },
   "bundle": {
     "active": true,
     "targets": ["nsis", "msi"],
+    "createUpdaterArtifacts": true,
     "publisher": "Fadi",
     "shortDescription": "Voice in, finished text out.",
     "longDescription": "Press a hotkey anywhere in Windows, speak, and get finished text pasted where you were typing.",

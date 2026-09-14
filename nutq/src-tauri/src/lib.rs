@@ -1515,6 +1515,11 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_opener::init())
+        // Update checks point at GitHub Releases; the signing key that makes
+        // them verifiable lives outside the repo (see AGENTS.md). The
+        // frontend owns when to check and how the offer is presented.
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {

@@ -36,8 +36,18 @@ Rules:
 - **Every release is a git tag.** After the build succeeds:
   `git tag -a v<version> -m "<what it is>"`. Tags are how releases are told
   apart later — a release without a tag does not exist.
-- Release ritual, in order: bump the three files → `npm run tauri build`
-  (in `nutq/`) → commit → tag `v<version>`.
+- Release ritual, in order: bump the three files → commit → tag `v<version>`
+  → `powershell -File scripts\publish-release.ps1 -Notes "what's new"`
+  (in `nutq/`: signed build, push, GitHub Release with `latest.json`).
+- **Distribution is GitHub Releases + the built-in updater.** `nutq` reads
+  `releases/latest/download/latest.json`, compares versions, and offers the
+  update on its Home page; one click downloads the signed installer,
+  verifies it, installs it, and relaunches. This exists from v0.3.0 on —
+  older installs need one manual update first.
+- The updater signing key lives at `%USERPROFILE%\.nutq\updater.key`
+  (private) — outside the repo, never committed; the matching public key is
+  in `tauri.conf.json`. **Losing the private key breaks all future
+  updates** — nothing can be signed for installed copies anymore.
 - **Every release is installed on this machine, always.** The point of a
   build is that the user runs it, so the ritual does not end at the tag:
   quit the running nutq (tray → Quit, or `taskkill /IM nutq.exe`), run the

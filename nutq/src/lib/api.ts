@@ -1,5 +1,7 @@
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import { listen as tauriListen, type UnlistenFn } from "@tauri-apps/api/event";
+import { check as pluginCheck } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 import { mockInvoke, useMock } from "./devMock";
 
 /** Real Tauri command, or the dev mock when running in a plain browser. */
@@ -457,6 +459,23 @@ export const api = {
       aura_color: string;
       bg: string;
     }>("overlay_state"),
+  /** Asks GitHub (via the updater plugin) whether a newer release exists.
+   *  Null when this is the latest. Rejects when offline - callers treat
+   *  that as "nothing to say", not as an error worth showing. */
+  async checkForUpdate(): Promise<{ version: string; notes: string } | null> {
+    const u = await pluginCheck();
+    return u ? { version: u.version, notes: u.body ?? "" } : null;
+  },
+  /** Downloads the signed installer from the release, verifies it against
+   *  the public key in tauri.conf.json, runs it, and relaunches the app -
+   *  the whole in-app upgrade path. Rejects with the reason if any step
+   *  fails, leaving the current install untouched. */
+  async installUpdate(): Promise<void> {
+    const u = await pluginCheck();
+    if (!u) throw new Error("the update is gone - check again");
+    await u.downloadAndInstall();
+    await relaunch();
+  },
 };
 
 export const events = {
