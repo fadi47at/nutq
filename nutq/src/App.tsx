@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactElement } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import {
   api,
   events,
@@ -74,6 +75,9 @@ export default function App() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   /** Ids dismissed from the sidebar; the Logs page still shows them. */
   const [dismissed, setDismissed] = useState<string[]>([]);
+  /** The bundle's own version, from the app config, so the sidebar can say
+   *  which release is actually running. */
+  const [appVersion, setAppVersion] = useState("");
 
   const refresh = useCallback(async () => {
     const [s, k, st, p, hk] = await Promise.all([
@@ -92,6 +96,12 @@ export default function App() {
 
   const refreshLogs = useCallback(async () => {
     setLogs(await api.getLogs());
+  }, []);
+
+  useEffect(() => {
+    void getVersion()
+      .then(setAppVersion)
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -243,6 +253,7 @@ export default function App() {
               <div className="status-sub">{STATUS_SUB[status]}</div>
             </div>
           </div>
+          {appVersion && <div className="foot-version">v{appVersion}</div>}
         </div>
       </aside>
 

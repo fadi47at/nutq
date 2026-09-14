@@ -203,6 +203,16 @@ select:disabled {
   padding-top: 13px;
 }
 
+/* The release actually running, read from the app config - the fastest way
+ * to tell whether an install took. */
+.foot-version {
+  margin-top: 8px;
+  padding: 0 13px;
+  font-size: 10.5px;
+  color: var(--faint);
+  letter-spacing: 0.09em;
+}
+
 .status-chip {
   display: flex;
   align-items: center;
@@ -362,7 +372,8 @@ h2 {
   .nav-label,
   .nav-txt,
   .toasts,
-  .status-txt {
+  .status-txt,
+  .foot-version {
     display: none;
   }
 

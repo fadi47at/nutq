@@ -1,6 +1,6 @@
 [package]
 name = "nutq"
-version = "0.1.0"
+version = "0.1.1"
 description = "Voice in, finished text out."
 authors = ["Fadi"]
 edition = "2021"
@@ -39,6 +39,11 @@ arboard = "3"
 
 # API keys go to the OS credential store, never to a plaintext file. The
 # platform features are per-target: Windows Credential Manager, macOS Keychain.
+# Desktop-only: a second launch must not spawn a second process (second tray
+# icon, second overlay, dead hotkeys) - it has to hand off to the running one.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-single-instance = "2"
+
 [target.'cfg(windows)'.dependencies]
 keyring = { version = "3", features = ["windows-native"] }
 windows = { version = "0.58", features = [

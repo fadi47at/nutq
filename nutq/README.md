@@ -33,6 +33,19 @@ npm run tauri build
 Produces an NSIS `.exe` and an `.msi` under
 `src-tauri/target/release/bundle/`.
 
+## Releases and versions
+
+The version lives in three files that move together: `package.json`,
+`src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml`. Every user-visible
+change gets a bump (patch for fixes, minor for features), every build gets a
+git tag (`v<version>`), and no two builds ever share a number. The ritual in
+order: bump the three files → `npm run tauri build` → commit → tag.
+
+The running app shows its version in the sidebar, so it is always visible
+which release is actually installed. The macOS CI derives its dmg filename
+from `tauri.conf.json`, so a bump there renames the artifact on the next
+run. See `AGENTS.md` at the repo root for the full working agreement.
+
 ## How it works
 
 ```
@@ -162,6 +175,10 @@ straight to a coding agent.
 - `src/lib/devMock.ts` lets `npm run dev` render the UI in a plain browser with
   fake data, so the frontend can be iterated without a Rust rebuild. Vite drops
   it from production builds.
+- One instance at a time: launching the exe while the app is running just
+  brings its window forward (`tauri-plugin-single-instance`, registered first
+  in `src-tauri/src/lib.rs`). Closing the window hides it; the app keeps
+  running from the tray until Quit.
 - Recording is capped at 5 minutes. Gemini takes audio inline up to ~20 MB;
   going longer means switching `stt.rs` to the Files API.
 - The Gemini cost figure in the usage counter is an estimate from published
