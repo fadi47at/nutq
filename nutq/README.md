@@ -157,6 +157,16 @@ straight to a coding agent.
 - **Review hotkey** (default `Ctrl+F8`) — brings the window forward with the
   result to read and edit, and puts it on the clipboard.
 
+### History
+
+Every result is kept — last 500, this machine only — with both its raw
+transcript and its refined text; the newest 100 also keep their audio. When a
+result does not land, **Regenerate** on the entry sends the raw transcript
+back through the refinement provider selected in Settings *right now* (same
+mode, new wording) and updates that entry in place. Calls that failed on
+every provider are a different thing: those are parked for retry on the Home
+page.
+
 ## Source map
 
 | File | Responsibility |

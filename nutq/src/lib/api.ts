@@ -417,6 +417,11 @@ export const api = {
   clearHistory: () => invoke<void>("clear_history"),
   /** Removes one entry and its recording. */
   deleteHistoryEntry: (id: string) => invoke<void>("delete_history_entry", { id }),
+  /** Re-runs the AI polish on one entry's raw transcript, with the providers
+   *  selected in Settings right now, updating that entry in place. Returns
+   *  the updated entry. Rejects with the reason on failure, leaving the
+   *  entry unchanged. */
+  regenerateHistoryEntry: (id: string) => invoke<HistoryEntry>("regenerate_history_entry", { id }),
   /** Usage buckets for the selected chart range: hours of today, or whole
    *  days for week/month/quarter. */
   getHistoryStats: (range: UsageRange) => invoke<UsageBucket[]>("get_history_stats", { range }),

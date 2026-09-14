@@ -1139,6 +1139,70 @@ fn get_pending() -> Vec<pending::PendingEntry> {
     pending::list()
 }
 
+/// Re-runs stage 2 on a saved entry: the raw transcript goes back through
+/// the CURRENT refinement provider (plus its backup, if one is set), and the
+/// entry is updated in place - same id, same audio, new `refined`. Nothing
+/// is pasted anywhere; the History page asked, and it gets the updated
+/// entry back as this command's return value.
+///
+/// The entry keeps its own mode, so "regenerate" means "say the same thing
+/// again, better" rather than reinterpreting it under today's mode. It runs
+/// even when the polish toggle is off, because pressing the button IS the
+/// ask - unlike a normal dictation, there is no ambiguity to respect.
+#[tauri::command]
+async fn regenerate_history_entry(app: AppHandle, id: String) -> Result<HistoryEntry, String> {
+    let state = app.state::<AppState>();
+    if state.status() != Status::Idle {
+        return Err("wait for the current dictation to finish first".into());
+    }
+
+    let (mode, raw) = {
+        let h = state.history.lock().unwrap();
+        let e = h
+            .entries
+            .iter()
+            .find(|e| e.id == id)
+            .ok_or("this entry no longer exists")?;
+        (e.mode, e.raw.clone())
+    };
+    if raw.trim().is_empty() {
+        return Err("this entry has no transcript to regenerate from".into());
+    }
+
+    let mut cfg = { state.settings.lock().unwrap().clone() };
+    cfg.mode = mode;
+
+    state.set_status(&app, Status::Refining);
+    let (r, via_backup) = match refine_with_failover(&app, &cfg, &raw).await {
+        Ok(ok) => ok,
+        Err(e) => {
+            state.set_status(&app, Status::Idle);
+            return Err(format!("regeneration failed, the entry is unchanged: {e:#}"));
+        }
+    };
+    state.set_status(&app, Status::Idle);
+
+    let updated = {
+        let mut h = state.history.lock().unwrap();
+        let Some(e) = h.entries.iter_mut().find(|e| e.id == id) else {
+            return Err("this entry no longer exists".into());
+        };
+        e.refined = r.text;
+        e.cost_usd += r.cost_usd;
+        e.refine_model = if via_backup {
+            cfg.refine_backup_model.clone()
+        } else {
+            cfg.refine_model.clone()
+        };
+        e.refine_via_backup = via_backup;
+        let updated = e.clone();
+        let _ = save_history(&h);
+        updated
+    };
+
+    Ok(updated)
+}
+
 #[tauri::command]
 fn discard_pending(app: AppHandle, id: String) -> Result<(), String> {
     pending::remove(&id).map_err(|e| e.to_string())?;
@@ -1463,6 +1527,7 @@ pub fn run() {
             get_history_audio,
             clear_history,
             delete_history_entry,
+            regenerate_history_entry,
             get_history_stats,
             get_usage,
             get_quota,

@@ -505,6 +505,9 @@ export default function HistoryView() {
   const [confirmClear, setConfirmClear] = useState(false);
   /** The id whose Delete button is in its confirm step, if any. */
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  /** The id whose Regenerate call is in flight, if any. */
+  const [regenId, setRegenId] = useState<string | null>(null);
+  const [regenError, setRegenError] = useState<string | null>(null);
   const [range, setRange] = useState<(typeof RANGES)[number]>(RANGES[1]);
   /** Which face of the usage card is showing: the axis charts or the
    *  analysis breakdown behind them. */
@@ -583,6 +586,25 @@ export default function HistoryView() {
     setConfirmDelete(null);
   }
 
+  // Asks the current refinement provider for a new pass over the entry's
+  // saved raw transcript. The backend updates the entry in place and hands
+  // it back, so the row reflects the new text immediately instead of
+  // waiting for the next poll tick; on failure the entry is untouched and
+  // the reason lands in the banner above the list.
+  async function regenerate(id: string) {
+    setRegenId(id);
+    setRegenError(null);
+    try {
+      const updated = await api.regenerateHistoryEntry(id);
+      setEntries((es) => es.map((e) => (e.id === id ? updated : e)));
+      setStats(await api.getHistoryStats(range.id));
+    } catch (e) {
+      setRegenError(String(e));
+    } finally {
+      setRegenId(null);
+    }
+  }
+
   async function clearAll() {
     await api.clearHistory();
     setEntries([]);
@@ -610,6 +632,19 @@ export default function HistoryView() {
         are kept for the most recent 100 of them, so older entries keep their
         text but lose their audio.
       </p>
+
+      {regenError && (
+        <div className="diag bad" style={{ marginBottom: 10 }}>
+          <div className="diag-detail" style={{ whiteSpace: "pre-wrap" }}>
+            {regenError}
+          </div>
+          <div className="row" style={{ flex: "none" }}>
+            <button className="btn ghost" onClick={() => setRegenError(null)}>
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {entries.length > 0 && stats.length > 0 && (
         <div className="usage-card" ref={cardRef}>
@@ -720,6 +755,13 @@ export default function HistoryView() {
                 </button>
                 <button className="btn ghost" onClick={() => void api.copyText(e.refined)}>
                   Copy
+                </button>
+                <button
+                  className="btn ghost"
+                  disabled={regenId !== null}
+                  onClick={() => void regenerate(e.id)}
+                >
+                  {regenId === e.id ? "Regenerating…" : "Regenerate"}
                 </button>
                 {confirmDelete === e.id ? (
                   <>

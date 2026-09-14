@@ -194,6 +194,12 @@ const responses: Record<string, unknown> = {
     if (i >= 0) history.splice(i, 1);
     return null;
   },
+  regenerate_history_entry: ({ id }: { id: string }) => {
+    const e = history.find((e) => e.id === id);
+    if (!e) throw new Error("this entry no longer exists");
+    e.refined = `${e.refined}\n(معاد توليده ${new Date().toLocaleTimeString()})`;
+    return { ...e };
+  },
   copy_text: null,
   toggle: null,
   list_models: ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.5-pro"],
