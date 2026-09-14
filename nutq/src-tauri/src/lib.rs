@@ -1139,11 +1139,14 @@ fn get_pending() -> Vec<pending::PendingEntry> {
     pending::list()
 }
 
-/// Re-runs stage 2 on a saved entry: the raw transcript goes back through
-/// the CURRENT refinement provider (plus its backup, if one is set), and the
-/// entry is updated in place - same id, same audio, new `refined`. Nothing
-/// is pasted anywhere; the History page asked, and it gets the updated
-/// entry back as this command's return value.
+/// Re-runs a saved entry through the CURRENT providers and updates it in
+/// place - same id, same place in the list, new text. When the entry's
+/// recording is still on disk the WHOLE pipeline runs again (audio ->
+/// transcript -> finished text, so a bad transcription is fixable too);
+/// when the audio has aged out past the 100-clip cap, stage 2 alone runs
+/// over the saved raw transcript. Nothing is pasted anywhere; the History
+/// page asked, and it gets the updated entry back as this command's return
+/// value.
 ///
 /// The entry keeps its own mode, so "regenerate" means "say the same thing
 /// again, better" rather than reinterpreting it under today's mode. It runs
@@ -1156,21 +1159,54 @@ async fn regenerate_history_entry(app: AppHandle, id: String) -> Result<HistoryE
         return Err("wait for the current dictation to finish first".into());
     }
 
-    let (mode, raw) = {
+    let (mode, mut raw, audio_file) = {
         let h = state.history.lock().unwrap();
         let e = h
             .entries
             .iter()
             .find(|e| e.id == id)
             .ok_or("this entry no longer exists")?;
-        (e.mode, e.raw.clone())
+        (e.mode, e.raw.clone(), e.audio_file.clone())
     };
-    if raw.trim().is_empty() {
-        return Err("this entry has no transcript to regenerate from".into());
-    }
 
     let mut cfg = { state.settings.lock().unwrap().clone() };
     cfg.mode = mode;
+
+    let mut cost = 0.0f64;
+    // Only overwritten when re-transcription actually ran; an audio-less
+    // regeneration keeps the entry's original STT provenance.
+    let mut new_stt: Option<(String, bool)> = None;
+
+    if let Some(name) = audio_file {
+        if let Ok(wav) = clips::read(&name) {
+            state.set_status(&app, Status::Transcribing);
+            match transcribe_with_failover(&app, &cfg, &wav).await {
+                Ok((t, via_backup)) => {
+                    cost += t.cost_usd;
+                    raw = t.text;
+                    new_stt = Some((
+                        if via_backup {
+                            cfg.stt_backup_model.clone()
+                        } else {
+                            cfg.stt_model.clone()
+                        },
+                        via_backup,
+                    ));
+                }
+                Err(e) => {
+                    state.set_status(&app, Status::Idle);
+                    return Err(format!(
+                        "regeneration failed, the entry is unchanged: {e:#}"
+                    ));
+                }
+            }
+        }
+    }
+
+    if raw.trim().is_empty() {
+        state.set_status(&app, Status::Idle);
+        return Err("this entry has no transcript to regenerate from".into());
+    }
 
     state.set_status(&app, Status::Refining);
     let (r, via_backup) = match refine_with_failover(&app, &cfg, &raw).await {
@@ -1180,6 +1216,7 @@ async fn regenerate_history_entry(app: AppHandle, id: String) -> Result<HistoryE
             return Err(format!("regeneration failed, the entry is unchanged: {e:#}"));
         }
     };
+    cost += r.cost_usd;
     state.set_status(&app, Status::Idle);
 
     let updated = {
@@ -1187,8 +1224,13 @@ async fn regenerate_history_entry(app: AppHandle, id: String) -> Result<HistoryE
         let Some(e) = h.entries.iter_mut().find(|e| e.id == id) else {
             return Err("this entry no longer exists".into());
         };
+        e.raw = raw;
         e.refined = r.text;
-        e.cost_usd += r.cost_usd;
+        e.cost_usd += cost;
+        if let Some((model, stt_via_backup)) = new_stt {
+            e.stt_model = model;
+            e.stt_via_backup = stt_via_backup;
+        }
         e.refine_model = if via_backup {
             cfg.refine_backup_model.clone()
         } else {

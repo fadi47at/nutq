@@ -586,11 +586,12 @@ export default function HistoryView() {
     setConfirmDelete(null);
   }
 
-  // Asks the current refinement provider for a new pass over the entry's
-  // saved raw transcript. The backend updates the entry in place and hands
-  // it back, so the row reflects the new text immediately instead of
-  // waiting for the next poll tick; on failure the entry is untouched and
-  // the reason lands in the banner above the list.
+  // Asks the current providers for a new pass over the entry - from the
+  // kept audio when it still exists (transcription AND refinement), from
+  // the saved raw transcript otherwise. The backend updates the entry in
+  // place and hands it back, so the row reflects the new text immediately
+  // instead of waiting for the next poll tick; on failure the entry is
+  // untouched and the reason lands in the banner above the list.
   async function regenerate(id: string) {
     setRegenId(id);
     setRegenError(null);
@@ -759,6 +760,11 @@ export default function HistoryView() {
                 <button
                   className="btn ghost"
                   disabled={regenId !== null}
+                  title={
+                    e.audio_file
+                      ? "Run this entry through the current providers again, starting from the kept audio"
+                      : "The recording is gone - re-run refinement over the saved transcript"
+                  }
                   onClick={() => void regenerate(e.id)}
                 >
                   {regenId === e.id ? "Regenerating…" : "Regenerate"}
