@@ -68,6 +68,13 @@ if (-not (Test-Path -LiteralPath $sig)) {
   throw "signature file missing: $sig - was the build actually signed?"
 }
 
+# The MSI rides along on every release: NSIS installers trip installer
+# heuristics at some antiviruses, and the MSI is the calmer alternative to
+# hand a new user when the exe gets flagged.
+$msi = Get-ChildItem (Join-Path $srcTauri "target\release\bundle\msi") -Filter "nutq_*_x64_en-US.msi" |
+  Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if (-not $msi) { throw "no MSI found under $srcTauri\target\release\bundle\msi" }
+
 $origin = git remote get-url origin
 $ownerRepo = $origin -replace '\.git$', '' -replace '^https://github\.com/', '' -replace '^git@github\.com:', ''
 
@@ -92,13 +99,14 @@ git push origin $tag
 if ($LASTEXITCODE -ne 0) { throw "git push of the tag failed" }
 
 Write-Host "creating GitHub release $tag ..."
-gh release create $tag $setup.FullName $latestPath --title "nutq $tag" --notes $Notes
+gh release create $tag $setup.FullName $msi.FullName $latestPath --title "nutq $tag" --notes $Notes
 
 # The local copy for handing to someone, one folder away from the source -
 # part of the ritual, so the script owns it rather than memory.
 $versionsDir = Join-Path (Split-Path -Parent $root) "versions"
 New-Item -ItemType Directory -Path $versionsDir -Force | Out-Null
 Copy-Item -LiteralPath $setup.FullName -Destination $versionsDir -Force
+Copy-Item -LiteralPath $msi.FullName -Destination $versionsDir -Force
 
 Write-Host ""
 Write-Host "published: https://github.com/$ownerRepo/releases/tag/$tag"
