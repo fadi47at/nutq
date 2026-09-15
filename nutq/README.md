@@ -157,6 +157,32 @@ straight to a coding agent.
 - **Review hotkey** (default `Ctrl+F8`) — brings the window forward with the
   result to read and edit, and puts it on the clipboard.
 
+### The recording indicator
+
+The pill that appears above the taskbar while the mic is live is its own
+transparent WebView2 window, and one rule keeps it appearing: that window is
+**never hidden and never moved off screen**. Hiding a WebView2 window suspends
+its renderer, and a window whose pixels all sit outside every monitor is
+treated by Chromium as occluded — either way the pill can come back blank, and
+a blank surface on a transparent window is invisible. That is what "I pressed
+the hotkey and no pill appeared, until I restarted the app" was. When the pill
+is idle the page simply draws nothing, which is the whole of "hidden".
+
+Nothing outside the page can tell whether the pill actually drew, so the page
+proves it: its state poll and a `requestAnimationFrame` tick are both reported
+to Rust, and a supervisor thread checks those two clocks every five seconds.
+Quiet clocks mean a reload of the page; if that does not bring it back, the
+window itself is rebuilt. Either way there is no restart. Every placement,
+show, repair and recovery is appended to `overlay.log` beside the settings
+file (`%APPDATA%\nutq\nutq\config\overlay.log`, newest last, 400 lines), which
+is how "why did the pill not appear at 17:42" is answered after the fact — the
+installed build captures no stderr at all.
+
+The hotkeys get the same treatment. Windows gives a global hotkey to whoever
+asks first, so a binding refused at startup — or taken later by another app —
+is retried every 30 seconds rather than leaving the hotkey dead until the next
+launch.
+
 ### History
 
 Every result is kept — last 500, this machine only — with both its raw
@@ -188,6 +214,7 @@ signed build, `latest.json`, push, GitHub Release, in one command.
 | `src-tauri/src/modes.rs` | Every prompt in the app |
 | `src-tauri/src/inject.rs` | Clipboard save / paste / restore |
 | `src-tauri/src/settings.rs` | Settings, history, credential store |
+| `src-tauri/src/logs.rs` | The warning/error log, and the overlay's diagnostic trail |
 | `nutq/scripts/publish-release.ps1` | Signed build + GitHub Release + `latest.json` |
 | `src-tauri/src/lib.rs` | Commands, hotkeys, tray, pipeline |
 | `src/lib/api.ts` | Typed bridge to the Rust commands |

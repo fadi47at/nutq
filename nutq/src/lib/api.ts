@@ -447,6 +447,11 @@ export const api = {
   clearLogs: () => invoke<void>("clear_logs"),
   /** Diagnostics: reports the overlay webview is alive and what it sees. */
   overlayAlive: (status: string) => invoke<void>("overlay_alive", { status }),
+  /** Proof from the overlay page that its window is being composited: sent
+   *  from a requestAnimationFrame loop, which only ticks while frames are
+   *  actually being produced for the pill's window. Rust watches it, with the
+   *  state poll, and repairs the window if the pill stops drawing. */
+  overlayFrame: () => invoke<void>("overlay_frame"),
   /** Status + live mic level + the pill's personalization in one call, for
    *  the overlay's poll loop. */
   overlayState: () =>

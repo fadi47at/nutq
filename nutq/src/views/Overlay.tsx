@@ -78,6 +78,28 @@ export default function Overlay() {
     });
   }, []);
 
+  // Proof of life, for Rust's side of the bargain. A requestAnimationFrame
+  // tick only happens while this window is actually being composited, so a
+  // pill whose surface has stopped being drawn stops sending these - and the
+  // app repairs the window instead of leaving an invisible pill that needs a
+  // restart. Sent about twice a second rather than once per frame.
+  useEffect(() => {
+    let raf = 0;
+    let last = 0;
+    const tick = () => {
+      const now = performance.now();
+      if (now - last > 500) {
+        last = now;
+        // Swallowed: the same "the window is shutting down" case the poll
+        // ignores, and the dev mock has no handler for it.
+        api.overlayFrame().catch(() => {});
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     const poll = async () => {
@@ -263,7 +285,11 @@ export default function Overlay() {
     c.getContext("2d")?.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
-  if (status === "idle") return null;
+  // The window itself stays where it is, on screen, for the life of the app:
+  // hiding it or parking it off screen suspends or occludes its renderer, and
+  // the pill that never comes back from that is exactly the bug this page now
+  // helps catch. Idle means the pill is not drawn, nothing more.
+  if (status === "idle") return <div className="overlay-root" />;
 
   const silentTooLong = status === "recording" && Date.now() - lastSound.current > 1200;
   const warn = status !== "recording" || silentTooLong;

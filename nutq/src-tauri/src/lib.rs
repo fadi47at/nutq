@@ -19,7 +19,7 @@ use settings::{
 };
 use std::str::FromStr;
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
@@ -30,6 +30,31 @@ enum Status {
     Recording,
     Transcribing,
     Refining,
+}
+
+/// A frame, or a state poll, older than this means the pill's window has
+/// stopped drawing. Generous on purpose: a repair is a reload the user may
+/// catch a glimpse of, so a false positive is worth avoiding.
+const OVERLAY_FRAME_STALE: Duration = Duration::from_secs(6);
+const OVERLAY_POLL_STALE: Duration = Duration::from_secs(5);
+/// How long a repair is given to take effect before it is judged again.
+const OVERLAY_HEAL_GRACE: Duration = Duration::from_secs(8);
+
+/// Health of the pill's window, as two independent clocks.
+///
+/// `poll` is fed by the overlay page's state poll and `frame` by a
+/// requestAnimationFrame tick in that same page. The first proves the page is
+/// running, the second proves its window is actually being composited - and a
+/// compositor that has stopped is exactly the failure that leaves an
+/// invisible pill on a transparent window.
+#[derive(Default)]
+struct OverlayWatch {
+    frame: Option<Instant>,
+    poll: Option<Instant>,
+    /// When the last repair ran, and which rung of the ladder it was, so a
+    /// renderer that cannot be revived is not reloaded in a tight loop.
+    healed_at: Option<Instant>,
+    stage: u8,
 }
 
 struct AppState {
@@ -52,6 +77,9 @@ struct AppState {
     /// Only true while the mic is live; the rest of the time Escape belongs
     /// to whatever app is being dictated into.
     escape_armed: Mutex<bool>,
+    /// Freshness of the overlay's window, for the supervisor that keeps the
+    /// pill able to draw. See `OverlayWatch`.
+    overlay_watch: Mutex<OverlayWatch>,
 }
 
 impl AppState {
@@ -60,21 +88,45 @@ impl AppState {
     }
 
     fn set_status(&self, app: &AppHandle, s: Status) {
-        *self.status.lock().unwrap() = s;
+        let was = {
+            let mut current = self.status.lock().unwrap();
+            let was = *current;
+            *current = s;
+            was
+        };
         eprintln!("[nutq] status -> {s:?}");
         let _ = app.emit("status", s);
         set_overlay_visible(app, s != Status::Idle);
+        // Only the edges of a dictation change the pill: transcribing and
+        // refining keep it up. Logging those edges, and not every transition,
+        // is what makes the overlay log readable for days of use.
+        if (was != Status::Idle) != (s != Status::Idle) {
+            logs::diag(if s != Status::Idle {
+                "pill: shown"
+            } else {
+                "pill: cleared"
+            });
+        }
     }
 }
 
-/// Shows or hides the little bottom-edge recording indicator.
+/// Shows or clears the little bottom-edge recording indicator.
 ///
-/// The window and its WebView2 controller are never hidden once shown.
-/// WebView2 suspends rendering for hidden webviews, and a webview shown
-/// again after a long idle can fail to paint at all - which read as
-/// "recording started but no pill appeared". Hiding now just parks the
-/// window far off-screen, so showing it is a move the compositor makes
-/// immediately, never a repaint from a cold renderer.
+/// "Hiding" here means the pill is not drawn, not that the window goes
+/// anywhere: the window itself never leaves its place on screen and is never
+/// hidden. Two failures came from doing otherwise, and both read as "I pressed
+/// the hotkey and no pill appeared":
+///
+///   * a WebView2 window parked outside every monitor is treated by Chromium
+///     as occluded, so its renderer stops producing frames - and a
+///     transparent window with nothing painted is invisible;
+///   * hiding the window suspends the renderer outright, and showing it again
+///     after a long idle can fail to paint at all.
+///
+/// Neither was recoverable, because nothing ever checked whether the pill had
+/// actually drawn - the window reported itself visible the whole time. That
+/// check is `ensure_overlay_healthy`, and the supervisor that runs it is why a
+/// stuck pill no longer needs the app restarted.
 fn set_overlay_visible(app: &AppHandle, visible: bool) {
     let Some(w) = app.get_webview_window("overlay") else {
         eprintln!("[nutq] overlay: window not found");
@@ -84,30 +136,212 @@ fn set_overlay_visible(app: &AppHandle, visible: bool) {
     // that, but guarantee the renderer is never left in a hidden state.
     let _ = w.show();
     let _ = w.as_ref().show();
-    let moved = if let Ok(Some(mon)) = w.primary_monitor() {
-        let m = mon.size();
-        let size = w.outer_size().unwrap_or_default();
-        let x = (m.width.saturating_sub(size.width)) / 2;
-        let margin = (64.0 * mon.scale_factor()) as i32;
-        let y: i32 = if visible {
-            // Just above the taskbar, dead center - same spot as before.
-            m.height.saturating_sub(size.height + margin as u32) as i32
-        } else {
-            // The classic parking spot: far outside any conceivable monitor
-            // arrangement, so no amount of display reconfiguration lands a
-            // screen on top of it.
-            -32000
-        };
-        w.set_position(tauri::PhysicalPosition::new(x as i32, y as i32))
-    } else {
-        eprintln!("[nutq] overlay: primary monitor unavailable, position unchanged");
-        Ok(())
+    place_overlay(app);
+    // Last, because Tauri re-applies its own extended style whenever a window
+    // property changes - anything set before the calls above can be wiped by
+    // them, which is how the pill ended up able to steal focus.
+    if !ensure_no_activate(&w) {
+        logs::diag("the overlay could not be marked no-activate; it may steal focus");
+    }
+    // The one moment the pill must draw is the one moment it is worth
+    // checking - and repairing, if its window has gone quiet.
+    if visible {
+        ensure_overlay_healthy(app);
+    }
+}
+
+/// Puts the pill's window where it belongs - bottom center of the primary
+/// monitor, a margin above the taskbar - and leaves it there.
+///
+/// The monitor is asked for on every call, so a docking, an unplug or a
+/// resolution change is corrected by the next one; the first monitor is the
+/// fallback when Windows will not name a primary.
+fn place_overlay(app: &AppHandle) -> bool {
+    let Some(w) = app.get_webview_window("overlay") else {
+        return false;
     };
-    eprintln!(
-        "[nutq] overlay {}: moved: {moved:?}, is_visible now: {}",
-        if visible { "show" } else { "hide" },
-        w.is_visible().unwrap_or(false)
-    );
+    let monitor = w
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .or_else(|| w.available_monitors().ok().and_then(|m| m.into_iter().next()));
+    let Some(mon) = monitor else {
+        logs::diag("no monitor could be resolved; the pill keeps its last position");
+        return false;
+    };
+    let m = mon.size();
+    let size = w.outer_size().unwrap_or_default();
+    let margin = (64.0 * mon.scale_factor()) as u32;
+    let x = (m.width.saturating_sub(size.width)) / 2;
+    let y = m.height.saturating_sub(size.height + margin);
+    let target = tauri::PhysicalPosition::new(x as i32, y as i32);
+    // Moving a window that is already in place is needless work - and on a
+    // transparent surface, a needless repaint.
+    if w.outer_position().map(|p| p == target).unwrap_or(false) {
+        return true;
+    }
+    match w.set_position(target) {
+        Ok(()) => {
+            logs::diag(&format!("pill window placed at ({x}, {y})"));
+            true
+        }
+        Err(e) => {
+            logs::diag(&format!("could not place the pill window: {e}"));
+            false
+        }
+    }
+}
+
+/// Keeps `WS_EX_NOACTIVATE` on the overlay, so showing the pill can never pull
+/// keyboard focus away from the app being dictated into - which is what breaks
+/// the paste at the end of the recording.
+///
+/// Returns whether the style is in place afterwards. It is applied at build
+/// time and re-asserted on every show and by the supervisor, because the OS
+/// window style is not ours alone: Tauri and wry write `GWL_EXSTYLE` too.
+#[cfg(windows)]
+fn ensure_no_activate(w: &tauri::WebviewWindow<tauri::Wry>) -> bool {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_NOACTIVATE,
+    };
+    let Ok(hwnd) = w.hwnd() else {
+        return false;
+    };
+    let hwnd = HWND(hwnd.0 as *mut _);
+    let bit = WS_EX_NOACTIVATE.0 as isize;
+    unsafe {
+        let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        if style & bit != 0 {
+            return true;
+        }
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style | bit);
+        GetWindowLongPtrW(hwnd, GWL_EXSTYLE) & bit != 0
+    }
+}
+
+#[cfg(not(windows))]
+fn ensure_no_activate(_w: &tauri::WebviewWindow<tauri::Wry>) -> bool {
+    true
+}
+
+/// The supervisor's judgement: is the pill's window able to draw right now?
+///
+/// Healthy means both clocks are fresh. Unhealthy means a repair, escalating
+/// from a page reload (which respawns a crashed renderer and re-runs the page)
+/// to rebuilding the window outright - the case that used to mean "quit the
+/// app and start it again". Each rung is given a grace period, and repeating
+/// failures are spaced further apart, so a renderer that cannot be revived
+/// costs a rebuild every half minute rather than a reload loop.
+fn ensure_overlay_healthy(app: &AppHandle) {
+    let now = Instant::now();
+    let reason = {
+        let state = app.state::<AppState>();
+        let watch = state.overlay_watch.lock().unwrap();
+        let frame_bad = watch
+            .frame
+            .map_or(true, |t| now.duration_since(t) > OVERLAY_FRAME_STALE);
+        let poll_bad = watch
+            .poll
+            .map_or(true, |t| now.duration_since(t) > OVERLAY_POLL_STALE);
+        match (frame_bad, poll_bad) {
+            (false, false) => None,
+            (true, false) => Some("its page is not producing frames"),
+            (false, true) => Some("its page stopped pulling the recording state"),
+            (true, true) => Some("its page stopped answering"),
+        }
+    };
+
+    let Some(reason) = reason else {
+        // Back to the cheapest rung for whatever happens next. The lock is
+        // dropped before anything is written: this command's clocks are read
+        // 25 times a second by the page, and file I/O has no business inside
+        // that path.
+        let was_healing = {
+            let state = app.state::<AppState>();
+            let mut watch = state.overlay_watch.lock().unwrap();
+            let was_healing = watch.stage != 0;
+            watch.stage = 0;
+            watch.healed_at = None;
+            was_healing
+        };
+        if was_healing {
+            logs::diag("the overlay is drawing again");
+        }
+        return;
+    };
+
+    let step = {
+        let state = app.state::<AppState>();
+        let mut watch = state.overlay_watch.lock().unwrap();
+        // Space repairs further apart as they keep failing.
+        let patience = OVERLAY_HEAL_GRACE * (1 + u32::from(watch.stage.min(4)));
+        if watch
+            .healed_at
+            .map_or(false, |t| now.duration_since(t) < patience)
+        {
+            return;
+        }
+        watch.stage = watch.stage.saturating_add(1);
+        watch.healed_at = Some(now);
+        watch.stage
+    };
+
+    logs::diag(&format!(
+        "overlay unhealthy ({reason}); repair step {step}"
+    ));
+
+    if step == 1 {
+        // Cheapest rung, and the only one the user cannot see: a reload
+        // respawns a dead renderer and re-runs the page in place.
+        if let Some(w) = app.get_webview_window("overlay") {
+            let _ = w.eval("location.reload()");
+        }
+        return;
+    }
+
+    if step == 2 {
+        emit_warning(
+            app,
+            "The recording indicator stopped drawing and was rebuilt - no restart needed. \
+             The details are in the overlay log."
+                .to_string(),
+        );
+    }
+
+    // A reload did not bring it back, so the window itself is rebuilt.
+    if let Some(w) = app.get_webview_window("overlay") {
+        // `destroy`, not `close`: the close-requested handler hides windows,
+        // which would leave the "overlay" label taken and the rebuild failing.
+        let _ = w.destroy();
+    }
+    let task = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        if let Err(e) = build_overlay(&task) {
+            emit_error(
+                &task,
+                format!("could not rebuild the recording indicator: {e}"),
+            );
+        }
+    });
+}
+
+/// The overlay's supervisor: keeps its window where it belongs, keeps it
+/// unable to steal focus, and revives it if its page has gone quiet. This is
+/// what turns "quit the app and start it again" into "it fixed itself".
+fn spawn_overlay_watchdog(app: AppHandle) {
+    std::thread::spawn(move || {
+        // A cold start needs a moment before its page can be judged.
+        std::thread::sleep(Duration::from_secs(10));
+        loop {
+            place_overlay(&app);
+            if let Some(w) = app.get_webview_window("overlay") {
+                let _ = ensure_no_activate(&w);
+            }
+            ensure_overlay_healthy(&app);
+            std::thread::sleep(Duration::from_secs(5));
+        }
+    });
 }
 
 /// The whisper-style caption window: a small pill at the bottom of the screen
@@ -117,9 +351,11 @@ fn set_overlay_visible(app: &AppHandle, visible: bool) {
 /// The window is a transparent surface larger than the pill itself. The
 /// margin gives the outer glow room to render, and the pill's rounded corners
 /// come from CSS anti-aliasing instead of a Win32 region clip, which drew
-/// hard stair-stepped edges users could see. The old cold-render worry is
-/// gone for a different reason: the window and its WebView are never hidden
-/// after startup, they only ever move.
+/// hard stair-stepped edges users could see. The window stays on screen for
+/// the whole session and the pill is hidden by not drawing it, so the
+/// renderer is never suspended and never occluded - see `set_overlay_visible`
+/// for why that matters. Called again, on the main thread, when the
+/// supervisor has to rebuild a window whose renderer will not come back.
 fn build_overlay(app: &AppHandle) -> tauri::Result<()> {
     let overlay = tauri::WebviewWindowBuilder::new(
         app,
@@ -144,33 +380,24 @@ fn build_overlay(app: &AppHandle) -> tauri::Result<()> {
     // on it must not move focus either.
     let _ = overlay.set_ignore_cursor_events(true);
 
-    // Never take focus on show. Without this, any SW_SHOW would pull keyboard
-    // focus away from the app the user is dictating into, breaking the paste
-    // at the end.
-    #[cfg(windows)]
-    {
-        use windows::Win32::Foundation::HWND;
-        use windows::Win32::UI::WindowsAndMessaging::{
-            GetWindowLongPtrW, SetWindowLongPtrW, GWL_EXSTYLE, WS_EX_NOACTIVATE,
-        };
-        if let Ok(hwnd) = overlay.hwnd() {
-            let hwnd = HWND(hwnd.0 as *mut _);
-            unsafe {
-                let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-                SetWindowLongPtrW(hwnd, GWL_EXSTYLE, style | WS_EX_NOACTIVATE.0 as isize);
-            }
-        }
-    }
-
-    // Show the renderer immediately and park the window off-screen. From
-    // here on the webview is always visible to the OS, so WebView2 never
-    // suspends it: the first hotkey press just moves the pill into place
-    // instead of waking a cold renderer that may never paint. Built hidden
-    // so the show below happens only after WS_EX_NOACTIVATE is in place and
-    // the window can never steal focus, even for a frame.
+    // Show it and put it where it belongs - on screen, at the pill's spot,
+    // for the rest of the app's life. It is never hidden and never parked out
+    // of sight: Chromium treats a window whose pixels all sit outside every
+    // monitor as occluded and stops drawing it, and hiding a WebView2 window
+    // suspends the renderer. Either one leaves the pill unable to appear.
+    // Built hidden so the show below happens after the window exists and can
+    // be taken out of the activation chain in the same breath.
     let _ = overlay.show();
     let _ = overlay.as_ref().show();
-    let _ = overlay.set_position(tauri::PhysicalPosition::new(0, -32000));
+    place_overlay(app);
+
+    // Last of the window calls: Tauri re-applies its own extended style on
+    // window updates, so a bit set before them can be wiped.
+    if !ensure_no_activate(&overlay) {
+        logs::diag("the overlay could not be marked no-activate at build time");
+    }
+
+    logs::diag("overlay window built");
 
     Ok(())
 }
@@ -1252,11 +1479,29 @@ fn discard_pending(app: AppHandle, id: String) -> Result<(), String> {
     Ok(())
 }
 
-/// Diagnostics: proves the overlay webview's JS is running and receiving
-/// state, separating "page never loaded" from "window never paints".
+/// Diagnostics: the overlay page loaded and reports what it sees.
+///
+/// Also the first proof of life on the poll clock - a page that just (re)loaded
+/// has run its JS and reached Rust. It deliberately does not touch the frame
+/// clock: only a real animation frame may do that, or a page that loads and
+/// then never composites would look healthy and never be repaired.
 #[tauri::command]
-fn overlay_alive(status: String) {
-    eprintln!("[nutq] overlay webview alive, sees status: {status}");
+fn overlay_alive(app: AppHandle, status: String) {
+    let state = app.state::<AppState>();
+    state.overlay_watch.lock().unwrap().poll = Some(Instant::now());
+    logs::diag(&format!("the overlay page loaded; it sees status {status}"));
+}
+
+/// Proof that the pill's window is actually being composited.
+///
+/// The overlay page calls this from inside a `requestAnimationFrame` loop, so
+/// a beat can only be sent while frames are being produced for the window. A
+/// page whose compositor has stopped - the failure that left an invisible
+/// pill on a transparent surface - stops beating, and Rust notices.
+#[tauri::command]
+fn overlay_frame(app: AppHandle) {
+    let state = app.state::<AppState>();
+    state.overlay_watch.lock().unwrap().frame = Some(Instant::now());
 }
 
 #[derive(Serialize, Clone)]
@@ -1278,6 +1523,9 @@ struct OverlayState {
 /// its state at ~25 Hz instead of waiting to be pushed.
 #[tauri::command]
 fn overlay_state(state: State<AppState>) -> OverlayState {
+    // Every poll is also proof of life: the page reached Rust with its status
+    // loop intact. The supervisor reads this clock alongside the frame one.
+    state.overlay_watch.lock().unwrap().poll = Some(Instant::now());
     let s = state.settings.lock().unwrap();
     OverlayState {
         status: state.status(),
@@ -1495,11 +1743,77 @@ fn bind(
                 "Windows refused this key - another app is probably already using it                  globally. Pick a different one. ({e})"
             );
             eprintln!("[nutq] hotkey {spec:?} not bound: {}", report.error);
-            // The shortcut is still returned: the spec is valid, so if the
-            // other app releases the key a later re-register will take it.
+            // The shortcut is still returned so it can be retried: the spec
+            // is valid, and Windows hands the key to whoever asks first, so
+            // the app holding it may yet let go.
         }
     }
     (Some(shortcut), report)
+}
+
+/// Which of the two bindings a retry is working on.
+#[derive(Clone, Copy)]
+enum HotkeySlot {
+    Dictate,
+    Draft,
+}
+
+/// Windows hands a global hotkey to whoever asks for it first, and a binding
+/// that was refused at startup stays refused: nothing ever asks again. That
+/// left an app whose hotkey silently did nothing at all until the next restart
+/// - the same symptom as a pill that never appears, and just as unexplained.
+/// So an unbound hotkey is retried on a slow timer, because the app holding
+/// the key may well release it.
+fn spawn_hotkey_retry(app: AppHandle) {
+    std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_secs(30));
+        let task = app.clone();
+        // Registering belongs to the thread that owns the message queue, and
+        // must never run inside the plugin's own dispatch.
+        let _ = app.run_on_main_thread(move || retry_unbound_hotkeys(&task));
+    });
+}
+
+fn retry_unbound_hotkeys(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    // A snapshot, so the report lock is never held across a registration.
+    let report = state.hotkey_report.lock().unwrap().clone();
+
+    for (slot, binding) in [
+        (HotkeySlot::Dictate, &report.dictate),
+        (HotkeySlot::Draft, &report.draft),
+    ] {
+        if binding.bound {
+            continue;
+        }
+        let Ok(shortcut) = parse_hotkey(&binding.spec) else {
+            continue;
+        };
+        if app.global_shortcut().register(shortcut).is_err() {
+            continue;
+        }
+
+        match slot {
+            HotkeySlot::Dictate => state.shortcuts.lock().unwrap().0 = Some(shortcut),
+            HotkeySlot::Draft => state.shortcuts.lock().unwrap().1 = Some(shortcut),
+        }
+        {
+            let mut report = state.hotkey_report.lock().unwrap();
+            let entry = match slot {
+                HotkeySlot::Dictate => &mut report.dictate,
+                HotkeySlot::Draft => &mut report.draft,
+            };
+            entry.bound = true;
+            entry.error = String::new();
+        }
+        emit_warning(
+            app,
+            format!(
+                "The shortcut {} is registered now. Another app was holding it when nutq started.",
+                binding.spec
+            ),
+        );
+    }
 }
 
 // ---------------------------------------------------------------- setup
@@ -1559,6 +1873,15 @@ pub fn run() {
             shortcuts: Mutex::new((None, None)),
             hotkey_report: Mutex::new(HotkeyReport::default()),
             escape_armed: Mutex::new(false),
+            // A fresh install is healthy until proven otherwise: the overlay
+            // page has not had the chance to beat yet, and a supervisor that
+            // judged it in that window would reload it on every cold start.
+            overlay_watch: Mutex::new(OverlayWatch {
+                frame: Some(Instant::now()),
+                poll: Some(Instant::now()),
+                healed_at: None,
+                stage: 0,
+            }),
         })
         .invoke_handler(tauri::generate_handler![
             get_settings,
@@ -1589,6 +1912,7 @@ pub fn run() {
             get_logs,
             clear_logs,
             overlay_alive,
+            overlay_frame,
             overlay_state,
         ])
         .setup(|app| {
@@ -1604,13 +1928,25 @@ pub fn run() {
             build_tray(app.handle())?;
             build_overlay(app.handle())?;
             spawn_level_ticker(app.handle().clone());
+            // Both supervisors are the reason a stuck pill or a hotkey that
+            // another app took no longer needs the app restarted.
+            spawn_overlay_watchdog(app.handle().clone());
+            spawn_hotkey_retry(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {
-            // Closing the window hides it; the app keeps listening for the
-            // hotkey from the tray. Quit is an explicit tray action.
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
+                // The overlay is never hidden: hiding a WebView2 window
+                // suspends its renderer, and the pill that does not come back
+                // from that is the bug the supervisor exists to prevent. Its
+                // window is rebuilt with `destroy`, which bypasses this
+                // handler on purpose.
+                if window.label() == "overlay" {
+                    return;
+                }
+                // Closing the window hides it; the app keeps listening for the
+                // hotkey from the tray. Quit is an explicit tray action.
                 let _ = window.hide();
             }
         })

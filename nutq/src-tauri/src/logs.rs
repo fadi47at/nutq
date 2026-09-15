@@ -60,3 +60,34 @@ pub fn clear() {
         let _ = fs::write(p, "[]");
     }
 }
+
+/// How much of the overlay's trail is kept: enough for days of ordinary use,
+/// without any rotation logic.
+const MAX_DIAG_LINES: usize = 400;
+
+/// The recording indicator's own trail, in its own file.
+///
+/// The pill fails intermittently and invisibly: by the time anyone asks why,
+/// the app has been restarted and there is nothing left to look at. The
+/// installed build captures no stderr at all, so every placement, show,
+/// repair and recovery is written here instead - newest last, oldest dropped.
+/// Diagnostics rather than news, which is why it is not `logs.json`: that one
+/// is for things the user is meant to read.
+pub fn diag(message: &str) {
+    eprintln!("[nutq] {message}");
+    let mut lines: Vec<String> = path()
+        .map(|p| p.with_file_name("overlay.log"))
+        .and_then(|p| fs::read_to_string(p).ok())
+        .map(|s| s.lines().map(str::to_string).collect())
+        .unwrap_or_default();
+    lines.push(format!(
+        "{} {message}",
+        chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
+    ));
+    if lines.len() > MAX_DIAG_LINES {
+        lines.drain(0..lines.len() - MAX_DIAG_LINES);
+    }
+    if let Some(p) = path().map(|p| p.with_file_name("overlay.log")) {
+        let _ = fs::write(p, lines.join("\n") + "\n");
+    }
+}

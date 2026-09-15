@@ -91,6 +91,32 @@ Rules:
 - A convention established mid-session (a gotcha discovered, a rule agreed
   on) is written down here before the session ends, not "later".
 
+## The recording indicator
+
+Rules learned the hard way — "I pressed the hotkey and no pill appeared until I
+restarted the app" — and each one is load-bearing:
+
+- **The pill's window is never hidden and never parked off screen.** Hiding a
+  WebView2 window suspends its renderer; a window whose pixels all sit outside
+  every monitor is occluded, and Chromium stops drawing it. Either one leaves a
+  transparent window with nothing painted, which is invisible. Idle, the page
+  draws nothing and the window stays where it belongs.
+- **The page proves it is drawing.** Its state poll and a
+  `requestAnimationFrame` tick are reported to Rust (`overlay_state`,
+  `overlay_frame`); `spawn_overlay_watchdog` treats either clock going quiet as
+  a dead pill, reloads the page, then rebuilds the window. Do not "simplify"
+  this by hiding the window or by dropping the heartbeat.
+- **`WS_EX_NOACTIVATE` is re-asserted after every window call**, because Tauri
+  and wry rewrite `GWL_EXSTYLE` and silently wipe it. Without it the pill can
+  take focus and break the paste at the end of a dictation.
+- **A refused hotkey is retried** (`spawn_hotkey_retry`, every 30s). Windows
+  gives a global hotkey to whoever asks first; a binding that lost that race
+  must not stay dead until the next launch.
+- **The overlay writes its own trail** to `overlay.log` in the config dir
+  (`logs::diag`) — placements, pill show/clear, repairs, recoveries. The
+  installed build captures no stderr, so this file is the only evidence after
+  an intermittent failure. `logs.json` stays for things the user should read.
+
 ## Build & verify (Windows)
 
 - Dev run: `npm install` then `npm run tauri dev` (in `nutq/`).

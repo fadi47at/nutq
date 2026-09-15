@@ -1603,17 +1603,16 @@ code {
 
 /* ------------------------------------------------------ recording overlay */
 
-/* The pill floats in its own window, and that window is exactly the pill: it
- * is sized to this content and clipped to a rounded region on the Rust side,
- * so there is no surface around the pill to show. Which means the page must
- * fill its window edge to edge - any margin here would reappear as a visible
- * dark rim. Solid rather than transparent on purpose: a transparent WebView2
- * surface composites unreliably here, and an invisible indicator is worse
- * than a plain one. */
 /* The pill floats in its own window, which is a transparent surface larger
  * than the pill: the margin around it is where the outer glow renders. The
  * rounded corners come from CSS here, with real anti-aliasing, instead of a
- * Win32 region clip whose stair-stepped edges showed on every screenshot. */
+ * Win32 region clip whose stair-stepped edges showed on every screenshot.
+ *
+ * Idle the page draws nothing at all, and that is the whole of "hidden": the
+ * window stays on screen at the pill's spot for the life of the app, because
+ * a window parked off every monitor is treated as occluded (its renderer
+ * stops drawing) and a hidden one is suspended outright - either way the pill
+ * can fail to appear when the hotkey is pressed. */
 body.overlay-mode {
   background: transparent;
   overflow: hidden;
