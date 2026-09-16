@@ -109,6 +109,12 @@ restarted the app" — and each one is load-bearing:
 - **`WS_EX_NOACTIVATE` is re-asserted after every window call**, because Tauri
   and wry rewrite `GWL_EXSTYLE` and silently wipe it. Without it the pill can
   take focus and break the paste at the end of a dictation.
+- **Topmost is re-asserted like `WS_EX_NOACTIVATE`** (`ensure_topmost`, same
+  three call sites). The `always_on_top` set at build time does not survive
+  Tauri's style rewrites either — a lost topmost flag let the main window (or
+  anything else) cover the pill, leaving a healthy, drawing window that was
+  simply underneath. Diagnosed by `PrintWindow` (which shows the page's own
+  rendering) disagreeing with `CopyFromScreen` (which shows what is on top).
 - **A refused hotkey is retried** (`spawn_hotkey_retry`, every 30s). Windows
   gives a global hotkey to whoever asks first; a binding that lost that race
   must not stay dead until the next launch.

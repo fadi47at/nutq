@@ -143,6 +143,9 @@ fn set_overlay_visible(app: &AppHandle, visible: bool) {
     if !ensure_no_activate(&w) {
         logs::diag("the overlay could not be marked no-activate; it may steal focus");
     }
+    if !ensure_topmost(&w) {
+        logs::diag("the overlay could not be raised topmost; windows may cover the pill");
+    }
     // The one moment the pill must draw is the one moment it is worth
     // checking - and repairing, if its window has gone quiet.
     if visible {
@@ -190,6 +193,43 @@ fn place_overlay(app: &AppHandle) -> bool {
             false
         }
     }
+}
+
+/// Keeps the pill above every other window, including the app's own main
+/// window - which is exactly what buried it: a dictation started from the main
+/// window left that window sitting over the pill's spot, and the pill, no
+/// longer topmost, drew underneath it and was invisible. Like the no-activate
+/// bit below, the topmost flag does not survive Tauri and wry rewriting the
+/// window's styles, so it is re-asserted on every show and by the supervisor.
+///
+/// Returns whether the flag is in place afterwards.
+#[cfg(windows)]
+fn ensure_topmost(w: &tauri::WebviewWindow<tauri::Wry>) -> bool {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+    };
+    let Ok(hwnd) = w.hwnd() else {
+        return false;
+    };
+    let hwnd = HWND(hwnd.0 as *mut _);
+    unsafe {
+        SetWindowPos(
+            hwnd,
+            HWND_TOPMOST,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+        )
+        .is_ok()
+    }
+}
+
+#[cfg(not(windows))]
+fn ensure_topmost(_w: &tauri::WebviewWindow<tauri::Wry>) -> bool {
+    true
 }
 
 /// Keeps `WS_EX_NOACTIVATE` on the overlay, so showing the pill can never pull
@@ -337,6 +377,7 @@ fn spawn_overlay_watchdog(app: AppHandle) {
             place_overlay(&app);
             if let Some(w) = app.get_webview_window("overlay") {
                 let _ = ensure_no_activate(&w);
+                let _ = ensure_topmost(&w);
             }
             ensure_overlay_healthy(&app);
             std::thread::sleep(Duration::from_secs(5));
@@ -395,6 +436,9 @@ fn build_overlay(app: &AppHandle) -> tauri::Result<()> {
     // window updates, so a bit set before them can be wiped.
     if !ensure_no_activate(&overlay) {
         logs::diag("the overlay could not be marked no-activate at build time");
+    }
+    if !ensure_topmost(&overlay) {
+        logs::diag("the overlay could not be raised topmost at build time");
     }
 
     logs::diag("overlay window built");
