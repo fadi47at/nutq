@@ -3,14 +3,17 @@ import {
   api,
   ANTHROPIC_BASE_EXAMPLES,
   ENDPOINT_EXAMPLES,
+  MODE_LABELS,
   REFINE_KEY_SLOT,
   REFINE_PROVIDERS,
   STT_KEY_SLOT,
   STT_PROVIDERS,
-  type HotkeyReport,
+  newProfile,
+  type HotkeySlot,
   type HotkeyState,
   type KeyStatus,
   type OverlayStyle,
+  type Profile,
   type RefineProvider,
   type Settings,
   type SttProvider,
@@ -43,10 +46,11 @@ const KEY_FIELDS: { slot: string; name: string; where: string; placeholder: stri
   },
 ];
 
-type TabId = "stt" | "refine" | "keys" | "capture" | "words" | "overlay";
+type TabId = "lines" | "stt" | "refine" | "keys" | "capture" | "words" | "overlay";
 
-/** Ordered the way the pipeline runs, so the list reads as the flow itself. */
+/** Lines first - they are the product surface; the rest serves them. */
 const TABS: { id: TabId; name: string }[] = [
+  { id: "lines", name: "Lines" },
   { id: "stt", name: "Transcription" },
   { id: "refine", name: "Refinement" },
   { id: "keys", name: "Keys" },
@@ -534,11 +538,13 @@ export default function SettingsView({ settings, keys, onSave }: Props) {
   const [keyInputs, setKeyInputs] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  const [hotkeys, setHotkeys] = useState<HotkeyReport | null>(null);
-  // One group on screen at a time. All seven sections at once was a wall of
+  const [hotkeys, setHotkeys] = useState<HotkeySlot[] | null>(null);
+  // One group on screen at a time. All sections at once was a wall of
   // fields where the two that matter - which provider, which key - were
   // indistinguishable from the twenty that rarely change.
-  const [tab, setTab] = useState<TabId>("stt");
+  const [tab, setTab] = useState<TabId>("lines");
+  /** Which line is expanded in the Lines tab. */
+  const [openLine, setOpenLine] = useState<string | null>(null);
 
   useEffect(() => setDraft(settings), [settings]);
   useEffect(() => {
@@ -549,13 +555,25 @@ export default function SettingsView({ settings, keys, onSave }: Props) {
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) =>
     setDraft((d) => ({ ...d, [k]: v }));
 
+  const setProfile = (i: number, patch: Partial<Profile>) =>
+    setDraft((d) => ({
+      ...d,
+      profiles: d.profiles.map((p, j) => (j === i ? { ...p, ...patch } : p)),
+    }));
+
   const sttMeta = STT_PROVIDERS.find((p) => p.id === draft.sttProvider)!;
   const refineMeta = REFINE_PROVIDERS.find((p) => p.id === draft.refineProvider)!;
   const sttSlot = STT_KEY_SLOT[draft.sttProvider];
   const refineSlot = REFINE_KEY_SLOT[draft.refineProvider];
 
-  /** Only the slots the current provider choice actually reads. */
+  /** Only the slots the current provider choice actually reads - plus any
+   *  slot a line's own override points at. */
   const requiredSlots = new Set([sttSlot, ...(draft.refineEnabled ? [refineSlot] : [])]);
+  for (const p of draft.profiles) {
+    if (p.stt_override) requiredSlots.add(STT_KEY_SLOT[p.stt_provider]);
+    if (!p.refine_skip && p.refine_override && draft.refineEnabled)
+      requiredSlots.add(REFINE_KEY_SLOT[p.refine_provider]);
+  }
 
   /** Testing reads persisted settings, so on-screen edits must land first. */
   const unsaved =
@@ -571,6 +589,13 @@ export default function SettingsView({ settings, keys, onSave }: Props) {
       if (!draft.refineModel.trim()) return "Stage 2 needs a model name.";
       if (refineMeta.custom && !draft.refineBaseUrl.trim())
         return "Stage 2 needs an endpoint base URL.";
+    }
+    for (const [i, p] of draft.profiles.entries()) {
+      if (!p.name.trim()) return `Line ${i + 1} needs a name.`;
+      if (p.stt_override && !p.stt_model.trim())
+        return `Line "${p.name}" overrides transcription but names no model.`;
+      if (p.refine_override && !p.refine_model.trim())
+        return `Line "${p.name}" overrides refinement but names no model.`;
     }
     return null;
   }
@@ -622,6 +647,193 @@ export default function SettingsView({ settings, keys, onSave }: Props) {
           </button>
         ))}
       </div>
+
+      {/* ---------------------------------------------------------- lines */}
+      {tab === "lines" && (
+      <div className="section">
+        <div className="section-title">
+          Lines · one hotkey and one button each, with their own processing
+        </div>
+        <div style={{ padding: "2px 0 14px" }}>
+          <div className="field-hint">
+            Every line is a way in. It picks its own shortcut, destination, and
+            how the speech is processed; whatever it leaves alone falls through
+            to the shared settings in the other tabs.
+          </div>
+        </div>
+
+        {draft.profiles.map((p, i) => {
+          const slot = hotkeys?.find((s) => s.profile_id === p.id);
+          const open = openLine === p.id;
+          return (
+            <div className="field column" key={p.id} style={{ alignItems: "stretch" }}>
+              <div className="row" style={{ flex: "none" }}>
+                <button
+                  className="btn ghost"
+                  style={{ flex: 1, justifyContent: "flex-start", textAlign: "left" }}
+                  onClick={() => setOpenLine(open ? null : p.id)}
+                >
+                  <b>{p.name || `Line ${i + 1}`}</b>
+                  <span className="field-hint">
+                    {" "}· {prettyHotkey(p.hotkey)} ·{" "}
+                    {p.custom_prompt.trim() ? "custom instructions" : MODE_LABELS[p.mode].name}
+                  </span>
+                  {slot && !slot.state.bound && (
+                    <span className="hotkey-bad"> · not bound</span>
+                  )}
+                </button>
+                {draft.profiles.length > 1 && (
+                  <button
+                    className="icon-btn"
+                    title="Remove this line"
+                    onClick={() => {
+                      set("profiles", draft.profiles.filter((_, j) => j !== i));
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+
+              {open && (
+                <>
+                  <div className="row" style={{ flex: "none", gap: 16 }}>
+                    <div style={{ flex: 1 }}>
+                      <div className="field-name">Name</div>
+                      <input
+                        value={p.name}
+                        onChange={(e) => setProfile(i, { name: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <div className="field-name">Hotkey</div>
+                      <HotkeyField
+                        value={p.hotkey}
+                        status={slot?.state}
+                        onChange={(spec) => setProfile(i, { hotkey: spec })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="row" style={{ flex: "none", gap: 16 }}>
+                    <div>
+                      <div className="field-name">Processing</div>
+                      <select
+                        value={p.mode}
+                        onChange={(e) =>
+                          setProfile(i, { mode: e.target.value as Profile["mode"] })
+                        }
+                      >
+                        {(Object.keys(MODE_LABELS) as (keyof typeof MODE_LABELS)[]).map(
+                          (m) => (
+                            <option key={m} value={m}>
+                              {MODE_LABELS[m].name} — {MODE_LABELS[m].hint}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    </div>
+                    <div>
+                      <div className="field-name">Destination</div>
+                      <select
+                        value={p.output}
+                        onChange={(e) =>
+                          setProfile(i, { output: e.target.value as Profile["output"] })
+                        }
+                      >
+                        <option value="instant">Paste into the focused field</option>
+                        <option value="draft">Show it here for review</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="field-name">Custom instructions</div>
+                    <div className="field-hint" style={{ marginBottom: 6 }}>
+                      Filled in, these replace the processing mode entirely - your own
+                      filter, your own format. Left empty, the mode above decides.
+                    </div>
+                    <textarea
+                      rows={3}
+                      dir="auto"
+                      value={p.custom_prompt}
+                      placeholder="e.g. Turn anything I say into a short polite email reply"
+                      onChange={(e) => setProfile(i, { custom_prompt: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="row" style={{ flex: "none", gap: 24 }}>
+                    <label className="row" style={{ gap: 8, flex: "none" }}>
+                      <Toggle
+                        on={p.stt_override}
+                        onClick={() => setProfile(i, { stt_override: !p.stt_override })}
+                      />
+                      <span className="field-name" style={{ margin: 0 }}>
+                        Own transcription model
+                      </span>
+                    </label>
+                    <label className="row" style={{ gap: 8, flex: "none" }}>
+                      <Toggle
+                        on={p.refine_override}
+                        onClick={() => setProfile(i, { refine_override: !p.refine_override })}
+                      />
+                      <span className="field-name" style={{ margin: 0 }}>
+                        Own refinement model
+                      </span>
+                    </label>
+                    <label className="row" style={{ gap: 8, flex: "none" }}>
+                      <Toggle
+                        on={p.refine_skip}
+                        onClick={() => setProfile(i, { refine_skip: !p.refine_skip })}
+                      />
+                      <span className="field-name" style={{ margin: 0 }}>
+                        Skip refinement (raw transcript)
+                      </span>
+                    </label>
+                  </div>
+
+                  {(p.stt_override || p.refine_override) && (
+                    <div className="row" style={{ flex: "none", gap: 16 }}>
+                      {p.stt_override && (
+                        <div style={{ flex: 1 }}>
+                          <div className="field-name">Transcription model</div>
+                          <input
+                            value={p.stt_model}
+                            placeholder="model name"
+                            onChange={(e) => setProfile(i, { stt_model: e.target.value })}
+                          />
+                        </div>
+                      )}
+                      {p.refine_override && (
+                        <div style={{ flex: 1 }}>
+                          <div className="field-name">Refinement model</div>
+                          <input
+                            value={p.refine_model}
+                            placeholder="model name"
+                            onChange={(e) => setProfile(i, { refine_model: e.target.value })}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })}
+
+        <button
+          className="btn ghost"
+          onClick={() => {
+            const p = newProfile(draft.profiles.length);
+            set("profiles", [...draft.profiles, p]);
+            setOpenLine(p.id);
+          }}
+        >
+          + Add line
+        </button>
+      </div>
+      )}
 
       {/* ---------------------------------------------------------- stage 1 */}
       {tab === "stt" && (
@@ -1039,49 +1251,35 @@ export default function SettingsView({ settings, keys, onSave }: Props) {
       {tab === "capture" && (
       <div className="section">
         <div className="section-title">Shortcuts</div>
-
-        <div className="field">
-          <div>
-            <div className="field-name">Dictate hotkey</div>
-            <div className="field-hint">
-              Works in every app. Click the field and press the key you want - including
-              keypad keys and modifier combinations.
+        <div style={{ padding: "2px 0 6px" }}>
+          <div className="field-hint">
+            Each line carries its own hotkey now - set them on the Lines tab.
+            Every binding works in every app.
+          </div>
+        </div>
+        {(hotkeys ?? []).map((s) => (
+          <div className="field" key={s.profile_id}>
+            <div>
+              <div className="field-name">{s.name}</div>
+            </div>
+            <div className="hotkey-field">
+              <button className="hotkey-capture" disabled>
+                {prettyHotkey(s.state.spec)}
+              </button>
+              <div className="hotkey-note">
+                {s.state.reset_from ? (
+                  <span className="hotkey-bad">
+                    Saved key “{s.state.reset_from}” could not be bound, so it was reset.
+                  </span>
+                ) : s.state.bound ? (
+                  <span className="hotkey-raw">active</span>
+                ) : (
+                  <span className="hotkey-bad">{s.state.error || "Not bound."}</span>
+                )}
+              </div>
             </div>
           </div>
-          <HotkeyField
-            value={draft.hotkey}
-            status={hotkeys?.dictate}
-            onChange={(spec) => set("hotkey", spec)}
-          />
-        </div>
-
-        <div className="field">
-          <div>
-            <div className="field-name">Review hotkey</div>
-            <div className="field-hint">
-              Brings the result here to read and edit instead of pasting it
-            </div>
-          </div>
-          <HotkeyField
-            value={draft.draftHotkey}
-            status={hotkeys?.draft}
-            onChange={(spec) => set("draftHotkey", spec)}
-          />
-        </div>
-
-        <div className="field">
-          <div>
-            <div className="field-name">Default destination</div>
-            <div className="field-hint">What the dictate hotkey does with the finished text</div>
-          </div>
-          <select
-            value={draft.output}
-            onChange={(e) => set("output", e.target.value as Settings["output"])}
-          >
-            <option value="instant">Paste into the focused field</option>
-            <option value="draft">Show it here for review</option>
-          </select>
-        </div>
+        ))}
       </div>
       )}
 

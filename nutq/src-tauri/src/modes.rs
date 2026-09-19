@@ -72,14 +72,42 @@ than content. No bullet should restate another.\n\n\
     )
 }
 
+/// The checklist prompt's output shape is part of the contract twice over:
+/// the To-do page parses these exact lines into tickable items, so a preamble
+/// or a numbered list would land as junk text instead of tasks.
+fn checklist() -> String {
+    format!(
+        "The speaker is dictating tasks, to-dos, or things to remember out \
+loud, jumping between them and thinking as they go. Turn the ramble into a \
+clean checklist.\n\n\
+Output one task per line. Every line starts with `- [ ] ` followed by the \
+task as a short, actionable phrase. Merge duplicates, drop small talk and \
+anything that is not a task, and phrase each one so a stranger could act on \
+it. Keep every real task - do not decide some are too small to count.\n\n\
+{KEEP_LANGUAGE} Write each task in the language it was spoken in.{NEVER_EXPLAIN}"
+    )
+}
+
 /// Builds the full system prompt: mode instructions, then the user vocabulary
 /// that makes the difference between "Tauri" and "towry".
+///
+/// A line with its own instructions (`custom_prompt`, set by
+/// `Settings::effective`) replaces the mode prompt entirely - that is the
+/// "route this line through my own filter" case - but the vocabulary blocks
+/// and the never-explain rule still apply, because the output goes to the
+/// same place whatever wrote it.
 pub fn system_prompt(settings: &Settings) -> String {
-    let base = match settings.mode {
-        Mode::Natural => natural(),
-        Mode::Verbatim => verbatim(),
-        Mode::Spec => spec(),
-        Mode::Summary => summary(),
+    let custom = settings.custom_prompt.trim();
+    let base = if custom.is_empty() {
+        match settings.mode {
+            Mode::Natural => natural(),
+            Mode::Verbatim => verbatim(),
+            Mode::Spec => spec(),
+            Mode::Summary => summary(),
+            Mode::Checklist => checklist(),
+        }
+    } else {
+        custom.to_string()
     };
 
     let mut out = base;
@@ -266,7 +294,7 @@ fn dictionary_terms(settings: &Settings) -> String {
 pub fn effort(mode: Mode) -> &'static str {
     match mode {
         Mode::Spec => "high",
-        Mode::Summary => "medium",
+        Mode::Summary | Mode::Checklist => "medium",
         Mode::Natural | Mode::Verbatim => "low",
     }
 }

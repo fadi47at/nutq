@@ -7,9 +7,14 @@ Read it before starting work. Keep it true before finishing work (see
 ## What this is
 
 **nutq** is a voice-to-text desktop app: press a hotkey anywhere, speak, get
-finished text pasted where you were typing. It is **under active
-development** — nothing here is frozen, and a change to how something works
-is a change to the documents that describe it, in the same commit.
+finished text pasted where you were typing. Dictation is organized into
+**lines** (`Settings.profiles`): each line is one global hotkey, one
+Home-page button, and its own processing choices (mode or custom prompt,
+destination, optional per-line STT/refine model overrides). The Checklist
+line files its result as tickable items on the To-do page
+(`src-tauri/src/todos.rs`). It is **under active development** — nothing
+here is frozen, and a change to how something works is a change to the
+documents that describe it, in the same commit.
 
 - **Stack**: Tauri 2 (Rust backend) + React 19 / TypeScript / Vite frontend.
 - **`nutq/`** — the application. All development happens here.
@@ -128,6 +133,10 @@ restarted the app" — and each one is load-bearing:
 - Dev run: `npm install` then `npm run tauri dev` (in `nutq/`).
 - Release build: `npm run tauri build` — runs `tsc` + Vite first; a failure
   there is a stop sign, not a warning.
+- **Never let Windows PowerShell write repo JSON/TOML.** `Set-Content
+  -Encoding UTF8` (and `Out-File`) prepend a BOM, and Vite's PostCSS config
+  search then dies parsing `package.json`. Edit such files with the file
+  tools, or write with `[Text.UTF8Encoding]::new($false)`.
 - Rust: `cargo check` / `cargo test` in `nutq/src-tauri/`.
 - Install location on this machine: `%LOCALAPPDATA%\nutq\nutq.exe`
   (NSIS `currentUser` mode). Silent update: quit the running app, then run

@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Two zones, like the reference: a dark sidebar rail and a light content area,
  * with one dark "stage" island inside the light half for the recording panel.
  *
@@ -1884,4 +1884,87 @@ body.overlay-mode {
   overflow: hidden;
   text-overflow: ellipsis;
   margin-top: 2px;
+}
+
+/* ---- Lines: one button per dictation line on the Home page ---- */
+.line-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+.line-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  min-width: 96px;
+}
+.line-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.line-btn.live {
+  border-color: var(--accent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.line-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.line-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+.line-key {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: var(--mono, monospace);
+}
+
+/* ---- To-do page ---- */
+.todo-items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.todo-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 8px;
+}
+.todo-item:hover {
+  background: color-mix(in srgb, var(--line) 35%, transparent);
+}
+.todo-check {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--line);
+  border-radius: 5px;
+  background: transparent;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  padding: 0;
+}
+.todo-check.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.todo-text {
+  flex: 1;
+  font-size: 14px;
+}
+.todo-item.done .todo-text {
+  text-decoration: line-through;
+  color: var(--muted);
 }

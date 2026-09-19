@@ -13,7 +13,7 @@ function listen<T>(event: string, fn: (e: { payload: T }) => void): Promise<Unli
   return useMock() ? Promise.resolve(() => {}) : tauriListen<T>(event, fn);
 }
 
-export type Mode = "natural" | "verbatim" | "spec" | "summary";
+export type Mode = "natural" | "verbatim" | "spec" | "summary" | "checklist";
 export type Output = "instant" | "draft";
 export type Status = "idle" | "recording" | "transcribing" | "refining";
 /** The wave shape that runs inside the recording pill. */
@@ -27,6 +27,25 @@ export interface DictEntry {
 export interface Snippet {
   trigger: string;
   text: string;
+}
+
+/** One dictation line: its own hotkey, button, and processing choices.
+ *  Fields the line does not override fall through to the globals. */
+export interface Profile {
+  id: string;
+  name: string;
+  hotkey: string;
+  output: Output;
+  mode: Mode;
+  /** Non-empty replaces the mode prompt entirely. */
+  custom_prompt: string;
+  stt_override: boolean;
+  stt_provider: SttProvider;
+  stt_model: string;
+  refine_override: boolean;
+  refine_provider: RefineProvider;
+  refine_model: string;
+  refine_skip: boolean;
 }
 
 export type SttProvider = "gemini" | "eleven_labs" | "openai_compatible";
@@ -67,6 +86,7 @@ export interface Settings {
   overlayAuraColor: string;
   overlayBg: string;
   overlayStyle: OverlayStyle;
+  profiles: Profile[];
 }
 
 /** The Rust structs are snake_case on the wire; the UI speaks camelCase. */
@@ -101,6 +121,7 @@ interface RawSettings {
   overlay_aura_color: string;
   overlay_bg: string;
   overlay_style: OverlayStyle;
+  profiles: Profile[];
 }
 
 const toUi = (r: RawSettings): Settings => ({
@@ -134,6 +155,7 @@ const toUi = (r: RawSettings): Settings => ({
   overlayAuraColor: r.overlay_aura_color,
   overlayBg: r.overlay_bg,
   overlayStyle: r.overlay_style,
+  profiles: r.profiles ?? [],
 });
 
 const toRust = (s: Settings): RawSettings => ({
@@ -167,6 +189,7 @@ const toRust = (s: Settings): RawSettings => ({
   overlay_aura_color: s.overlayAuraColor,
   overlay_bg: s.overlayBg,
   overlay_style: s.overlayStyle,
+  profiles: s.profiles,
 });
 
 export interface HistoryEntry {
@@ -186,6 +209,9 @@ export interface HistoryEntry {
   microphone?: string;
   /** Set when the recording was kept and is still on disk. */
   audio_file?: string | null;
+  /** Which dictation line produced this; empty on older entries. */
+  profile?: string;
+  profile_id?: string;
 }
 
 export interface ResultPayload {
@@ -385,9 +411,11 @@ export interface HotkeyState {
   reset_from: string;
 }
 
-export interface HotkeyReport {
-  dictate: HotkeyState;
-  draft: HotkeyState;
+/** One line's binding, in settings order. */
+export interface HotkeySlot {
+  profile_id: string;
+  name: string;
+  state: HotkeyState;
 }
 
 export interface TestResult {
@@ -402,7 +430,6 @@ export const api = {
   async saveSettings(s: Settings): Promise<void> {
     return invoke("update_settings", { next: toRust(s) });
   },
-  setMode: (mode: Mode) => invoke<void>("set_mode", { mode }),
   setApiKey: (provider: string, key: string) =>
     invoke<void>("set_api_key", { provider, key }),
   keyStatus: () => invoke<KeyStatus>("key_status"),
@@ -410,7 +437,7 @@ export const api = {
   /** Validates a hotkey spec without binding it. Rejects with the reason. */
   checkHotkey: (spec: string) => invoke<void>("check_hotkey", { spec }),
   /** Whether each hotkey is actually bound, and what went wrong if not. */
-  hotkeyStatus: () => invoke<HotkeyReport>("hotkey_status"),
+  hotkeyStatus: () => invoke<HotkeySlot[]>("hotkey_status"),
   getHistory: () => invoke<HistoryEntry[]>("get_history"),
   /** Newest entry only - what the home page shows as the last result. */
   getLatest: () => invoke<HistoryEntry | null>("get_latest"),
@@ -433,7 +460,9 @@ export const api = {
   getQuota: () => invoke<Quota[]>("get_quota"),
   copyText: (text: string) => invoke<void>("copy_text", { text }),
   getStatus: () => invoke<Status>("get_status"),
-  toggle: (output: Output) => invoke<void>("toggle", { output }),
+  /** Starts or stops recording on one dictation line. Absent falls back to
+   *  the first line. */
+  toggle: (profile?: string) => invoke<void>("toggle", { profile }),
   /** Runs one real request against a stage's provider. `stage` is "stt" | "refine". */
   testProvider: (stage: "stt" | "refine") =>
     invoke<TestResult>("test_provider", { stage }),
@@ -445,6 +474,12 @@ export const api = {
   /** Persistent warnings/errors, newest first. */
   getLogs: () => invoke<LogEntry[]>("get_logs"),
   clearLogs: () => invoke<void>("clear_logs"),
+  /** The checklist line's output: to-do lists, newest first. */
+  getTodos: () => invoke<TodoList[]>("get_todos"),
+  toggleTodo: (id: string, index: number) => invoke<void>("toggle_todo", { id, index }),
+  addTodoItem: (id: string, text: string) => invoke<void>("add_todo_item", { id, text }),
+  removeTodoItem: (id: string, index: number) => invoke<void>("remove_todo_item", { id, index }),
+  deleteTodoList: (id: string) => invoke<void>("delete_todo_list", { id }),
   /** Diagnostics: reports the overlay webview is alive and what it sees. */
   overlayAlive: (status: string) => invoke<void>("overlay_alive", { status }),
   /** Proof from the overlay page that its window is being composited: sent
@@ -463,6 +498,7 @@ export const api = {
       glow_outer: boolean;
       aura_color: string;
       bg: string;
+      label: string;
     }>("overlay_state"),
   /** Asks GitHub (via the updater plugin) whether a newer release exists.
    *  Null when this is the latest. Rejects when offline - callers treat
@@ -505,4 +541,38 @@ export const MODE_LABELS: Record<Mode, { name: string; hint: string }> = {
   verbatim: { name: "Verbatim", hint: "Exactly as spoken, punctuation fixed" },
   spec: { name: "Spec", hint: "Rambling idea to a structured brief" },
   summary: { name: "Summary", hint: "Tight bullet points" },
+  checklist: { name: "Checklist", hint: "Spoken ramble to a tickable to-do list" },
 };
+
+/** A blank line for "+ Add line", with a fresh id. */
+export function newProfile(index: number): Profile {
+  return {
+    id: `line-${Date.now().toString(36)}-${index}`,
+    name: `Line ${index + 1}`,
+    hotkey: `CmdOrControl+F${9 + index}`,
+    output: "instant",
+    mode: "natural",
+    custom_prompt: "",
+    stt_override: false,
+    stt_provider: "gemini",
+    stt_model: "gemini-3.5-flash",
+    refine_override: false,
+    refine_provider: "anthropic",
+    refine_model: "claude-opus-5",
+    refine_skip: false,
+  };
+}
+
+/** One to-do item of a checklist dictation. */
+export interface TodoItem {
+  text: string;
+  done: boolean;
+}
+
+/** One filed checklist: the To-do page's unit. */
+export interface TodoList {
+  id: string;
+  at: string;
+  title: string;
+  items: TodoItem[];
+}

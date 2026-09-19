@@ -5,7 +5,7 @@ import {
   events,
   REFINE_KEY_SLOT,
   STT_KEY_SLOT,
-  type HotkeyReport,
+  type HotkeySlot,
   type KeyStatus,
   type LogEntry,
   type PendingEntry,
@@ -17,8 +17,9 @@ import Home from "./views/Home";
 import SettingsView from "./views/SettingsView";
 import HistoryView from "./views/HistoryView";
 import LogsView from "./views/LogsView";
+import TodosView from "./views/TodosView";
 
-type View = "home" | "history" | "settings" | "logs";
+type View = "home" | "todos" | "history" | "settings" | "logs";
 
 /** One drawn glyph per page, so the sidebar can fold to a rail of icons when
  *  the window gets phone-sized. Stroke-based on a 20px grid. */
@@ -33,6 +34,12 @@ const NAV_ICONS: Record<View, ReactElement> = {
     <>
       <circle cx="10" cy="10" r="6.3" />
       <path d="M10 6.7V10l2.4 1.6" />
+    </>
+  ),
+  todos: (
+    <>
+      <rect x="3.4" y="4" width="13.2" height="12.6" rx="1.6" />
+      <path d="m6.4 8.2 1.5 1.5 2.5-2.7M6.4 12.6l1.5 1.5 2.5-2.7M12.4 8.9h3.4M12.4 13.3h3.4" />
     </>
   ),
   settings: (
@@ -64,13 +71,15 @@ export default function App() {
   // costs nothing and makes every page reachable from a shortcut.
   const [view, setView] = useState<View>(() => {
     const h = window.location.hash.replace(/^#/, "");
-    return h === "history" || h === "settings" || h === "logs" ? (h as View) : "home";
+    return ["history", "settings", "logs", "todos"].includes(h)
+      ? (h as View)
+      : "home";
   });
   const [status, setStatus] = useState<Status>("idle");
   const [settings, setSettings] = useState<Settings | null>(null);
   const [keys, setKeys] = useState<KeyStatus>({});
   const [pending, setPending] = useState<PendingEntry[]>([]);
-  const [hotkeys, setHotkeys] = useState<HotkeyReport | null>(null);
+  const [hotkeys, setHotkeys] = useState<HotkeySlot[] | null>(null);
   /** The persistent warning/error log, newest first. */
   const [logs, setLogs] = useState<LogEntry[]>([]);
   /** Ids dismissed from the sidebar; the Logs page still shows them. */
@@ -145,13 +154,16 @@ export default function App() {
   const missingStt = !keys[sttSlot];
   const missingRefine = settings.refineEnabled && !keys[refineSlot];
 
-  const dictate = hotkeys?.dictate;
-  const hotkeyProblem = dictate?.reset_from
-    ? `Your dictate hotkey "${dictate.reset_from}" was not a key this app could bind, so it ` +
-      `was reset to ${prettyHotkey(dictate.spec)}. Set the one you want in Settings.`
-    : dictate && !dictate.bound
-      ? `The dictate hotkey ${prettyHotkey(dictate.spec)} is not active. ${dictate.error}`
-      : null;
+  // Every line with a binding problem earns one line of banner - an
+  // unbound key is an app that looks fine and answers nothing.
+  const hotkeyProblems: string[] = (hotkeys ?? [])
+    .filter((s) => s.state.reset_from || !s.state.bound)
+    .map((s) =>
+      s.state.reset_from
+        ? `Your "${s.name}" hotkey "${s.state.reset_from}" was not a key this app could bind, so ` +
+          `it was reset to ${prettyHotkey(s.state.spec)}. Set the one you want in Settings.`
+        : `The "${s.name}" hotkey ${prettyHotkey(s.state.spec)} is not active. ${s.state.error}`,
+    );
   const missingKeys = missingStt || missingRefine;
   /** Shared by the sidebar toast and the Logs rail dot: something the user
    *  has not dismissed yet. */
@@ -172,6 +184,7 @@ export default function App() {
         {(
           [
             ["home", "Home"],
+            ["todos", "To-do"],
             ["history", "History"],
             ["settings", "Settings"],
             ["logs", "Logs"],
@@ -262,9 +275,9 @@ export default function App() {
             exists to be told about it, so it is asked for rather than pushed.
             It is worth a banner: the app has no other way in, and silence was
             precisely what made the last one hard to diagnose. */}
-        {hotkeyProblem && view !== "settings" && (
+        {hotkeyProblems.length > 0 && view !== "settings" && (
           <div className="banner warn">
-            <div className="banner-text">{hotkeyProblem}</div>
+            <div className="banner-text">{hotkeyProblems[0]}</div>
             <div className="banner-actions">
               <button onClick={() => setView("settings")}>Open settings</button>
             </div>
@@ -289,12 +302,9 @@ export default function App() {
             settings={settings}
             ready={!missingKeys}
             pending={pending}
-            onModeChange={async (mode) => {
-              await api.setMode(mode);
-              setSettings({ ...settings, mode });
-            }}
           />
         )}
+        {view === "todos" && <TodosView />}
         {view === "history" && <HistoryView />}
         {view === "settings" && (
           <SettingsView settings={settings} keys={keys} onSave={saveSettings} />

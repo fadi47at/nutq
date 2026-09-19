@@ -2,21 +2,21 @@ import { useEffect, useState } from "react";
 import {
   api,
   MODE_LABELS,
-  type Mode,
   type PendingEntry,
+  type Profile,
   type Settings,
   type Status,
   type Usage,
   type Quota,
   type HistoryEntry,
 } from "../lib/api";
+import { prettyHotkey } from "../lib/hotkeys";
 
 interface Props {
   status: Status;
   settings: Settings;
   ready: boolean;
   pending: PendingEntry[];
-  onModeChange: (mode: Mode) => void;
 }
 
 /** "1712" -> "28m 32s". Seconds alone stop being readable past a minute. */
@@ -33,7 +33,6 @@ export default function Home({
   settings,
   ready,
   pending,
-  onModeChange,
 }: Props) {
   const [usage, setUsage] = useState<Usage>({
     month_cost: 0,
@@ -114,13 +113,25 @@ export default function Home({
 
   const busy = status === "transcribing" || status === "refining";
   const recording = status === "recording";
+  const lines: Profile[] = settings.profiles.length ? settings.profiles : [];
+  /** The line currently being captured, so its button shows "live". The
+   *  pill on screen carries the same name from the overlay's poll. */
+  const [activeLine, setActiveLine] = useState<string | null>(null);
+  useEffect(() => {
+    setActiveLine(recording ? activeLine : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recording]);
 
   return (
     <>
       <div className="eyebrow">Voice workspace</div>
       <h1>Ready when you are.</h1>
       <p className="lede">
-        Press {settings.hotkey} in any app, speak, then press {settings.hotkey} again.
+        One key per line, in any app:{" "}
+        {lines
+          .map((p) => `${p.name} ${prettyHotkey(p.hotkey)}`)
+          .join(" · ")}
+        .
       </p>
 
       {/* One horizontal bar instead of a tall panel.
@@ -132,25 +143,25 @@ export default function Home({
        * controls compress to a strip, the figures to a row, and everything
        * saved goes to the result. */}
       <div className="stage bar">
-        <button
-          className={`mic small${recording ? " live" : ""}`}
-          disabled={busy || !ready}
-          title={ready ? "Start or stop recording" : "Add your API key first"}
-          onClick={() => void api.toggle(settings.output)}
-        >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3z" />
-            <path d="M18 11a1 1 0 1 0-2 0 4 4 0 0 1-8 0 1 1 0 1 0-2 0 6 6 0 0 0 5 5.9V19H8a1 1 0 1 0 0 2h8a1 1 0 1 0 0-2h-3v-2.1A6 6 0 0 0 18 11z" />
-          </svg>
-        </button>
-
-        <div className="stage-copy">
-          <div className="stage-state">
-            {recording ? "Recording" : busy ? "Working" : "Ready"}
-          </div>
-          <div className="stage-hint">
-            {recording ? "Press again to stop" : busy ? "Hang on" : `Press ${settings.hotkey}`}
-          </div>
+        <div className="line-row">
+          {lines.map((p) => (
+            <button
+              key={p.id}
+              className={`line-btn${activeLine === p.id ? " live" : ""}`}
+              disabled={busy || !ready}
+              title={
+                MODE_LABELS[p.mode].hint +
+                (p.custom_prompt.trim() ? " · custom instructions" : "")
+              }
+              onClick={() => {
+                setActiveLine(p.id);
+                void api.toggle(p.id);
+              }}
+            >
+              <span className="line-name">{p.name}</span>
+              <span className="line-key">{prettyHotkey(p.hotkey)}</span>
+            </button>
+          ))}
         </div>
 
         <div className={`wave${recording ? " live" : ""}`}>
@@ -158,28 +169,17 @@ export default function Home({
             <i key={i} style={{ animationDelay: `${(i % 9) * 0.09}s` }} />
           ))}
         </div>
-
-        <div className="segmented">
-          {(Object.keys(MODE_LABELS) as Mode[]).map((m) => (
-            <button
-              key={m}
-              className={settings.mode === m ? "on" : ""}
-              title={MODE_LABELS[m].hint}
-              onClick={() => onModeChange(m)}
-            >
-              {MODE_LABELS[m].name}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* The four figures, side by side and small. */}
       <div className="stats">
         <div className="card">
-          <div className="card-label">Hotkey</div>
-          <div className="card-big">{settings.hotkey}</div>
+          <div className="card-label">Lines</div>
+          <div className="card-big">{lines.length}</div>
           <div className="card-note">
-            {settings.output === "instant" ? "pastes where you type" : "opens here"}
+            {lines[0]
+              ? `${prettyHotkey(lines[0].hotkey)} starts the first`
+              : "add one in Settings"}
           </div>
         </div>
 

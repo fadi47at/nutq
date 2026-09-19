@@ -34,6 +34,10 @@ pub struct PendingEntry {
     pub wav_file: Option<String>,
     /// Set when stage 1 succeeded and only refinement failed.
     pub transcript: Option<String>,
+    /// The dictation line this job came from, so the retry runs under the
+    /// same line's overrides instead of the globals.
+    #[serde(default)]
+    pub profile_id: String,
 }
 
 fn pending_dir() -> Result<PathBuf> {

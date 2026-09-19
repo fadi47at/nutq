@@ -9,13 +9,14 @@ mod pending;
 mod refine;
 mod settings;
 mod stt;
+mod todos;
 
 use audio::Recorder;
 use base64::Engine;
 use serde::Serialize;
 use settings::{
-    get_api_key, has_api_key, load_history, load_settings, save_history, save_settings, History,
-    HistoryEntry, Mode, Output, Settings, ALL_PROVIDERS,
+    default_profiles, get_api_key, has_api_key, load_history, load_settings, save_history,
+    save_settings, History, HistoryEntry, Mode, Output, Settings, ALL_PROVIDERS,
 };
 use std::str::FromStr;
 use std::sync::Mutex;
@@ -62,17 +63,20 @@ struct AppState {
     settings: Mutex<Settings>,
     history: Mutex<History>,
     status: Mutex<Status>,
-    /// Which hotkey started the current recording decides where the result
-    /// goes, so it is captured at press time rather than read from settings
-    /// when the recording ends.
-    pending_output: Mutex<Output>,
+    /// Which line (profile) started the current recording. Decides the whole
+    /// pipeline - mode, providers, output - so it is captured at press time
+    /// rather than read from settings when the recording ends.
+    pending_profile: Mutex<String>,
     /// The device the current recording is actually coming from, resolved when
     /// the stream opened. Same reasoning: read it at the start, not at the end,
     /// where a settings change mid-dictation would rewrite history.
     pending_mic: Mutex<String>,
-    shortcuts: Mutex<(Option<Shortcut>, Option<Shortcut>)>,
+    /// Each line's registered shortcut, paired with the line's id. One entry
+    /// per profile, in settings order.
+    shortcuts: Mutex<Vec<(Option<Shortcut>, String)>>,
     /// What each binding is actually doing, for the Settings page to show.
-    hotkey_report: Mutex<HotkeyReport>,
+    /// Same order as the lines in settings.
+    hotkey_report: Mutex<Vec<HotkeySlot>>,
     /// Whether Escape is currently bound as the "cancel this recording" key.
     /// Only true while the mic is live; the rest of the time Escape belongs
     /// to whatever app is being dictated into.
@@ -496,12 +500,14 @@ fn update_settings(app: AppHandle, state: State<AppState>, next: Settings) -> Re
     // Refuse a hotkey that cannot work instead of saving it and going deaf.
     // Saving first was how a single unusable spec could take out BOTH keys:
     // the bad one never bound, and the good one it replaced was already gone.
-    parse_hotkey(&next.hotkey).map_err(|e| format!("Dictate hotkey: {e}"))?;
-    parse_hotkey(&next.draft_hotkey).map_err(|e| format!("Review hotkey: {e}"))?;
+    for (i, p) in next.profiles.iter().enumerate() {
+        parse_hotkey(&p.hotkey)
+            .map_err(|e| format!("Line {} ({}): {e}", i + 1, p.name))?;
+    }
 
     let hotkeys_changed = {
         let current = state.settings.lock().unwrap();
-        current.hotkey != next.hotkey || current.draft_hotkey != next.draft_hotkey
+        current.profiles != next.profiles
     };
 
     save_settings(&next).map_err(|e| e.to_string())?;
@@ -511,13 +517,6 @@ fn update_settings(app: AppHandle, state: State<AppState>, next: Settings) -> Re
         register_hotkeys(&app).map_err(|e| e.to_string())?;
     }
     Ok(())
-}
-
-#[tauri::command]
-fn set_mode(state: State<AppState>, mode: Mode) -> Result<(), String> {
-    let mut s = state.settings.lock().unwrap();
-    s.mode = mode;
-    save_settings(&s).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -542,11 +541,11 @@ fn check_hotkey(spec: String) -> Result<(), String> {
     parse_hotkey(&spec).map(|_| ())
 }
 
-/// What the two bindings are currently doing. The Settings page asks on load,
-/// because the answer is decided during setup - before any window exists to be
-/// told about it.
+/// What each line's binding is currently doing. The Settings page asks on
+/// load, because the answer is decided during setup - before any window
+/// exists to be told about it.
 #[tauri::command]
-fn hotkey_status(state: State<AppState>) -> HotkeyReport {
+fn hotkey_status(state: State<AppState>) -> Vec<HotkeySlot> {
     state.hotkey_report.lock().unwrap().clone()
 }
 
@@ -870,10 +869,16 @@ async fn test_provider(app: AppHandle, stage: String) -> TestResult {
 }
 
 /// Same entry point the hotkey uses, so the on-screen button and the shortcut
-/// can never drift apart.
+/// can never drift apart. `profile` is a line id; absent or unknown falls
+/// back to the first line.
 #[tauri::command]
-fn toggle(app: AppHandle, output: Output) {
-    toggle_recording(&app, output);
+fn toggle(app: AppHandle, profile: Option<String>) {
+    let state = app.state::<AppState>();
+    let id = {
+        let s = state.settings.lock().unwrap();
+        s.profile(&profile.unwrap_or_default()).id
+    };
+    toggle_recording(&app, &id);
 }
 
 // ---------------------------------------------------------------- pipeline
@@ -1044,23 +1049,27 @@ fn park(app: &AppHandle, entry: pending::PendingEntry, wav: Option<&[u8]>) {
     let _ = app.emit("pending-changed", ());
 }
 
-fn toggle_recording(app: &AppHandle, output: Output) {
+fn toggle_recording(app: &AppHandle, profile_id: &str) {
     let state = app.state::<AppState>();
 
     match state.status() {
         Status::Idle => {
+            // The line's identity is fixed at start; its output and the rest
+            // of the configuration are read from it when the pipeline runs.
             let mic = {
                 let s = state.settings.lock().unwrap();
+                let p = s.profile(profile_id);
+                *state.pending_profile.lock().unwrap() = p.id.clone();
                 s.microphone.clone()
             };
             match state.recorder.start(Some(mic)) {
                 Ok(()) => {
-                    *state.pending_output.lock().unwrap() = output;
                     *state.pending_mic.lock().unwrap() = state.recorder.current_device();
                     state.set_status(app, Status::Recording);
                     arm_escape(app);
                 }
                 Err(e) => {
+                    *state.pending_profile.lock().unwrap() = String::new();
                     eprintln!("[nutq] start failed: {e:#}");
                     emit_error(app, audio::friendly_error(&e));
                 }
@@ -1139,10 +1148,18 @@ async fn process(app: &AppHandle) -> anyhow::Result<()> {
     };
 
     let seconds = audio::duration_seconds(wav.len());
-    let output = *state.pending_output.lock().unwrap();
+    let profile_id = state.pending_profile.lock().unwrap().clone();
     let microphone = state.pending_mic.lock().unwrap().clone();
 
-    let cfg = { state.settings.lock().unwrap().clone() };
+    // The line decides everything: its mode and prompt, its stage overrides
+    // if it has any, and its output destination.
+    let (profile, cfg) = {
+        let s = state.settings.lock().unwrap();
+        let p = s.profile(&profile_id);
+        (p.clone(), s.effective(&p))
+    };
+    let profile_name = profile.name.clone();
+    let output = profile.output;
 
     state.set_status(app, Status::Transcribing);
     let (transcript, stt_via_backup) = match transcribe_with_failover(app, &cfg, &wav).await {
@@ -1163,6 +1180,7 @@ async fn process(app: &AppHandle) -> anyhow::Result<()> {
                     microphone: microphone.clone(),
                     wav_file: None,
                     transcript: None,
+                    profile_id: profile.id.clone(),
                 },
                 Some(&wav),
             );
@@ -1208,6 +1226,7 @@ async fn process(app: &AppHandle) -> anyhow::Result<()> {
                         microphone: microphone.clone(),
                         wav_file: None,
                         transcript: Some(transcript.text.clone()),
+                        profile_id: profile.id.clone(),
                     },
                     None,
                 );
@@ -1259,9 +1278,22 @@ async fn process(app: &AppHandle) -> anyhow::Result<()> {
             refine_via_backup,
             microphone,
             audio_file,
+            profile: profile_name,
+            profile_id: profile.id.clone(),
         });
         clips::enforce_cap(&mut h);
         let _ = save_history(&h);
+    }
+
+    // A checklist line's result is pasted like any other, but it is also
+    // parsed into tickable items so the To-do page has it. The paste and the
+    // filing share one text, so they can never disagree.
+    if cfg.mode == Mode::Checklist {
+        let id = now_id();
+        if let Err(e) = todos::add_from_text(&id, &now_str(), &final_text) {
+            eprintln!("[nutq] could not file the checklist: {e:#}");
+        }
+        let _ = app.emit("todos-changed", ());
     }
 
     let _ = app.emit(
@@ -1299,8 +1331,15 @@ async fn retry_pending(app: AppHandle, id: String) -> Result<(), String> {
         return Err("wait for the current dictation to finish first".into());
     }
 
-    let cfg = { state.settings.lock().unwrap().clone() };
     let entry = pending::get(&id).ok_or("this job is no longer pending")?;
+
+    // The retry runs under the line the job came from - its overrides, its
+    // mode - falling back to the globals for a job that predates lines.
+    let (profile, cfg) = {
+        let s = state.settings.lock().unwrap();
+        let p = s.profile(&entry.profile_id);
+        (p.clone(), s.effective(&p))
+    };
 
     // Held so a successful retry can keep the audio in history, the same way a
     // first-try dictation does. A stage-2 retry has no wav left to keep.
@@ -1374,9 +1413,19 @@ async fn retry_pending(app: AppHandle, id: String) -> Result<(), String> {
             refine_via_backup: false,
             microphone: entry.microphone.clone(),
             audio_file,
+            profile: profile.name.clone(),
+            profile_id: profile.id.clone(),
         });
         clips::enforce_cap(&mut h);
         let _ = save_history(&h);
+    }
+
+    if cfg.mode == Mode::Checklist {
+        let tid = now_id();
+        if let Err(e) = todos::add_from_text(&tid, &now_str(), &final_text) {
+            eprintln!("[nutq] could not file the checklist: {e:#}");
+        }
+        let _ = app.emit("todos-changed", ());
     }
 
     let _ = app.emit(
@@ -1430,18 +1479,30 @@ async fn regenerate_history_entry(app: AppHandle, id: String) -> Result<HistoryE
         return Err("wait for the current dictation to finish first".into());
     }
 
-    let (mode, mut raw, audio_file) = {
+    let (mode, profile_id, mut raw, audio_file) = {
         let h = state.history.lock().unwrap();
         let e = h
             .entries
             .iter()
             .find(|e| e.id == id)
             .ok_or("this entry no longer exists")?;
-        (e.mode, e.raw.clone(), e.audio_file.clone())
+        (
+            e.mode,
+            e.profile_id.clone(),
+            e.raw.clone(),
+            e.audio_file.clone(),
+        )
     };
 
-    let mut cfg = { state.settings.lock().unwrap().clone() };
-    cfg.mode = mode;
+    // Under the line that produced the entry when it still exists, with the
+    // entry's own mode winning either way: "say the same thing again, better"
+    // must not silently change meaning because the line was re-pointed.
+    let cfg = {
+        let s = state.settings.lock().unwrap();
+        let mut c = s.effective(&s.profile(&profile_id));
+        c.mode = mode;
+        c
+    };
 
     let mut cost = 0.0f64;
     // Only overwritten when re-transcription actually ran; an audio-less
@@ -1523,6 +1584,34 @@ fn discard_pending(app: AppHandle, id: String) -> Result<(), String> {
     Ok(())
 }
 
+// ------------------------------------------------------------------ todos
+
+/// The checklist line's output, newest list first.
+#[tauri::command]
+fn get_todos() -> Vec<todos::TodoList> {
+    todos::list()
+}
+
+#[tauri::command]
+fn toggle_todo(id: String, index: usize) -> Result<(), String> {
+    todos::toggle(&id, index).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn add_todo_item(id: String, text: String) -> Result<(), String> {
+    todos::add_item(&id, &text).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn remove_todo_item(id: String, index: usize) -> Result<(), String> {
+    todos::remove_item(&id, index).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_todo_list(id: String) -> Result<(), String> {
+    todos::remove(&id).map_err(|e| e.to_string())
+}
+
 /// Diagnostics: the overlay page loaded and reports what it sees.
 ///
 /// Also the first proof of life on the poll clock - a page that just (re)loaded
@@ -1560,6 +1649,9 @@ struct OverlayState {
     glow_outer: bool,
     aura_color: String,
     bg: String,
+    /// Which line is recording, so the pill can say what the speech will
+    /// become. Empty when idle.
+    label: String,
 }
 
 /// One poll = everything the indicator needs. Event delivery to a hidden,
@@ -1571,6 +1663,12 @@ fn overlay_state(state: State<AppState>) -> OverlayState {
     // loop intact. The supervisor reads this clock alongside the frame one.
     state.overlay_watch.lock().unwrap().poll = Some(Instant::now());
     let s = state.settings.lock().unwrap();
+    let recording = state.status() == Status::Recording;
+    let label = if recording {
+        s.profile(&state.pending_profile.lock().unwrap()).name
+    } else {
+        String::new()
+    };
     OverlayState {
         status: state.status(),
         level: f32::from_bits(
@@ -1584,6 +1682,7 @@ fn overlay_state(state: State<AppState>) -> OverlayState {
         glow_outer: s.overlay_glow_outer,
         aura_color: s.overlay_aura_color.clone(),
         bg: s.overlay_bg.clone(),
+        label,
     }
 }
 
@@ -1635,11 +1734,8 @@ fn arm_escape(app: &AppHandle) {
 fn arm_escape_now(app: &AppHandle) {
     let state = app.state::<AppState>();
     let escape = escape_shortcut();
-    {
-        let (main, draft) = state.shortcuts.lock().unwrap().clone();
-        if main.as_ref() == Some(&escape) || draft.as_ref() == Some(&escape) {
-            return;
-        }
+    if shortcut_in_use(app, &escape) {
+        return;
     }
     if state.status() != Status::Recording {
         // A stale request caught up after the recording ended.
@@ -1667,13 +1763,22 @@ fn disarm_escape_now(app: &AppHandle) {
     let state = app.state::<AppState>();
     *state.escape_armed.lock().unwrap() = false;
     let escape = escape_shortcut();
-    {
-        let (main, draft) = state.shortcuts.lock().unwrap().clone();
-        if main.as_ref() == Some(&escape) || draft.as_ref() == Some(&escape) {
-            return;
-        }
+    if shortcut_in_use(app, &escape) {
+        return;
     }
     let _ = app.global_shortcut().unregister(escape);
+}
+
+/// Whether one of the line bindings itself owns this shortcut - Escape as a
+/// line's hotkey is the normal handler's job, and arming it on top would
+/// make the same key both save and cancel.
+fn shortcut_in_use(app: &AppHandle, shortcut: &Shortcut) -> bool {
+    app.state::<AppState>()
+        .shortcuts
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|(sc, _)| sc.as_ref() == Some(shortcut))
 }
 
 /// Records what each binding is actually doing.
@@ -1694,10 +1799,12 @@ struct HotkeyState {
     reset_from: String,
 }
 
+/// One line's binding: who it belongs to, and what its key is doing.
 #[derive(Clone, Serialize, Default)]
-struct HotkeyReport {
-    dictate: HotkeyState,
-    draft: HotkeyState,
+struct HotkeySlot {
+    profile_id: String,
+    name: String,
+    state: HotkeyState,
 }
 
 fn register_hotkeys(app: &AppHandle) -> anyhow::Result<()> {
@@ -1711,44 +1818,53 @@ fn register_hotkeys(app: &AppHandle) -> anyhow::Result<()> {
     // that has stopped answering the keyboard - so an unusable saved value is
     // put back to the default rather than left to disable dictation forever.
     // Settings then reports what was reset and why.
-    let (hotkey, draft_hotkey, reset_main, reset_draft) = {
+    let (profiles, resets) = {
         let mut s = state.settings.lock().unwrap();
-        let defaults = Settings::default();
-        let mut reset_main = String::new();
-        let mut reset_draft = String::new();
-
-        if parse_hotkey(&s.hotkey).is_err() {
-            reset_main = s.hotkey.clone();
-            s.hotkey = defaults.hotkey.clone();
+        let defaults = default_profiles();
+        let mut resets = vec![String::new(); s.profiles.len()];
+        for (i, p) in s.profiles.iter_mut().enumerate() {
+            if parse_hotkey(&p.hotkey).is_err() {
+                resets[i] = p.hotkey.clone();
+                p.hotkey = defaults
+                    .get(i)
+                    .map(|d| d.hotkey.clone())
+                    .unwrap_or_else(|| format!("CmdOrControl+F{}", 8 + i));
+            }
         }
-        if parse_hotkey(&s.draft_hotkey).is_err() {
-            reset_draft = s.draft_hotkey.clone();
-            s.draft_hotkey = defaults.draft_hotkey.clone();
-        }
-        if !reset_main.is_empty() || !reset_draft.is_empty() {
+        if resets.iter().any(|r| !r.is_empty()) {
             let _ = save_settings(&s);
         }
-        (
-            s.hotkey.clone(),
-            s.draft_hotkey.clone(),
-            reset_main,
-            reset_draft,
-        )
+        (s.profiles.clone(), resets)
     };
 
-    // Register the more specific combination first: on Windows a bare F8 and
-    // Ctrl+F8 coexist fine, but if the draft binding fails to register we still
-    // want the plain one working.
-    let (draft_sc, mut draft_state) = bind(&gs, &draft_hotkey);
-    let (main_sc, mut main_state) = bind(&gs, &hotkey);
-    main_state.reset_from = reset_main;
-    draft_state.reset_from = reset_draft;
+    // More specific combinations first: on Windows a bare F8 and Ctrl+F8
+    // coexist fine, so ordering by modifier count keeps a prefix collision
+    // from eating the plainer binding.
+    let mut ordered: Vec<usize> = (0..profiles.len()).collect();
+    ordered.sort_by_key(|&i| {
+        profiles[i]
+            .hotkey
+            .matches('+')
+            .count()
+    });
+    ordered.reverse();
 
-    *state.shortcuts.lock().unwrap() = (main_sc, draft_sc);
-    *state.hotkey_report.lock().unwrap() = HotkeyReport {
-        dictate: main_state,
-        draft: draft_state,
-    };
+    let mut slots: Vec<Option<HotkeySlot>> = vec![None; profiles.len()];
+    let mut bindings: Vec<(Option<Shortcut>, String)> = vec![(None, String::new()); profiles.len()];
+    for i in ordered {
+        let p = &profiles[i];
+        let (sc, mut report) = bind(&gs, &p.hotkey);
+        report.reset_from = resets[i].clone();
+        bindings[i] = (sc.clone(), p.id.clone());
+        slots[i] = Some(HotkeySlot {
+            profile_id: p.id.clone(),
+            name: p.name.clone(),
+            state: report,
+        });
+    }
+
+    *state.shortcuts.lock().unwrap() = bindings;
+    *state.hotkey_report.lock().unwrap() = slots.into_iter().flatten().collect();
 
     // unregister_all() above wiped an armed Escape along with everything
     // else, so put it back if a recording happens to be live right now.
@@ -1795,13 +1911,6 @@ fn bind(
     (Some(shortcut), report)
 }
 
-/// Which of the two bindings a retry is working on.
-#[derive(Clone, Copy)]
-enum HotkeySlot {
-    Dictate,
-    Draft,
-}
-
 /// Windows hands a global hotkey to whoever asks for it first, and a binding
 /// that was refused at startup stays refused: nothing ever asks again. That
 /// left an app whose hotkey silently did nothing at all until the next restart
@@ -1823,38 +1932,38 @@ fn retry_unbound_hotkeys(app: &AppHandle) {
     // A snapshot, so the report lock is never held across a registration.
     let report = state.hotkey_report.lock().unwrap().clone();
 
-    for (slot, binding) in [
-        (HotkeySlot::Dictate, &report.dictate),
-        (HotkeySlot::Draft, &report.draft),
-    ] {
-        if binding.bound {
+    for slot in &report {
+        if slot.state.bound {
             continue;
         }
-        let Ok(shortcut) = parse_hotkey(&binding.spec) else {
+        let Ok(shortcut) = parse_hotkey(&slot.state.spec) else {
             continue;
         };
         if app.global_shortcut().register(shortcut).is_err() {
             continue;
         }
 
-        match slot {
-            HotkeySlot::Dictate => state.shortcuts.lock().unwrap().0 = Some(shortcut),
-            HotkeySlot::Draft => state.shortcuts.lock().unwrap().1 = Some(shortcut),
+        {
+            let mut shortcuts = state.shortcuts.lock().unwrap();
+            if let Some(entry) = shortcuts.iter_mut().find(|(_, id)| *id == slot.profile_id) {
+                entry.0 = Some(shortcut);
+            }
         }
         {
             let mut report = state.hotkey_report.lock().unwrap();
-            let entry = match slot {
-                HotkeySlot::Dictate => &mut report.dictate,
-                HotkeySlot::Draft => &mut report.draft,
-            };
-            entry.bound = true;
-            entry.error = String::new();
+            if let Some(entry) = report
+                .iter_mut()
+                .find(|e| e.profile_id == slot.profile_id)
+            {
+                entry.state.bound = true;
+                entry.state.error = String::new();
+            }
         }
         emit_warning(
             app,
             format!(
                 "The shortcut {} is registered now. Another app was holding it when nutq started.",
-                binding.spec
+                slot.state.spec
             ),
         );
     }
@@ -1893,17 +2002,15 @@ pub fn run() {
                         return;
                     }
 
-                    let (main, draft) = *state.shortcuts.lock().unwrap();
-                    let output = if draft.as_ref() == Some(shortcut) {
-                        Output::Draft
-                    } else if main.as_ref() == Some(shortcut) {
-                        // Whatever the user picked as the default for the
-                        // plain hotkey.
-                        state.settings.lock().unwrap().output
-                    } else {
-                        return;
+                    let profile_id = {
+                        let s = state.settings.lock().unwrap();
+                        let bindings = state.shortcuts.lock().unwrap().clone();
+                        match bindings.iter().find(|(sc, _)| sc.as_ref() == Some(shortcut)) {
+                            Some((_, id)) => s.profile(id).id,
+                            None => return,
+                        }
                     };
-                    toggle_recording(app, output);
+                    toggle_recording(app, &profile_id);
                 })
                 .build(),
         )
@@ -1912,10 +2019,10 @@ pub fn run() {
             settings: Mutex::new(load_settings()),
             history: Mutex::new(load_history()),
             status: Mutex::new(Status::Idle),
-            pending_output: Mutex::new(Output::Instant),
+            pending_profile: Mutex::new(String::new()),
             pending_mic: Mutex::new(String::new()),
-            shortcuts: Mutex::new((None, None)),
-            hotkey_report: Mutex::new(HotkeyReport::default()),
+            shortcuts: Mutex::new(Vec::new()),
+            hotkey_report: Mutex::new(Vec::new()),
             escape_armed: Mutex::new(false),
             // A fresh install is healthy until proven otherwise: the overlay
             // page has not had the chance to beat yet, and a supervisor that
@@ -1930,7 +2037,6 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_settings,
             update_settings,
-            set_mode,
             set_api_key,
             key_status,
             list_microphones,
@@ -1953,6 +2059,11 @@ pub fn run() {
             get_pending,
             retry_pending,
             discard_pending,
+            get_todos,
+            toggle_todo,
+            add_todo_item,
+            remove_todo_item,
+            delete_todo_list,
             get_logs,
             clear_logs,
             overlay_alive,

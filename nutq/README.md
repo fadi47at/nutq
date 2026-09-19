@@ -146,16 +146,33 @@ Modes are not different pipelines, just different system prompts
 | Verbatim | Punctuation and spelling only, otherwise faithful | low |
 | Spec | Turns a rambling idea into Goal / Requirements / Constraints / Open questions | high |
 | Summary | Tight bullet points | medium |
+| Checklist | Spoken tasks become a tickable to-do list, filed on the To-do page | medium |
 
 Spec mode is the reason this exists rather than just using a dictation app:
 talk through an idea for five minutes and get back a brief you can hand
 straight to a coding agent.
 
+### Lines
+
+A dictation "line" is one hotkey plus one set of processing choices. A fresh
+install starts with four — Dictation (`F8`), Proofread (`Ctrl+F8`),
+Checklist (`Ctrl+F9`), and Idea → Spec (`Ctrl+F10`) — and lines can be
+added, removed, renamed, and re-keyed on the Settings Lines tab. Each line
+picks its own mode or carries entirely custom instructions, its own
+destination (paste in place or open for review), and optionally its own
+STT and refinement models; anything it leaves unset falls through to the
+shared settings. The Checklist line also files its result as tickable
+items on the To-do page, so a list spoken in the morning can be worked
+from that evening. Settings written before lines existed are migrated on
+first load: the old dictate and review hotkeys become the first two lines.
+
 ### Destinations
 
-- **Dictate hotkey** (default `F8`) — pastes into whatever field has focus.
-- **Review hotkey** (default `Ctrl+F8`) — brings the window forward with the
-  result to read and edit, and puts it on the clipboard.
+Each line picks its own destination:
+
+- **Paste** — into whatever field has focus when the recording ends.
+- **Review** — brings the window forward with the result to read and edit,
+  and puts it on the clipboard.
 
 ### The recording indicator
 
@@ -213,7 +230,8 @@ signed build, `latest.json`, push, GitHub Release, in one command.
 | `src-tauri/src/refine.rs` | Claude refinement |
 | `src-tauri/src/modes.rs` | Every prompt in the app |
 | `src-tauri/src/inject.rs` | Clipboard save / paste / restore |
-| `src-tauri/src/settings.rs` | Settings, history, credential store |
+| `src-tauri/src/settings.rs` | Settings, profiles (lines), history, credential store |
+| `src-tauri/src/todos.rs` | The to-do lists the Checklist line files |
 | `src-tauri/src/logs.rs` | The warning/error log, and the overlay's diagnostic trail |
 | `nutq/scripts/publish-release.ps1` | Signed build + GitHub Release + `latest.json` |
 | `src-tauri/src/lib.rs` | Commands, hotkeys, tray, pipeline |

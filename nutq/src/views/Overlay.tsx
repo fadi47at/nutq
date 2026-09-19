@@ -9,6 +9,8 @@ interface PillCfg {
   glowOuter: boolean;
   auraColor: string;
   bg: string;
+  /** Which line is recording - shown next to the timer. */
+  label: string;
 }
 
 function clock(secs: number) {
@@ -52,6 +54,7 @@ export default function Overlay() {
     glowOuter: true,
     auraColor: "#2fd6a5",
     bg: "#12161d",
+    label: "",
   });
   const [, setTick] = useState(0);
   const [showLabel, setShowLabel] = useState("");
@@ -118,7 +121,7 @@ export default function Overlay() {
           return s.status;
         });
         setShowLabel(s.status === "transcribing" ? "Transcribing…" : s.status === "refining" ? "Refining…" : "");
-        const look = `${s.style}|${s.glow_inner}|${s.glow_outer}|${s.aura_color}|${s.bg}`;
+        const look = `${s.style}|${s.glow_inner}|${s.glow_outer}|${s.aura_color}|${s.bg}|${s.label}`;
         if (look !== lastLook.current) {
           lastLook.current = look;
           cfg.current = {
@@ -127,6 +130,7 @@ export default function Overlay() {
             glowOuter: s.glow_outer,
             auraColor: s.aura_color,
             bg: s.bg,
+            label: s.label ?? "",
           };
           setTick((x) => x + 1);
         }
@@ -335,6 +339,7 @@ export default function Overlay() {
               className="overlay-timer"
               style={isLightBg(c.bg) ? { color: "#4a5563" } : undefined}
             >
+              {c.label ? `${c.label} · ` : ""}
               {clock(secs)}
             </span>
           </>

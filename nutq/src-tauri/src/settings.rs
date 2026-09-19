@@ -93,6 +93,9 @@ pub enum Mode {
     Spec,
     /// Bullet-point summary.
     Summary,
+    /// Spoken ramble in, actionable to-do checklist out. The result is also
+    /// filed in the To-do page, where items can be ticked off later.
+    Checklist,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -114,6 +117,88 @@ pub struct DictEntry {
 pub struct Snippet {
     pub trigger: String,
     pub text: String,
+}
+
+/// One dictation "line": its own hotkey, its own button on the Home page,
+/// and its own processing choices.
+///
+/// Everything a profile does not override falls through to the global
+/// settings, so the common case - four lines that share one provider pair -
+/// stays a matter of naming the lines and picking their keys.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Profile {
+    /// Stable identity, so history rows and parked jobs keep pointing at the
+    /// right line after a rename or reorder.
+    pub id: String,
+    /// What the button and the pill call it, e.g. "Checklist".
+    pub name: String,
+    /// The global shortcut that starts this line's recording.
+    pub hotkey: String,
+    /// Where the finished text goes: pasted in place, or opened for review.
+    pub output: Output,
+    /// Which refinement prompt runs. Ignored when `custom_prompt` is set.
+    pub mode: Mode,
+    /// Non-empty means this line's own instructions replace the mode prompt
+    /// entirely - the "route it through my own filter" case.
+    pub custom_prompt: String,
+
+    /// Per-line overrides for the two stages. Off means the global settings
+    /// apply; on, this line runs its own provider and model.
+    pub stt_override: bool,
+    pub stt_provider: SttProvider,
+    pub stt_model: String,
+    pub refine_override: bool,
+    pub refine_provider: RefineProvider,
+    pub refine_model: String,
+    /// This line pastes the raw transcript and skips the second API call,
+    /// regardless of the global refinement toggle.
+    pub refine_skip: bool,
+}
+
+impl Default for Profile {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            name: "Dictation".into(),
+            hotkey: "F8".into(),
+            output: Output::Instant,
+            mode: Mode::Natural,
+            custom_prompt: String::new(),
+            stt_override: false,
+            stt_provider: SttProvider::Gemini,
+            stt_model: "gemini-3.5-flash".into(),
+            refine_override: false,
+            refine_provider: RefineProvider::Anthropic,
+            refine_model: "claude-opus-5".into(),
+            refine_skip: false,
+        }
+    }
+}
+
+impl Profile {
+    fn new(id: &str, name: &str, hotkey: &str, mode: Mode, output: Output) -> Self {
+        Self {
+            id: id.into(),
+            name: name.into(),
+            hotkey: hotkey.into(),
+            output,
+            mode,
+            ..Default::default()
+        }
+    }
+}
+
+/// The four lines a fresh install starts with. They cover the whole pipeline
+/// the app speaks: faithful dictation, proofread-only, a spoken to-do list,
+/// and a rambling idea turned into a structured brief.
+pub fn default_profiles() -> Vec<Profile> {
+    vec![
+        Profile::new("dictate", "Dictation", "F8", Mode::Natural, Output::Instant),
+        Profile::new("verbatim", "Proofread", "CmdOrControl+F8", Mode::Verbatim, Output::Instant),
+        Profile::new("checklist", "Checklist", "CmdOrControl+F9", Mode::Checklist, Output::Instant),
+        Profile::new("spec", "Idea → Spec", "CmdOrControl+F10", Mode::Spec, Output::Draft),
+    ]
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -182,6 +267,17 @@ pub struct Settings {
     /// Which wave runs inside the pill: "bars", "ribbon", "blobs", "meter",
     /// or "ring".
     pub overlay_style: String,
+
+    /// The dictation lines: each its own hotkey, button, and processing.
+    /// An empty list is migrated to the defaults on load - either a fresh
+    /// install or a settings file written before lines existed.
+    pub profiles: Vec<Profile>,
+
+    /// Not a user setting: filled in by `effective()` when a profile carries
+    /// its own instructions, so the prompt builder reads one field instead of
+    /// knowing about profiles. Always empty in the file on disk.
+    #[serde(skip)]
+    pub custom_prompt: String,
 }
 
 impl Default for Settings {
@@ -222,7 +318,48 @@ impl Default for Settings {
             overlay_aura_color: "#2fd6a5".into(),
             overlay_bg: "#12161d".into(),
             overlay_style: "bars".into(),
+            profiles: default_profiles(),
+            custom_prompt: String::new(),
         }
+    }
+}
+
+impl Settings {
+    /// The full configuration one profile's dictation actually runs under:
+    /// the globals, with the profile's own choices laid over them.
+    ///
+    /// The pipeline keeps taking a `Settings`, so nothing below this point
+    /// had to learn that profiles exist - a line that overrides nothing
+    /// produces a clone of the globals with its mode and output, and one
+    /// that overrides a stage swaps in its own provider and model.
+    pub fn effective(&self, p: &Profile) -> Settings {
+        let mut c = self.clone();
+        c.mode = p.mode;
+        c.output = p.output;
+        c.custom_prompt = p.custom_prompt.clone();
+        if p.stt_override {
+            c.stt_provider = p.stt_provider;
+            c.stt_model = p.stt_model.clone();
+        }
+        if p.refine_override {
+            c.refine_provider = p.refine_provider;
+            c.refine_model = p.refine_model.clone();
+        }
+        if p.refine_skip {
+            c.refine_enabled = false;
+        }
+        c
+    }
+
+    /// A profile by id, falling back to the first line - the one a call with
+    /// no id (or one pointing at a deleted line) should land on.
+    pub fn profile(&self, id: &str) -> Profile {
+        self.profiles
+            .iter()
+            .find(|p| p.id == id)
+            .cloned()
+            .or_else(|| self.profiles.first().cloned())
+            .unwrap_or_default()
     }
 }
 
@@ -254,6 +391,12 @@ pub struct HistoryEntry {
     /// was saved and has not aged out yet.
     #[serde(default)]
     pub audio_file: Option<String>,
+    /// Which dictation line produced this. Entries that predate lines carry
+    /// an empty name and simply show no badge.
+    #[serde(default)]
+    pub profile: String,
+    #[serde(default)]
+    pub profile_id: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -373,12 +516,36 @@ fn history_path() -> Result<PathBuf> {
 }
 
 /// A corrupt or partial file must not brick the app - fall back to defaults.
+///
+/// A settings file from before the lines existed carries no `profiles`, so
+/// the old single hotkey and mode become the first line and the old review
+/// hotkey becomes a second one - nothing the user had configured is lost,
+/// and the other two defaults fill in behind them. Saved back immediately so
+/// the migration happens exactly once.
 pub fn load_settings() -> Settings {
-    settings_path()
+    let mut s: Settings = settings_path()
         .ok()
         .and_then(|p| fs::read_to_string(p).ok())
         .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default()
+        .unwrap_or_default();
+
+    if s.profiles.is_empty() {
+        let mut profiles = default_profiles();
+        if !s.hotkey.trim().is_empty() {
+            profiles[0].hotkey = s.hotkey.clone();
+        }
+        profiles[0].mode = s.mode;
+        profiles[0].output = s.output;
+        if !s.draft_hotkey.trim().is_empty() {
+            profiles[1].hotkey = s.draft_hotkey.clone();
+        }
+        profiles[1].mode = s.mode;
+        profiles[1].output = Output::Draft;
+        profiles[1].name = "Proofread".into();
+        s.profiles = profiles;
+        let _ = save_settings(&s);
+    }
+    s
 }
 
 pub fn save_settings(s: &Settings) -> Result<()> {
