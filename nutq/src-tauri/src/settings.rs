@@ -105,6 +105,9 @@ pub enum Output {
     Instant,
     /// Open the review window instead of pasting.
     Draft,
+    /// File the result on the Notes page instead of pasting - the note's
+    /// kind follows the line's processing mode.
+    Notes,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -189,15 +192,24 @@ impl Profile {
     }
 }
 
-/// The four lines a fresh install starts with. They cover the whole pipeline
-/// the app speaks: faithful dictation, proofread-only, a spoken to-do list,
-/// and a rambling idea turned into a structured brief.
+/// The lines a fresh install starts with. The first four cover the paste
+/// pipeline; the last two file their results on the Notes page instead.
 pub fn default_profiles() -> Vec<Profile> {
     vec![
         Profile::new("dictate", "Dictation", "F8", Mode::Natural, Output::Instant),
         Profile::new("verbatim", "Proofread", "CmdOrControl+F8", Mode::Verbatim, Output::Instant),
         Profile::new("checklist", "Checklist", "CmdOrControl+F9", Mode::Checklist, Output::Instant),
         Profile::new("spec", "Idea → Spec", "CmdOrControl+F10", Mode::Spec, Output::Draft),
+        Profile::new("notes", "Notes", "CmdOrControl+F11", Mode::Natural, Output::Notes),
+        Profile::new("ideas", "Ideas", "CmdOrControl+F12", Mode::Spec, Output::Notes),
+    ]
+}
+
+/// The two notes-filing lines, matched by id.
+pub fn notes_lines() -> [Profile; 2] {
+    [
+        Profile::new("notes", "Notes", "CmdOrControl+F11", Mode::Natural, Output::Notes),
+        Profile::new("ideas", "Ideas", "CmdOrControl+F12", Mode::Spec, Output::Notes),
     ]
 }
 
@@ -278,6 +290,11 @@ pub struct Settings {
     /// knowing about profiles. Always empty in the file on disk.
     #[serde(skip)]
     pub custom_prompt: String,
+
+    /// Set once the notes-filing lines have been appended to an older
+    /// install, so a user who deletes them is not fought at every launch.
+    #[serde(default)]
+    pub notes_lines_added: bool,
 }
 
 impl Default for Settings {
@@ -320,6 +337,7 @@ impl Default for Settings {
             overlay_style: "bars".into(),
             profiles: default_profiles(),
             custom_prompt: String::new(),
+            notes_lines_added: false,
         }
     }
 }
@@ -543,6 +561,19 @@ pub fn load_settings() -> Settings {
         profiles[1].output = Output::Draft;
         profiles[1].name = "Proofread".into();
         s.profiles = profiles;
+        let _ = save_settings(&s);
+    }
+
+    // An install from before the Notes page existed has no notes-filing
+    // lines; append them once. The flag, not their presence, is what keeps
+    // a deleted line from coming back on every launch.
+    if !s.notes_lines_added {
+        for p in notes_lines() {
+            if !s.profiles.iter().any(|e| e.id == p.id) {
+                s.profiles.push(p);
+            }
+        }
+        s.notes_lines_added = true;
         let _ = save_settings(&s);
     }
     s

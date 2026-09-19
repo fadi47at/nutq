@@ -262,6 +262,27 @@ const responses: Record<string, unknown> = {
   add_todo_item: null,
   remove_todo_item: null,
   delete_todo_list: null,
+  get_notes: [
+    {
+      id: "1",
+      at: "2026-09-08 11:02:10",
+      kind: "idea",
+      title: "فكرة: وضع الليل التلقائي",
+      text: "فكرة: وضع ليلي تلقائي حسب إضاءة الشاشة\n\n- يقرأ سطوع الشاشة كل دقيقة\n- يبدّل ثيم الحبة والواجهة معاً",
+      profile: "Ideas",
+    },
+    {
+      id: "2",
+      at: "2026-09-08 09:40:33",
+      kind: "cleaned",
+      title: "",
+      text: "ملاحظة اجتماع اليوم: التسليم نهاية الأسبوع، والتصميم يحتاج مراجعة واحدة قبل الإرسال.",
+      profile: "Notes",
+    },
+  ],
+  update_note: null,
+  set_note_kind: null,
+  delete_note: null,
   update_settings: null,
   set_api_key: null,
   clear_history: () => {

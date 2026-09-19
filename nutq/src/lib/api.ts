@@ -14,7 +14,7 @@ function listen<T>(event: string, fn: (e: { payload: T }) => void): Promise<Unli
 }
 
 export type Mode = "natural" | "verbatim" | "spec" | "summary" | "checklist";
-export type Output = "instant" | "draft";
+export type Output = "instant" | "draft" | "notes";
 export type Status = "idle" | "recording" | "transcribing" | "refining";
 /** The wave shape that runs inside the recording pill. */
 export type OverlayStyle = "bars" | "ribbon" | "blobs" | "meter" | "ring";
@@ -480,6 +480,11 @@ export const api = {
   addTodoItem: (id: string, text: string) => invoke<void>("add_todo_item", { id, text }),
   removeTodoItem: (id: string, index: number) => invoke<void>("remove_todo_item", { id, index }),
   deleteTodoList: (id: string) => invoke<void>("delete_todo_list", { id }),
+  /** The Notes page's contents, newest first. */
+  getNotes: () => invoke<Note[]>("get_notes"),
+  updateNote: (id: string, text: string) => invoke<void>("update_note", { id, text }),
+  setNoteKind: (id: string, kind: NoteKind) => invoke<void>("set_note_kind", { id, kind }),
+  deleteNote: (id: string) => invoke<void>("delete_note", { id }),
   /** Diagnostics: reports the overlay webview is alive and what it sees. */
   overlayAlive: (status: string) => invoke<void>("overlay_alive", { status }),
   /** Proof from the overlay page that its window is being composited: sent
@@ -569,10 +574,24 @@ export interface TodoItem {
   done: boolean;
 }
 
-/** One filed checklist: the To-do page's unit. */
+  /** One filed checklist: the To-do page's unit. */
 export interface TodoList {
   id: string;
   at: string;
   title: string;
   items: TodoItem[];
+}
+
+/** What a note on the Notes page is: the property that decides its section
+ *  and badge. */
+export type NoteKind = "cleaned" | "verbatim" | "idea";
+
+/** One filed note or idea. */
+export interface Note {
+  id: string;
+  at: string;
+  kind: NoteKind;
+  title: string;
+  text: string;
+  profile?: string;
 }

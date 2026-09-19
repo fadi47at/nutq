@@ -18,8 +18,9 @@ import SettingsView from "./views/SettingsView";
 import HistoryView from "./views/HistoryView";
 import LogsView from "./views/LogsView";
 import TodosView from "./views/TodosView";
+import NotesView from "./views/NotesView";
 
-type View = "home" | "todos" | "history" | "settings" | "logs";
+type View = "home" | "notes" | "todos" | "history" | "settings" | "logs";
 
 /** One drawn glyph per page, so the sidebar can fold to a rail of icons when
  *  the window gets phone-sized. Stroke-based on a 20px grid. */
@@ -40,6 +41,12 @@ const NAV_ICONS: Record<View, ReactElement> = {
     <>
       <rect x="3.4" y="4" width="13.2" height="12.6" rx="1.6" />
       <path d="m6.4 8.2 1.5 1.5 2.5-2.7M6.4 12.6l1.5 1.5 2.5-2.7M12.4 8.9h3.4M12.4 13.3h3.4" />
+    </>
+  ),
+  notes: (
+    <>
+      <path d="M5.4 3.8h7.2l3 3v9.4h-10.2z" />
+      <path d="M12.4 3.8v3.2h3.2M7.6 10h4.8M7.6 12.8h4.8" />
     </>
   ),
   settings: (
@@ -71,7 +78,7 @@ export default function App() {
   // costs nothing and makes every page reachable from a shortcut.
   const [view, setView] = useState<View>(() => {
     const h = window.location.hash.replace(/^#/, "");
-    return ["history", "settings", "logs", "todos"].includes(h)
+    return ["history", "settings", "logs", "todos", "notes"].includes(h)
       ? (h as View)
       : "home";
   });
@@ -184,6 +191,7 @@ export default function App() {
         {(
           [
             ["home", "Home"],
+            ["notes", "Notes"],
             ["todos", "To-do"],
             ["history", "History"],
             ["settings", "Settings"],
@@ -305,6 +313,7 @@ export default function App() {
           />
         )}
         {view === "todos" && <TodosView />}
+        {view === "notes" && <NotesView />}
         {view === "history" && <HistoryView />}
         {view === "settings" && (
           <SettingsView settings={settings} keys={keys} onSave={saveSettings} />

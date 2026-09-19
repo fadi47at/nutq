@@ -155,16 +155,25 @@ straight to a coding agent.
 ### Lines
 
 A dictation "line" is one hotkey plus one set of processing choices. A fresh
-install starts with four — Dictation (`F8`), Proofread (`Ctrl+F8`),
-Checklist (`Ctrl+F9`), and Idea → Spec (`Ctrl+F10`) — and lines can be
-added, removed, renamed, and re-keyed on the Settings Lines tab. Each line
-picks its own mode or carries entirely custom instructions, its own
-destination (paste in place or open for review), and optionally its own
-STT and refinement models; anything it leaves unset falls through to the
-shared settings. The Checklist line also files its result as tickable
-items on the To-do page, so a list spoken in the morning can be worked
-from that evening. Settings written before lines existed are migrated on
-first load: the old dictate and review hotkeys become the first two lines.
+install starts with six — Dictation (`F8`), Proofread (`Ctrl+F8`),
+Checklist (`Ctrl+F9`), Idea → Spec (`Ctrl+F10`), Notes (`Ctrl+F11`), and
+Ideas (`Ctrl+F12`) — and lines can be added, removed, renamed, and re-keyed
+on the Settings Lines tab. Each line picks its own mode or carries entirely
+custom instructions, its own destination (paste in place, open for review,
+or file on the Notes page), and optionally its own STT and refinement
+models; anything it leaves unset falls through to the shared settings. The
+Checklist line also files its result as tickable items on the To-do page,
+so a list spoken in the morning can be worked from that evening.
+
+### Notes
+
+A line whose destination is "Notes" does not paste: its finished text is
+filed on the Notes page, tagged with a kind that follows the line's mode —
+**Cleaned** (Natural), **As spoken** (Verbatim), or **Idea** (Spec and
+Summary). The page shows every note with those properties, lets the kind be
+changed after the fact, and keeps the text editable, because dictation is a
+starting point. Settings written before the Notes lines existed get them
+appended once on first load; a deleted Notes line stays deleted.
 
 ### Destinations
 
@@ -232,6 +241,7 @@ signed build, `latest.json`, push, GitHub Release, in one command.
 | `src-tauri/src/inject.rs` | Clipboard save / paste / restore |
 | `src-tauri/src/settings.rs` | Settings, profiles (lines), history, credential store |
 | `src-tauri/src/todos.rs` | The to-do lists the Checklist line files |
+| `src-tauri/src/notes.rs` | The notes and ideas the Notes lines file |
 | `src-tauri/src/logs.rs` | The warning/error log, and the overlay's diagnostic trail |
 | `nutq/scripts/publish-release.ps1` | Signed build + GitHub Release + `latest.json` |
 | `src-tauri/src/lib.rs` | Commands, hotkeys, tray, pipeline |

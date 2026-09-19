@@ -9,6 +9,7 @@ mod pending;
 mod refine;
 mod settings;
 mod stt;
+mod notes;
 mod todos;
 
 use audio::Recorder;
@@ -16,7 +17,7 @@ use base64::Engine;
 use serde::Serialize;
 use settings::{
     default_profiles, get_api_key, has_api_key, load_history, load_settings, save_history,
-    save_settings, History, HistoryEntry, Mode, Output, Settings, ALL_PROVIDERS,
+    save_settings, History, HistoryEntry, Mode, Output, Profile, Settings, ALL_PROVIDERS,
 };
 use std::str::FromStr;
 use std::sync::Mutex;
@@ -1022,6 +1023,18 @@ fn now_str() -> String {
     chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
 }
 
+/// Files a finished dictation on the Notes page and tells the UI. The
+/// note's kind follows the line's processing mode, so a Notes-line note is
+/// cleaned text and an Ideas-line note is a developed idea - no separate
+/// picker to lie about.
+fn file_note(app: &AppHandle, profile: &Profile, mode: Mode, text: &str) {
+    let kind = notes::NoteKind::from_mode(&mode);
+    if let Err(e) = notes::add(&now_id(), &now_str(), kind, &profile.name, text) {
+        eprintln!("[nutq] could not file the note: {e:#}");
+    }
+    let _ = app.emit("notes-changed", ());
+}
+
 /// The one way warnings reach the user: shown as a toast, and filed in the
 /// persistent log. The toast is easy to miss or dismiss; the log is the
 /// record the Logs page reads.
@@ -1310,6 +1323,12 @@ async fn process(app: &AppHandle) -> anyhow::Result<()> {
 
     match output {
         Output::Instant => inject::paste(&final_text)?,
+        Output::Notes => {
+            // Filed on the Notes page, and copied so the text is still one
+            // keystroke away from wherever the user happens to be.
+            file_note(app, &profile, cfg.mode, &final_text);
+            inject::copy_only(&final_text)?;
+        }
         Output::Draft => {
             inject::copy_only(&final_text)?;
             if let Some(w) = app.get_webview_window("main") {
@@ -1442,6 +1461,10 @@ async fn retry_pending(app: AppHandle, id: String) -> Result<(), String> {
 
     match entry.output {
         Output::Instant => inject::paste(&final_text).map_err(|e| e.to_string())?,
+        Output::Notes => {
+            file_note(&app, &profile, entry.mode, &final_text);
+            inject::copy_only(&final_text).map_err(|e| e.to_string())?;
+        }
         Output::Draft => {
             inject::copy_only(&final_text).map_err(|e| e.to_string())?;
             if let Some(w) = app.get_webview_window("main") {
@@ -1610,6 +1633,29 @@ fn remove_todo_item(id: String, index: usize) -> Result<(), String> {
 #[tauri::command]
 fn delete_todo_list(id: String) -> Result<(), String> {
     todos::remove(&id).map_err(|e| e.to_string())
+}
+
+// ------------------------------------------------------------------ notes
+
+/// The Notes page's contents, newest first.
+#[tauri::command]
+fn get_notes() -> Vec<notes::Note> {
+    notes::list()
+}
+
+#[tauri::command]
+fn update_note(id: String, text: String) -> Result<(), String> {
+    notes::update(&id, &text).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_note_kind(id: String, kind: notes::NoteKind) -> Result<(), String> {
+    notes::set_kind(&id, kind).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_note(id: String) -> Result<(), String> {
+    notes::remove(&id).map_err(|e| e.to_string())
 }
 
 /// Diagnostics: the overlay page loaded and reports what it sees.
@@ -2064,6 +2110,10 @@ pub fn run() {
             add_todo_item,
             remove_todo_item,
             delete_todo_list,
+            get_notes,
+            update_note,
+            set_note_kind,
+            delete_note,
             get_logs,
             clear_logs,
             overlay_alive,

@@ -743,6 +743,7 @@ export default function SettingsView({ settings, keys, onSave }: Props) {
                       >
                         <option value="instant">Paste into the focused field</option>
                         <option value="draft">Show it here for review</option>
+                        <option value="notes">File it on the Notes page</option>
                       </select>
                     </div>
                   </div>
