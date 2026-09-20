@@ -117,9 +117,12 @@ under-reporting.
 
 ## API keys
 
-Entered in Settings and stored in the **Windows Credential Manager**, not in
-any file this project writes. There are five slots; the UI marks each one
-required, saved-but-unused, or not needed, based on the providers you picked:
+Entered in Settings › API keys and stored in the **Windows Credential
+Manager**, not in any file this project writes. There are five slots, split
+into the ones your current providers actually read and the ones nothing reads
+right now, so "which key is missing" is answerable without knowing the
+internals. A saved key can be forgotten from the same row; like everything
+else on that page it happens on Save, and Discard undoes it.
 
 | Slot | Used by |
 |---|---|
@@ -158,7 +161,7 @@ A dictation "line" is one hotkey plus one set of processing choices. A fresh
 install starts with six — Dictation (`F8`), Proofread (`Ctrl+F8`),
 Checklist (`Ctrl+F9`), Idea → Spec (`Ctrl+F10`), Notes (`Ctrl+F11`), and
 Ideas (`Ctrl+F12`) — and lines can be added, removed, renamed, and re-keyed
-on the Settings Lines tab. Each line picks its own mode or carries entirely
+in Settings › Lines. Each line picks its own mode or carries entirely
 custom instructions, its own destination (paste in place, open for review,
 or file on the Notes page), and optionally its own STT and refinement
 models; anything it leaves unset falls through to the shared settings. The
@@ -179,9 +182,33 @@ appended once on first load; a deleted Notes line stays deleted.
 
 Each line picks its own destination:
 
-- **Paste** — into whatever field has focus when the recording ends.
-- **Review** — brings the window forward with the result to read and edit,
-  and puts it on the clipboard.
+- **Paste it** — into whatever field has focus when the recording ends.
+- **Show it here** — brings the window forward with the result to read and
+  edit, and puts it on the clipboard.
+- **File a note** — nothing is pasted; the text lands on the Notes page.
+
+### The window
+
+One stylesheet, one token vocabulary. `src/styles.css` defines the palette,
+the type scale, the spacing and the shadows once as CSS variables;
+`[data-theme="dark"]` redefines the same names, and `.zone-dark` redefines
+them again for the sidebar, so a component reads `--text` and `--surface` and
+gets whichever zone it is sitting in. Nothing outside that file names a
+colour. **Settings › Appearance** switches between Light, Dark, and
+following Windows; the choice is stored like any other setting and applies the
+moment it is picked.
+
+`src/lib/ui.tsx` holds the pieces every page is built from - `PageHead`,
+`Field`, `Toggle`, `Empty`, `Kbd`, and the icon set - so a new page starts
+looking like the rest of the app rather than like itself. Hotkeys are drawn as
+keycaps by `Kbd` everywhere they appear.
+
+Settings is a draft until it is saved. The section list on the left groups the
+eight sections (Dictation / Engine / Application) and marks the ones that need
+attention; the bar pinned to the bottom says whether anything is unsaved and
+carries Save and Discard, with `Ctrl+S` as the shortcut. A blank that would
+have become a 404 from a provider is caught there, and the page jumps to the
+section holding it.
 
 ### The recording indicator
 
@@ -246,6 +273,8 @@ signed build, `latest.json`, push, GitHub Release, in one command.
 | `nutq/scripts/publish-release.ps1` | Signed build + GitHub Release + `latest.json` |
 | `src-tauri/src/lib.rs` | Commands, hotkeys, tray, pipeline |
 | `src/lib/api.ts` | Typed bridge to the Rust commands |
+| `src/lib/ui.tsx` | Shared UI pieces: PageHead, Field, Toggle, Kbd, icons, theme |
+| `src/styles.css` | The design tokens and every component style, light and dark |
 
 ## Notes
 

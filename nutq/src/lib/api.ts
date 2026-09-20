@@ -18,6 +18,8 @@ export type Output = "instant" | "draft" | "notes";
 export type Status = "idle" | "recording" | "transcribing" | "refining";
 /** The wave shape that runs inside the recording pill. */
 export type OverlayStyle = "bars" | "ribbon" | "blobs" | "meter" | "ring";
+/** How the main window paints itself. "system" follows Windows. */
+export type Theme = "system" | "light" | "dark";
 
 export interface DictEntry {
   from: string;
@@ -78,6 +80,8 @@ export interface Settings {
   playSounds: boolean;
   /** Keep each recording on disk so it can be replayed from History. */
   saveAudio: boolean;
+  /** Light, dark, or whatever Windows is set to. */
+  theme: Theme;
   /** The recording pill: which wave runs inside it, the two-part glow, and
    *  the coordinated theme behind its colors. */
   overlayGlowInner: boolean;
@@ -115,6 +119,7 @@ interface RawSettings {
   snippets: Snippet[];
   play_sounds: boolean;
   save_audio: boolean;
+  theme: Theme;
   overlay_glow_inner: boolean;
   overlay_glow_outer: boolean;
   overlay_theme: string;
@@ -149,6 +154,7 @@ const toUi = (r: RawSettings): Settings => ({
   snippets: r.snippets,
   playSounds: r.play_sounds,
   saveAudio: r.save_audio,
+  theme: r.theme ?? "system",
   overlayGlowInner: r.overlay_glow_inner,
   overlayGlowOuter: r.overlay_glow_outer,
   overlayTheme: r.overlay_theme,
@@ -183,6 +189,7 @@ const toRust = (s: Settings): RawSettings => ({
   snippets: s.snippets,
   play_sounds: s.playSounds,
   save_audio: s.saveAudio,
+  theme: s.theme,
   overlay_glow_inner: s.overlayGlowInner,
   overlay_glow_outer: s.overlayGlowOuter,
   overlay_theme: s.overlayTheme,

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   api,
   ANTHROPIC_BASE_EXAMPLES,
@@ -18,13 +18,19 @@ import {
   type Settings,
   type SttProvider,
   type TestResult,
+  type Theme,
 } from "../lib/api";
-import { prettyHotkey, specFromEvent } from "../lib/hotkeys";
+import { specFromEvent } from "../lib/hotkeys";
+import { Field, Icon, Kbd, PageHead, Toggle, type IconName } from "../lib/ui";
+import PillPreview from "./PillPreview";
 
 interface Props {
   settings: Settings;
   keys: KeyStatus;
   onSave: (next: Settings) => Promise<void>;
+  /** Try a theme on without saving it. Null hands the window back to the
+   *  saved setting. */
+  onPreviewTheme: (theme: Theme | null) => void;
 }
 
 /** Label under each key field, so slots are named the same way everywhere. */
@@ -46,17 +52,54 @@ const KEY_FIELDS: { slot: string; name: string; where: string; placeholder: stri
   },
 ];
 
-type TabId = "lines" | "stt" | "refine" | "keys" | "capture" | "words" | "overlay";
+type SectionId =
+  | "lines"
+  | "words"
+  | "stt"
+  | "refine"
+  | "keys"
+  | "capture"
+  | "overlay"
+  | "appearance";
 
-/** Lines first - they are the product surface; the rest serves them. */
-const TABS: { id: TabId; name: string }[] = [
-  { id: "lines", name: "Lines" },
-  { id: "stt", name: "Transcription" },
-  { id: "refine", name: "Refinement" },
-  { id: "keys", name: "Keys" },
-  { id: "capture", name: "Capture" },
-  { id: "overlay", name: "Recording pill" },
-  { id: "words", name: "Vocabulary" },
+/**
+ * The section list, in three groups.
+ *
+ * A seven-name tab strip gave every group the same weight and pushed the last
+ * two off the edge of a narrow window. Grouping them says what the app is made
+ * of: the lines you speak on, the engine behind them, and the program itself.
+ */
+const SECTIONS: { group: string; items: { id: SectionId; name: string; icon: IconName }[] }[] = [
+  {
+    group: "Dictation",
+    items: [
+      { id: "lines", name: "Lines", icon: "bolt" },
+      { id: "words", name: "Vocabulary", icon: "book" },
+    ],
+  },
+  {
+    group: "Engine",
+    items: [
+      { id: "stt", name: "Transcription", icon: "mic" },
+      { id: "refine", name: "Refinement", icon: "chat" },
+      { id: "keys", name: "API keys", icon: "key" },
+    ],
+  },
+  {
+    group: "Application",
+    items: [
+      { id: "capture", name: "Audio & input", icon: "sliders" },
+      { id: "overlay", name: "Recording pill", icon: "wave" },
+      { id: "appearance", name: "Appearance", icon: "palette" },
+    ],
+  },
+];
+
+/** Where a line's finished text goes. */
+const OUTPUTS: { id: Profile["output"]; name: string; hint: string }[] = [
+  { id: "instant", name: "Paste it", hint: "straight into whatever field has focus" },
+  { id: "draft", name: "Show it here", hint: "opens nutq with the text, nothing is pasted" },
+  { id: "notes", name: "File a note", hint: "lands on the Notes page instead" },
 ];
 
 /** The wave shapes that can run inside the recording pill. */
@@ -68,8 +111,8 @@ const OVERLAY_STYLES: { id: OverlayStyle; name: string; hint: string }[] = [
   { id: "ring", name: "Pulse", hint: "Rings around the dot, no wave at all" },
 ];
 
-/** Coordinated color themes for the pill. One pick sets the glow-and-wave
- *  color and the background together, so the result always matches. Light
+/** Coordinated colour themes for the pill. One pick sets the glow-and-wave
+ *  colour and the background together, so the result always matches. Light
  *  ("Day") themes keep the wave dark enough to read on a pale pill. */
 const OVERLAY_THEMES: { id: string; name: string; aura: string; bg: string }[] = [
   { id: "teal_night", name: "Teal Night", aura: "#2fd6a5", bg: "#12161d" },
@@ -89,242 +132,51 @@ const OVERLAY_THEMES: { id: string; name: string; aura: string; bg: string }[] =
   { id: "day_slate", name: "Day Slate", aura: "#3b4c63", bg: "#eef1f5" },
 ];
 
-function hexRgb(hex: string): [number, number, number] {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-  if (!m) return [47, 214, 165];
-  const n = parseInt(m[1], 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
+const THEMES: { id: Theme; name: string; hint: string; icon: IconName }[] = [
+  { id: "system", name: "Match Windows", hint: "Follows the system light/dark setting", icon: "monitor" },
+  { id: "light", name: "Light", hint: "Always the light palette", icon: "sun" },
+  { id: "dark", name: "Dark", hint: "Always the dark palette", icon: "moon" },
+];
 
-function isLightBg(hex: string): boolean {
-  const [r, g, b] = hexRgb(hex);
-  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > 0.6;
-}
-
-/** A live miniature of the pill with the chosen look, driven by a simulated
- *  voice so colors and shapes can be judged without dictating. Mirrors the
- *  glow composition the real overlay uses: two independent parts. */
-function PillPreview({
-  style,
-  glowInner,
-  glowOuter,
-  auraColor,
-  bg,
-}: {
-  style: OverlayStyle;
-  glowInner: boolean;
-  glowOuter: boolean;
-  auraColor: string;
-  bg: string;
-}) {
-  const pill = useRef<HTMLDivElement | null>(null);
-  const canvas = useRef<HTMLCanvasElement | null>(null);
-  const fill = useRef<HTMLElement | null>(null);
-  const ring = useRef<HTMLElement | null>(null);
-  const wave = useRef<HTMLSpanElement | null>(null);
-  const peak = useRef(0.02);
-  const hist = useRef<number[]>([]);
-  const phase = useRef(0);
-
-  useEffect(() => {
-    let raf = 0;
-    let last = performance.now();
-    const loop = (now: number) => {
-      const dt = Math.min(0.1, (now - last) / 1000);
-      last = now;
-      phase.current += dt;
-      // A speech-like envelope: syllable bursts with pauses.
-      const syl = 0.55 + 0.45 * Math.sin(phase.current * 2 * Math.PI * 3.6);
-      const phrase = (Math.sin(phase.current * 0.9) + Math.sin(phase.current * 0.23)) / 2;
-      const talking = phrase > -0.25;
-      const level = talking ? 0.012 + 0.09 * Math.max(0, syl) * (0.8 + 0.2 * phrase) : 0.0015;
-      peak.current = Math.max(level, peak.current * 0.995);
-      const db = 20 * Math.log10(Math.max(level, 1e-5));
-      const dbN = Math.min(1, Math.max(0.04, (db + 58) / 40));
-      const agc = Math.min(1, Math.max(0.04, (level / Math.max(peak.current, 0.018)) * 0.88));
-      const v = Math.min(1, Math.max(0.04, agc * 0.65 + dbN * 0.35));
-      const silent = !talking;
-
-      const el = pill.current;
-      if (el) {
-        const m = /^#?([0-9a-f]{6})$/i.exec(auraColor.trim());
-        const n = m ? parseInt(m[1], 16) : 0x2fd6a5;
-        const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
-        if (!glowInner && !glowOuter) {
-          el.style.borderColor = "#2b3341";
-          el.style.boxShadow = "none";
-        } else {
-          const outer = glowOuter
-            ? `0 0 ${(5 + v * 12) * 1.3}px rgba(${r},${g},${b},${0.14 + v * 0.42}),` +
-              `0 0 ${(13 + v * 30) * 1.3}px rgba(${r},${g},${b},${0.08 + v * 0.34})`
-            : "";
-          const inner = glowInner
-            ? `${outer ? "," : ""}inset 0 0 ${(2 + v * 15) * 1.3}px rgba(${r},${g},${b},${0.07 + v * 0.26})`
-            : "";
-          el.style.borderColor = glowOuter
-            ? `rgba(${r},${g},${b},${0.28 + v * 0.6})`
-            : "#2b3341";
-          el.style.boxShadow = `${outer}${inner}` || "none";
-        }
-      }
-
-      const color = silent ? "#e5b062" : auraColor;
-      if (wave.current) {
-        wave.current.querySelectorAll<HTMLElement>("i").forEach((bar, i, all) => {
-          const t = (phase.current * 0.62 + i / all.length) % 1;
-          const h = talking ? Math.max(2.4, Math.abs(Math.sin(t * Math.PI * 3)) * v * 24) : 2.4;
-          bar.style.height = `${h}px`;
-          bar.style.background = color;
-        });
-      }
-      const c = canvas.current;
-      if (c) {
-        const ctx = c.getContext("2d");
-        if (ctx) {
-          if (!c.width) {
-            const dpr = 2;
-            c.width = Math.max(1, c.clientWidth) * dpr;
-            c.height = Math.max(1, c.clientHeight) * dpr;
-            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-          }
-          const w = c.clientWidth, h = c.clientHeight, mid = h / 2;
-          ctx.clearRect(0, 0, w, h);
-          if (style === "ribbon") {
-            hist.current.push(v);
-            if (hist.current.length > 62) hist.current.shift();
-          } else {
-            hist.current.push(talking && level > 0.01 ? Math.max(0.12, v) : 0);
-            if (hist.current.length > 62) hist.current.shift();
-          }
-          const vals = hist.current;
-          if (vals.length > 2) {
-            const step = w / 62;
-            const x0 = w - vals.length * step;
-            if (style === "ribbon") {
-              const y = (val: number) => 2 + val * (mid - 3);
-              const yT = (val: number) => mid - (y(val) - mid);
-              ctx.beginPath();
-              ctx.moveTo(x0, yT(vals[0]));
-              for (let i = 1; i < vals.length; i++) {
-                const xa = x0 + (i - 1) * step, xb = x0 + i * step;
-                ctx.quadraticCurveTo(xa, yT(vals[i - 1]), (xa + xb) / 2, (yT(vals[i - 1]) + yT(vals[i])) / 2);
-              }
-              for (let i = vals.length - 1; i >= 0; i--) {
-                const xa = x0 + i * step, xb = x0 + (i + 1) * step;
-                const prev = i > 0 ? vals[i - 1] : vals[i];
-                ctx.quadraticCurveTo(xa, y(vals[i]), (xa + xb) / 2, (y(vals[i]) + y(prev)) / 2);
-              }
-              ctx.closePath();
-              ctx.globalAlpha = silent ? 0.55 : 1;
-              ctx.fillStyle = color;
-              ctx.fill();
-              ctx.globalAlpha = 1;
-            } else {
-              ctx.fillStyle = color;
-              vals.forEach((b, i) => {
-                if (b <= 0) return;
-                const bh = 4 + b * (h - 8);
-                ctx.globalAlpha = silent ? 0.5 : 0.35 + b * 0.65;
-                ctx.beginPath();
-                ctx.roundRect(x0 + i * step, mid - bh / 2, Math.max(2, step - 1), bh, 1.5);
-                ctx.fill();
-              });
-              ctx.globalAlpha = 1;
-            }
-          }
-        }
-      }
-      if (fill.current) {
-        fill.current.style.width = `${v * 100}%`;
-        fill.current.style.background = `linear-gradient(90deg, ${color} 0%, ${color} 62%, #e5b062 84%, #ef6b6b 97%)`;
-      }
-      if (ring.current) {
-        const d = 10 + v * 28;
-        ring.current.style.width = `${d}px`;
-        ring.current.style.height = `${d}px`;
-        ring.current.style.opacity = `${0.2 + v * 0.7}`;
-        ring.current.style.borderColor = color;
-      }
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, [style, glowInner, glowOuter, auraColor, bg]);
-
-  const resetCanvas = (el: HTMLCanvasElement | null) => {
-    canvas.current = el;
-    if (el) el.width = 0;
-  };
-
+/** A section's heading: what this group is, and what it decides. */
+function SectionHead({ title, sub }: { title: string; sub?: string }) {
   return (
-    <div className="pill-preview">
-      <div className="overlay-pill" ref={pill} style={{ background: bg }}>
-        {style === "ring" ? (
-          <span className="overlay-ringbox">
-            <span className="overlay-dot" />
-            <i className="overlay-ring" ref={ring} />
-          </span>
-        ) : (
-          <span className="overlay-dot" />
-        )}
-        {style === "bars" && (
-          <span className="overlay-wave" ref={wave}>
-            {Array.from({ length: 16 }, (_, i) => (
-              <i key={i} />
-            ))}
-          </span>
-        )}
-        {(style === "ribbon" || style === "blobs") && <canvas className="overlay-canvas" ref={resetCanvas} />}
-        {style === "meter" && (
-          <span className="overlay-meter">
-            <i ref={fill} />
-          </span>
-        )}
-        <span
-          className="overlay-timer"
-          style={isLightBg(bg) ? { color: "#4a5563" } : undefined}
-        >
-          0:07
-        </span>
-      </div>
+    <div className="section-head">
+      <div className="section-title">{title}</div>
+      {sub && <div className="section-sub">{sub}</div>}
     </div>
   );
-}
-
-function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
-  return <button className={`switch${on ? " on" : ""}`} onClick={onClick} />;
 }
 
 /**
  * Model name entry, backed by the provider's own list.
  *
  * A hardcoded dropdown goes stale the moment a provider retires a name -
- * exactly what happened when Google pulled Gemini 2.5 for new accounts. So
- * this is a free-text field with a datalist of suggestions, and the suggestions
- * can be replaced by what the user's key can actually reach. Free text means a
+ * exactly what happened when Google pulled Gemini 2.5 for new accounts. So this
+ * is a free-text field with a datalist of suggestions, and the suggestions can
+ * be replaced by what the user's key can actually reach. Free text means a
  * brand-new model works the day it ships, without waiting on this app.
  */
 function ModelField({
   stage,
   value,
   fallback,
+  onChange,
   disabled,
   unsavedChanges,
-  onChange,
 }: {
   stage: "stt" | "refine";
   value: string;
   fallback: string[];
+  onChange: (v: string) => void;
   disabled?: boolean;
   unsavedChanges: boolean;
-  onChange: (v: string) => void;
 }) {
   const [live, setLive] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Suggestions reset when the provider changes, or the previous provider's
-  // model names would linger in the list.
+  // A provider switch invalidates the list: the names belong to the old one.
   useEffect(() => {
     setLive(null);
     setError(null);
@@ -334,13 +186,14 @@ function ModelField({
   const options = live ?? fallback;
 
   return (
-    <div>
+    <div className="grow">
       <div className="row" style={{ flexWrap: "nowrap" }}>
         <input
           list={listId}
           value={value}
           disabled={disabled}
           placeholder="model name"
+          style={{ flex: 1, minWidth: 0 }}
           onChange={(e) => onChange(e.target.value)}
         />
         <button
@@ -364,7 +217,8 @@ function ModelField({
             }
           }}
         >
-          {busy ? "Loading…" : "Load available models"}
+          <Icon name="search" size={15} />
+          {busy ? "Loading…" : "Load list"}
         </button>
       </div>
 
@@ -375,15 +229,13 @@ function ModelField({
       </datalist>
 
       {live && (
-        <div className="field-hint" style={{ marginTop: 6 }}>
+        <div className="field-hint">
           {live.length} models available to this key. Click the field to pick one.
         </div>
       )}
       {error && (
         <div className="diag bad" style={{ marginTop: 8, marginBottom: 0 }}>
-          <div className="diag-detail" style={{ whiteSpace: "pre-wrap" }}>
-            {error}
-          </div>
+          <div className="diag-detail">{error}</div>
         </div>
       )}
     </div>
@@ -398,21 +250,22 @@ function Diagnostic({ result }: { result: TestResult }) {
   return (
     <div className={`diag ${result.ok ? "ok" : "bad"}`}>
       <div className="diag-title">
+        <Icon name={result.ok ? "check" : "alert"} size={15} />
         {result.ok ? "Working" : "Not working"}
       </div>
-      <div className="diag-detail" style={{ whiteSpace: "pre-wrap" }}>
-        {result.message}
-      </div>
+      <div className="diag-detail">{result.message}</div>
     </div>
   );
 }
 
 function TestButton({
   stage,
+  hint,
   disabled,
   unsavedChanges,
 }: {
   stage: "stt" | "refine";
+  hint: string;
   disabled?: boolean;
   unsavedChanges: boolean;
 }) {
@@ -422,35 +275,34 @@ function TestButton({
   // The test reads what is persisted, not what is on screen, so testing over
   // unsaved edits would report on the old configuration and be worse than no
   // answer at all.
-  if (unsavedChanges) {
-    return (
-      <div className="diag">
-        <div className="diag-detail">Save your changes to test this stage.</div>
-      </div>
-    );
-  }
-
   return (
-    <>
+    <div className="section-foot">
       {result && <Diagnostic result={result} />}
-      <button
-        className="btn"
-        disabled={busy || disabled}
-        onClick={async () => {
-          setBusy(true);
-          setResult(null);
-          try {
-            setResult(await api.testProvider(stage));
-          } catch (e) {
-            setResult({ ok: false, message: String(e) });
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        {busy ? "Testing…" : "Test this stage"}
-      </button>
-    </>
+      <div className="row">
+        <button
+          className="btn"
+          disabled={busy || disabled || unsavedChanges}
+          title={unsavedChanges ? "Save your changes first" : undefined}
+          onClick={async () => {
+            setBusy(true);
+            setResult(null);
+            try {
+              setResult(await api.testProvider(stage));
+            } catch (e) {
+              setResult({ ok: false, message: String(e) });
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <Icon name="bolt" size={15} />
+          {busy ? "Testing…" : "Test this stage"}
+        </button>
+        <span className="hint dim" style={{ flex: 1, minWidth: 200 }}>
+          {unsavedChanges ? "Save your changes first - the test runs on what is stored." : hint}
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -461,8 +313,8 @@ function TestButton({
  * else, so the plus key can only be written "NumpadAdd" - unguessable, and a
  * wrong guess silently unbound everything. Pressing the key cannot be spelled
  * wrong, and the spec is checked against the real parser before it is accepted,
- * so a key this app cannot bind is refused here rather than at the moment it
- * is needed.
+ * so a key this app cannot bind is refused here rather than at the moment it is
+ * needed.
  */
 function HotkeyField({
   value,
@@ -487,8 +339,8 @@ function HotkeyField({
         onBlur={() => setCapturing(false)}
         onKeyDown={(e) => {
           if (!capturing) return;
-          // Every key belongs to the binding while capturing, including Tab
-          // and Enter, which would otherwise leave the field instead.
+          // Every key belongs to the binding while capturing, including Tab and
+          // Enter, which would otherwise leave the field instead.
           e.preventDefault();
           e.stopPropagation();
 
@@ -510,12 +362,12 @@ function HotkeyField({
             .catch((err) => setRejected(String(err)));
         }}
       >
-        {capturing ? "Press a key…" : prettyHotkey(value)}
+        {capturing ? "Press a key…" : <Kbd spec={value} />}
       </button>
 
       <div className="hotkey-note">
         {capturing ? (
-          <span>Esc to cancel</span>
+          <span>Press the combination you want · Esc to cancel</span>
         ) : rejected ? (
           <span className="hotkey-bad">{rejected}</span>
         ) : status?.reset_from ? (
@@ -525,28 +377,40 @@ function HotkeyField({
         ) : status && !status.bound ? (
           <span className="hotkey-bad">{status.error || "Not bound."}</span>
         ) : (
-          <span className="hotkey-raw">{value}</span>
+          <span>Click, then press the keys · works in every app</span>
         )}
       </div>
     </div>
   );
 }
 
-export default function SettingsView({ settings, keys, onSave }: Props) {
+export default function SettingsView({ settings, keys, onSave, onPreviewTheme }: Props) {
   const [draft, setDraft] = useState<Settings>(settings);
   const [mics, setMics] = useState<string[]>(["Default"]);
   const [keyInputs, setKeyInputs] = useState<Record<string, string>>({});
+  /** Saved keys the user asked to forget. Applied on save, like everything
+   *  else on this page, so one Discard undoes the whole visit. */
+  const [clearKeys, setClearKeys] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [hotkeys, setHotkeys] = useState<HotkeySlot[] | null>(null);
-  // One group on screen at a time. All sections at once was a wall of
-  // fields where the two that matter - which provider, which key - were
+  // One group on screen at a time. All sections at once was a wall of fields
+  // where the two that matter - which provider, which key - were
   // indistinguishable from the twenty that rarely change.
-  const [tab, setTab] = useState<TabId>("lines");
-  /** Which line is expanded in the Lines tab. */
+  const [section, setSection] = useState<SectionId>("lines");
+  /** Which line is expanded, and which one is asking to be deleted. */
   const [openLine, setOpenLine] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   useEffect(() => setDraft(settings), [settings]);
+
+  // The theme is the one setting whose effect *is* its preview, so the draft
+  // is handed up and painted straight away; leaving the page, saving, or
+  // discarding hands the window back to what is actually stored.
+  useEffect(() => {
+    onPreviewTheme(draft.theme === settings.theme ? null : draft.theme);
+    return () => onPreviewTheme(null);
+  }, [draft.theme, settings.theme, onPreviewTheme]);
   useEffect(() => {
     void api.listMicrophones().then(setMics);
     void api.hotkeyStatus().then(setHotkeys);
@@ -561,13 +425,22 @@ export default function SettingsView({ settings, keys, onSave }: Props) {
       profiles: d.profiles.map((p, j) => (j === i ? { ...p, ...patch } : p)),
     }));
 
+  const moveProfile = (i: number, dir: -1 | 1) =>
+    setDraft((d) => {
+      const next = [...d.profiles];
+      const j = i + dir;
+      if (j < 0 || j >= next.length) return d;
+      [next[i], next[j]] = [next[j], next[i]];
+      return { ...d, profiles: next };
+    });
+
   const sttMeta = STT_PROVIDERS.find((p) => p.id === draft.sttProvider)!;
   const refineMeta = REFINE_PROVIDERS.find((p) => p.id === draft.refineProvider)!;
   const sttSlot = STT_KEY_SLOT[draft.sttProvider];
   const refineSlot = REFINE_KEY_SLOT[draft.refineProvider];
 
-  /** Only the slots the current provider choice actually reads - plus any
-   *  slot a line's own override points at. */
+  /** Only the slots the current provider choice actually reads - plus any slot
+   *  a line's own override points at. */
   const requiredSlots = new Set([sttSlot, ...(draft.refineEnabled ? [refineSlot] : [])]);
   for (const p of draft.profiles) {
     if (p.stt_override) requiredSlots.add(STT_KEY_SLOT[p.stt_provider]);
@@ -575,27 +448,50 @@ export default function SettingsView({ settings, keys, onSave }: Props) {
       requiredSlots.add(REFINE_KEY_SLOT[p.refine_provider]);
   }
 
+  /** What is saved right now, with this visit's removals taken off. */
+  const keyPresent = (slot: string) =>
+    (keys[slot] && !clearKeys.includes(slot)) || Boolean(keyInputs[slot]?.trim());
+
   /** Testing reads persisted settings, so on-screen edits must land first. */
   const unsaved =
     JSON.stringify(draft) !== JSON.stringify(settings) ||
-    Object.values(keyInputs).some((v) => v.trim());
+    Object.values(keyInputs).some((v) => v.trim()) ||
+    clearKeys.length > 0;
 
-  /** Catches the blanks here rather than as a 404 from the endpoint later. */
-  function validate(): string | null {
-    if (!draft.sttModel.trim()) return "Stage 1 needs a model name.";
+  /** Which sections want attention, for the dot in the section list. */
+  const missingKey = [...requiredSlots].some((s) => !keyPresent(s));
+  const unboundLine = (hotkeys ?? []).some((s) => !s.state.bound || s.state.reset_from);
+  const warnings: Partial<Record<SectionId, boolean>> = {
+    keys: missingKey,
+    lines: unboundLine,
+  };
+
+  /** Catches the blanks here rather than as a 404 from the endpoint later, and
+   *  says which section to look in. */
+  function validate(): { section: SectionId; message: string } | null {
+    if (!draft.sttModel.trim())
+      return { section: "stt", message: "Transcription needs a model name." };
     if (sttMeta.custom && !draft.sttBaseUrl.trim())
-      return "Stage 1 needs an endpoint base URL.";
+      return { section: "stt", message: "Transcription needs an endpoint base URL." };
     if (draft.refineEnabled) {
-      if (!draft.refineModel.trim()) return "Stage 2 needs a model name.";
+      if (!draft.refineModel.trim())
+        return { section: "refine", message: "Refinement needs a model name." };
       if (refineMeta.custom && !draft.refineBaseUrl.trim())
-        return "Stage 2 needs an endpoint base URL.";
+        return { section: "refine", message: "Refinement needs an endpoint base URL." };
     }
     for (const [i, p] of draft.profiles.entries()) {
-      if (!p.name.trim()) return `Line ${i + 1} needs a name.`;
+      if (!p.name.trim())
+        return { section: "lines", message: `Line ${i + 1} needs a name.` };
       if (p.stt_override && !p.stt_model.trim())
-        return `Line "${p.name}" overrides transcription but names no model.`;
+        return {
+          section: "lines",
+          message: `Line "${p.name}" overrides transcription but names no model.`,
+        };
       if (p.refine_override && !p.refine_model.trim())
-        return `Line "${p.name}" overrides refinement but names no model.`;
+        return {
+          section: "lines",
+          message: `Line "${p.name}" overrides refinement but names no model.`,
+        };
     }
     return null;
   }
@@ -603,17 +499,20 @@ export default function SettingsView({ settings, keys, onSave }: Props) {
   async function save() {
     const bad = validate();
     if (bad) {
-      setProblem(bad);
+      setProblem(bad.message);
+      setSection(bad.section);
       return;
     }
     setProblem(null);
 
     // Keys are written to the credential store separately - they never enter
     // the settings file.
+    for (const slot of clearKeys) await api.setApiKey(slot, "");
     for (const [slot, value] of Object.entries(keyInputs)) {
       if (value.trim()) await api.setApiKey(slot, value.trim());
     }
     setKeyInputs({});
+    setClearKeys([]);
 
     // A rejected save used to vanish: the promise threw, the "Saved" flash
     // never ran, and nothing said why. The backend refuses an unbindable
@@ -630,876 +529,1111 @@ export default function SettingsView({ settings, keys, onSave }: Props) {
     setTimeout(() => setSaved(false), 1600);
   }
 
+  function discard() {
+    setDraft(settings);
+    setKeyInputs({});
+    setClearKeys([]);
+    setProblem(null);
+  }
+
+  // Ctrl+S saves, the way every editor on this machine does. Settings are a
+  // draft until saved, so the shortcut that means "commit it" should work.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        if (unsaved) void save();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
   return (
     <>
-      <div className="eyebrow">Configuration</div>
-      <h1>Settings</h1>
-      <p className="lede">API keys are stored in the Windows Credential Manager.</p>
+      <PageHead
+        eyebrow="Configuration"
+        title="Settings"
+        lede="Changes are a draft until you save them. API keys never touch the settings file - they go to the Windows Credential Manager."
+      />
 
-      <div className="tabs">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            className={`tab${tab === t.id ? " on" : ""}`}
-            onClick={() => setTab(t.id)}
-          >
-            {t.name}
-          </button>
-        ))}
-      </div>
-
-      {/* ---------------------------------------------------------- lines */}
-      {tab === "lines" && (
-      <div className="section">
-        <div className="section-title">
-          Lines · one hotkey and one button each, with their own processing
-        </div>
-        <div style={{ padding: "2px 0 14px" }}>
-          <div className="field-hint">
-            Every line is a way in. It picks its own shortcut, destination, and
-            how the speech is processed; whatever it leaves alone falls through
-            to the shared settings in the other tabs.
-          </div>
-        </div>
-
-        {draft.profiles.map((p, i) => {
-          const slot = hotkeys?.find((s) => s.profile_id === p.id);
-          const open = openLine === p.id;
-          return (
-            <div className="field column" key={p.id} style={{ alignItems: "stretch" }}>
-              <div className="row" style={{ flex: "none" }}>
+      <div className="settings-layout">
+        <div className="settings-nav">
+          {SECTIONS.map((g) => (
+            <div key={g.group}>
+              <div className="label">{g.group}</div>
+              {g.items.map((s) => (
                 <button
-                  className="btn ghost"
-                  style={{ flex: 1, justifyContent: "flex-start", textAlign: "left" }}
-                  onClick={() => setOpenLine(open ? null : p.id)}
+                  key={s.id}
+                  className={`snav${section === s.id ? " on" : ""}`}
+                  onClick={() => setSection(s.id)}
                 >
-                  <b>{p.name || `Line ${i + 1}`}</b>
-                  <span className="field-hint">
-                    {" "}· {prettyHotkey(p.hotkey)} ·{" "}
-                    {p.custom_prompt.trim() ? "custom instructions" : MODE_LABELS[p.mode].name}
-                  </span>
-                  {slot && !slot.state.bound && (
-                    <span className="hotkey-bad"> · not bound</span>
-                  )}
+                  <Icon name={s.icon} size={16} />
+                  {s.name}
+                  {warnings[s.id] && <span className="warn-dot" title="Needs attention" />}
                 </button>
-                {draft.profiles.length > 1 && (
-                  <button
-                    className="icon-btn"
-                    title="Remove this line"
-                    onClick={() => {
-                      set("profiles", draft.profiles.filter((_, j) => j !== i));
-                    }}
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
+              ))}
+            </div>
+          ))}
+        </div>
 
-              {open && (
-                <>
-                  <div className="row" style={{ flex: "none", gap: 16 }}>
-                    <div style={{ flex: 1 }}>
-                      <div className="field-name">Name</div>
-                      <input
-                        value={p.name}
-                        onChange={(e) => setProfile(i, { name: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <div className="field-name">Hotkey</div>
-                      <HotkeyField
-                        value={p.hotkey}
-                        status={slot?.state}
-                        onChange={(spec) => setProfile(i, { hotkey: spec })}
-                      />
-                    </div>
-                  </div>
+        <div>
+          {/* ------------------------------------------------------ lines */}
+          {section === "lines" && (
+            <div className="section">
+              <SectionHead
+                title="Lines"
+                sub="One hotkey, one button, one way of processing what you say. A line decides how the speech is handled and where the finished text goes; anything it leaves alone falls through to the shared settings."
+              />
 
-                  <div className="row" style={{ flex: "none", gap: 16 }}>
-                    <div>
-                      <div className="field-name">Processing</div>
-                      <select
-                        value={p.mode}
-                        onChange={(e) =>
-                          setProfile(i, { mode: e.target.value as Profile["mode"] })
-                        }
-                      >
-                        {(Object.keys(MODE_LABELS) as (keyof typeof MODE_LABELS)[]).map(
-                          (m) => (
-                            <option key={m} value={m}>
-                              {MODE_LABELS[m].name} — {MODE_LABELS[m].hint}
-                            </option>
-                          ),
-                        )}
-                      </select>
-                    </div>
-                    <div>
-                      <div className="field-name">Destination</div>
-                      <select
-                        value={p.output}
-                        onChange={(e) =>
-                          setProfile(i, { output: e.target.value as Profile["output"] })
-                        }
-                      >
-                        <option value="instant">Paste into the focused field</option>
-                        <option value="draft">Show it here for review</option>
-                        <option value="notes">File it on the Notes page</option>
-                      </select>
-                    </div>
-                  </div>
+              <div style={{ padding: "12px 0 6px" }}>
+                {draft.profiles.map((p, i) => {
+                  const slot = hotkeys?.find((s) => s.profile_id === p.id);
+                  const open = openLine === p.id;
+                  const bad = slot && (!slot.state.bound || slot.state.reset_from);
+                  return (
+                    <div className={`line-card${open ? " open" : ""}`} key={p.id}>
+                      <div className="line-card-head">
+                        <div className="line-card-grip">
+                          <button
+                            title="Move up"
+                            disabled={i === 0}
+                            onClick={() => moveProfile(i, -1)}
+                          >
+                            <Icon name="up" size={13} />
+                          </button>
+                          <button
+                            title="Move down"
+                            disabled={i === draft.profiles.length - 1}
+                            onClick={() => moveProfile(i, 1)}
+                          >
+                            <Icon name="down" size={13} />
+                          </button>
+                        </div>
 
-                  <div>
-                    <div className="field-name">Custom instructions</div>
-                    <div className="field-hint" style={{ marginBottom: 6 }}>
-                      Filled in, these replace the processing mode entirely - your own
-                      filter, your own format. Left empty, the mode above decides.
-                    </div>
-                    <textarea
-                      rows={3}
-                      dir="auto"
-                      value={p.custom_prompt}
-                      placeholder="e.g. Turn anything I say into a short polite email reply"
-                      onChange={(e) => setProfile(i, { custom_prompt: e.target.value })}
-                    />
-                  </div>
+                        <button
+                          className="line-card-open"
+                          onClick={() => setOpenLine(open ? null : p.id)}
+                        >
+                          <span className="line-card-title">
+                            {p.name || `Line ${i + 1}`}
+                          </span>
+                          <span className="line-card-chips">
+                            <Kbd spec={p.hotkey} />
+                            <span className="chip">
+                              {p.custom_prompt.trim()
+                                ? "custom instructions"
+                                : MODE_LABELS[p.mode].name}
+                            </span>
+                            <span className="chip">
+                              {OUTPUTS.find((o) => o.id === p.output)?.name}
+                            </span>
+                            {p.refine_skip && <span className="chip">raw</span>}
+                            {(p.stt_override || p.refine_override) && (
+                              <span className="chip">own model</span>
+                            )}
+                            {bad && <span className="chip bad">not bound</span>}
+                          </span>
+                          <Icon name="chevron" size={16} className="chev" />
+                        </button>
 
-                  <div className="row" style={{ flex: "none", gap: 24 }}>
-                    <label className="row" style={{ gap: 8, flex: "none" }}>
-                      <Toggle
-                        on={p.stt_override}
-                        onClick={() => setProfile(i, { stt_override: !p.stt_override })}
-                      />
-                      <span className="field-name" style={{ margin: 0 }}>
-                        Own transcription model
-                      </span>
-                    </label>
-                    <label className="row" style={{ gap: 8, flex: "none" }}>
-                      <Toggle
-                        on={p.refine_override}
-                        onClick={() => setProfile(i, { refine_override: !p.refine_override })}
-                      />
-                      <span className="field-name" style={{ margin: 0 }}>
-                        Own refinement model
-                      </span>
-                    </label>
-                    <label className="row" style={{ gap: 8, flex: "none" }}>
-                      <Toggle
-                        on={p.refine_skip}
-                        onClick={() => setProfile(i, { refine_skip: !p.refine_skip })}
-                      />
-                      <span className="field-name" style={{ margin: 0 }}>
-                        Skip refinement (raw transcript)
-                      </span>
-                    </label>
-                  </div>
+                        {draft.profiles.length > 1 &&
+                          (confirmDelete === p.id ? (
+                            <span className="row" style={{ flexWrap: "nowrap" }}>
+                              <button
+                                className="btn danger sm"
+                                onClick={() => {
+                                  set(
+                                    "profiles",
+                                    draft.profiles.filter((_, j) => j !== i),
+                                  );
+                                  setConfirmDelete(null);
+                                }}
+                              >
+                                Remove
+                              </button>
+                              <button
+                                className="btn ghost sm"
+                                onClick={() => setConfirmDelete(null)}
+                              >
+                                Cancel
+                              </button>
+                            </span>
+                          ) : (
+                            <button
+                              className="icon-btn danger"
+                              title="Remove this line"
+                              onClick={() => setConfirmDelete(p.id)}
+                            >
+                              <Icon name="trash" />
+                            </button>
+                          ))}
+                      </div>
 
-                  {(p.stt_override || p.refine_override) && (
-                    <div className="row" style={{ flex: "none", gap: 16 }}>
-                      {p.stt_override && (
-                        <div style={{ flex: 1 }}>
-                          <div className="field-name">Transcription model</div>
-                          <input
-                            value={p.stt_model}
-                            placeholder="model name"
-                            onChange={(e) => setProfile(i, { stt_model: e.target.value })}
-                          />
+                      {open && (
+                        <div className="line-card-body">
+                          <div className="pair">
+                            <div>
+                              <div className="field-name">Name</div>
+                              <div className="field-hint">
+                                What the button and the recording pill call it.
+                              </div>
+                              <input
+                                style={{ width: "100%", marginTop: 6 }}
+                                value={p.name}
+                                onChange={(e) => setProfile(i, { name: e.target.value })}
+                              />
+                            </div>
+                            <div>
+                              <div className="field-name">Hotkey</div>
+                              <div className="field-hint">
+                                Press it anywhere to start, again to finish.
+                              </div>
+                              <div style={{ marginTop: 6 }}>
+                                <HotkeyField
+                                  value={p.hotkey}
+                                  status={slot?.state}
+                                  onChange={(spec) => setProfile(i, { hotkey: spec })}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="stack-field">
+                            <div className="field-name">Processing</div>
+                            <div className="field-hint">
+                              How the transcript is turned into the finished text.
+                            </div>
+                            <select
+                              disabled={Boolean(p.custom_prompt.trim())}
+                              value={p.mode}
+                              onChange={(e) =>
+                                setProfile(i, { mode: e.target.value as Profile["mode"] })
+                              }
+                            >
+                              {(Object.keys(MODE_LABELS) as (keyof typeof MODE_LABELS)[]).map(
+                                (m) => (
+                                  <option key={m} value={m}>
+                                    {MODE_LABELS[m].name} — {MODE_LABELS[m].hint}
+                                  </option>
+                                ),
+                              )}
+                            </select>
+                            {p.custom_prompt.trim() && (
+                              <div className="field-hint">
+                                Your own instructions are set below, so the mode is not used.
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="stack-field">
+                            <div className="field-name">Destination</div>
+                            <div className="choices">
+                              {OUTPUTS.map((o) => (
+                                <button
+                                  key={o.id}
+                                  className={`choice${p.output === o.id ? " on" : ""}`}
+                                  onClick={() => setProfile(i, { output: o.id })}
+                                >
+                                  <span className="choice-name">
+                                    {o.name}
+                                    {p.output === o.id && <Icon name="check" size={14} />}
+                                  </span>
+                                  <span className="choice-hint">{o.hint}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="stack-field">
+                            <div className="field-name">Custom instructions</div>
+                            <div className="field-hint">
+                              Filled in, these replace the processing mode entirely - your own
+                              filter, your own format. Left empty, the mode above decides.
+                            </div>
+                            <textarea
+                              rows={3}
+                              dir="auto"
+                              value={p.custom_prompt}
+                              placeholder="e.g. Turn anything I say into a short polite email reply"
+                              onChange={(e) =>
+                                setProfile(i, { custom_prompt: e.target.value })
+                              }
+                            />
+                          </div>
+
+                          <Field
+                            name="Skip refinement"
+                            hint="Paste the raw transcript and skip the second API call, however this line is otherwise set up."
+                          >
+                            <Toggle
+                              on={p.refine_skip}
+                              onClick={() => setProfile(i, { refine_skip: !p.refine_skip })}
+                            />
+                          </Field>
+
+                          <Field
+                            name="Own transcription model"
+                            hint="Off: this line uses the shared Transcription settings."
+                          >
+                            <Toggle
+                              on={p.stt_override}
+                              onClick={() => setProfile(i, { stt_override: !p.stt_override })}
+                            />
+                          </Field>
+                          {p.stt_override && (
+                            <div className="subgroup">
+                              <Field name="Provider">
+                                <select
+                                  value={p.stt_provider}
+                                  onChange={(e) => {
+                                    const id = e.target.value as SttProvider;
+                                    const meta = STT_PROVIDERS.find((x) => x.id === id)!;
+                                    setProfile(i, {
+                                      stt_provider: id,
+                                      stt_model: meta.models[0] ?? "",
+                                    });
+                                  }}
+                                >
+                                  {STT_PROVIDERS.map((x) => (
+                                    <option key={x.id} value={x.id}>
+                                      {x.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </Field>
+                              <Field name="Model">
+                                <input
+                                  value={p.stt_model}
+                                  placeholder="model name"
+                                  onChange={(e) =>
+                                    setProfile(i, { stt_model: e.target.value })
+                                  }
+                                />
+                              </Field>
+                            </div>
+                          )}
+
+                          <Field
+                            name="Own refinement model"
+                            hint="Off: this line uses the shared Refinement settings."
+                          >
+                            <Toggle
+                              on={p.refine_override}
+                              disabled={p.refine_skip}
+                              onClick={() =>
+                                setProfile(i, { refine_override: !p.refine_override })
+                              }
+                            />
+                          </Field>
+                          {p.refine_override && !p.refine_skip && (
+                            <div className="subgroup">
+                              <Field name="Provider">
+                                <select
+                                  value={p.refine_provider}
+                                  onChange={(e) => {
+                                    const id = e.target.value as RefineProvider;
+                                    const meta = REFINE_PROVIDERS.find((x) => x.id === id)!;
+                                    setProfile(i, {
+                                      refine_provider: id,
+                                      refine_model: meta.models[0] ?? "",
+                                    });
+                                  }}
+                                >
+                                  {REFINE_PROVIDERS.map((x) => (
+                                    <option key={x.id} value={x.id}>
+                                      {x.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </Field>
+                              <Field name="Model">
+                                <input
+                                  value={p.refine_model}
+                                  placeholder="model name"
+                                  onChange={(e) =>
+                                    setProfile(i, { refine_model: e.target.value })
+                                  }
+                                />
+                              </Field>
+                            </div>
+                          )}
                         </div>
                       )}
-                      {p.refine_override && (
-                        <div style={{ flex: 1 }}>
-                          <div className="field-name">Refinement model</div>
-                          <input
-                            value={p.refine_model}
-                            placeholder="model name"
-                            onChange={(e) => setProfile(i, { refine_model: e.target.value })}
-                          />
-                        </div>
-                      )}
                     </div>
-                  )}
-                </>
-              )}
-            </div>
-          );
-        })}
-
-        <button
-          className="btn ghost"
-          onClick={() => {
-            const p = newProfile(draft.profiles.length);
-            set("profiles", [...draft.profiles, p]);
-            setOpenLine(p.id);
-          }}
-        >
-          + Add line
-        </button>
-      </div>
-      )}
-
-      {/* ---------------------------------------------------------- stage 1 */}
-      {tab === "stt" && (
-      <div className="section">
-        <div className="section-title">Stage 1 · Speech to raw transcript</div>
-
-        <div className="field">
-          <div>
-            <div className="field-name">Provider</div>
-            <div className="field-hint">{sttMeta.hint}</div>
-          </div>
-          <select
-            value={draft.sttProvider}
-            onChange={(e) => {
-              const id = e.target.value as SttProvider;
-              const meta = STT_PROVIDERS.find((p) => p.id === id)!;
-              // A model name is only meaningful to the provider it came from -
-              // "gemini-2.5-flash" would just 404 on ElevenLabs. Switch to the
-              // new provider's first model, or clear it for a custom endpoint
-              // so the field shows its placeholder and demands a real answer.
-              setDraft((d) => ({
-                ...d,
-                sttProvider: id,
-                sttModel: meta.models[0] ?? "",
-              }));
-            }}
-          >
-            {STT_PROVIDERS.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {sttMeta.custom && (
-          <div className="field">
-            <div>
-              <div className="field-name">Endpoint base URL</div>
-              <div className="field-hint">
-                Include the version segment, no trailing slash. Sends to{" "}
-                <code>/audio/transcriptions</code>.
+                  );
+                })}
               </div>
-            </div>
-            <input
-              value={draft.sttBaseUrl}
-              placeholder="https://api.groq.com/openai/v1"
-              onChange={(e) => set("sttBaseUrl", e.target.value)}
-            />
-          </div>
-        )}
 
-        <div className="field">
-          <div>
-            <div className="field-name">Model</div>
-            <div className="field-hint">
-              Type it, or load the list to see exactly what this key can reach. Providers
-              retire model names without warning, so the loaded list is the only reliable
-              answer.
-            </div>
-          </div>
-          <ModelField
-            stage="stt"
-            value={draft.sttModel}
-            fallback={sttMeta.models}
-            unsavedChanges={unsaved}
-            onChange={(v) => set("sttModel", v)}
-          />
-        </div>
-
-        <div className="field">
-          <div>
-            <div className="field-name">Backup provider</div>
-            <div className="field-hint">
-              If the main provider fails, this one retries the same audio. Uses its own key
-              from the Keys list below. When both fail, the recording is saved to Pending for
-              a manual retry.
-            </div>
-          </div>
-          <Toggle
-            on={draft.sttBackupEnabled}
-            onClick={() => set("sttBackupEnabled", !draft.sttBackupEnabled)}
-          />
-        </div>
-
-        {draft.sttBackupEnabled && (
-          <>
-            <div className="field">
-              <div>
-                <div className="field-name">Backup: provider</div>
-              </div>
-              <select
-                value={draft.sttBackupProvider}
-                onChange={(e) => {
-                  const id = e.target.value as SttProvider;
-                  const meta = STT_PROVIDERS.find((p) => p.id === id)!;
-                  setDraft((d) => ({
-                    ...d,
-                    sttBackupProvider: id,
-                    sttBackupModel: meta.models[0] ?? "",
-                  }));
-                }}
-              >
-                {STT_PROVIDERS.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <div>
-                <div className="field-name">Backup: model</div>
-              </div>
-              <input
-                value={draft.sttBackupModel}
-                placeholder="model name"
-                onChange={(e) => set("sttBackupModel", e.target.value)}
-              />
-            </div>
-          </>
-        )}
-
-        <div style={{ padding: "10px 0 14px" }}>
-          <div className="field-hint" style={{ marginBottom: 10 }}>
-            Sends 0.3 seconds of silence through the real code path — same URL, key, and model
-            as a dictation — and reports exactly what came back.
-          </div>
-          <TestButton stage="stt" unsavedChanges={unsaved} />
-        </div>
-      </div>
-      )}
-
-      {/* ---------------------------------------------------------- stage 2 */}
-      {tab === "refine" && (
-      <div className="section">
-        <div className="section-title">
-          Stage 2 · Transcript to finished text (cleanup, summary, proofread)
-        </div>
-
-        <div className="field">
-          <div>
-            <div className="field-name">Output</div>
-            <div className="field-hint">
-              Transcript only is faster and skips the second API call. With refinement the
-              transcript is cleaned up, summarised, or structured first.
-            </div>
-          </div>
-          <div className="segmented">
-            <button
-              className={!draft.refineEnabled ? "on" : ""}
-              onClick={() => set("refineEnabled", false)}
-            >
-              Transcript only
-            </button>
-            <button
-              className={draft.refineEnabled ? "on" : ""}
-              onClick={() => set("refineEnabled", true)}
-            >
-              Transcript + refinement
-            </button>
-          </div>
-        </div>
-
-        {draft.refineEnabled && (
-          <>
-            <div className="field">
-              <div>
-                <div className="field-name">Provider</div>
-                <div className="field-hint">{refineMeta.hint}</div>
-              </div>
-              <select
-                value={draft.refineProvider}
-                onChange={(e) => {
-                  const id = e.target.value as RefineProvider;
-                  const meta = REFINE_PROVIDERS.find((p) => p.id === id)!;
-                  setDraft((d) => ({
-                    ...d,
-                    refineProvider: id,
-                    refineModel: meta.models[0] ?? "",
-                  }));
-                }}
-              >
-                {REFINE_PROVIDERS.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {draft.refineProvider === "anthropic" && (
-              <div className="field">
-                <div>
-                  <div className="field-name">Anthropic-compatible base URL</div>
-                  <div className="field-hint">
-                    Leave empty for the official api.anthropic.com. Sends to{" "}
-                    <code>/v1/messages</code>. Known bases:{" "}
-                    {ANTHROPIC_BASE_EXAMPLES.map((x, i) => (
-                      <span key={x.url}>
-                        {i > 0 && " · "}
-                        <button
-                          className="link"
-                          onClick={() => set("refineAnthropicBaseUrl", x.url)}
-                          title={x.url}
-                        >
-                          {x.name}
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <input
-                  value={draft.refineAnthropicBaseUrl}
-                  placeholder="empty = https://api.anthropic.com"
-                  onChange={(e) => set("refineAnthropicBaseUrl", e.target.value)}
-                />
-              </div>
-            )}
-
-            {refineMeta.custom && (
-              <div className="field">
-                <div>
-                  <div className="field-name">Endpoint base URL</div>
-                  <div className="field-hint">
-                    Sends to <code>/chat/completions</code>. Known bases:{" "}
-                    {ENDPOINT_EXAMPLES.map((x, i) => (
-                      <span key={x.url}>
-                        {i > 0 && " · "}
-                        <button
-                          className="link"
-                          onClick={() => set("refineBaseUrl", x.url)}
-                          title={x.url}
-                        >
-                          {x.name}
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <input
-                  value={draft.refineBaseUrl}
-                  placeholder="https://open.bigmodel.cn/api/paas/v4"
-                  onChange={(e) => set("refineBaseUrl", e.target.value)}
-                />
-              </div>
-            )}
-
-            <div className="field">
-              <div>
-                <div className="field-name">Model</div>
-                <div className="field-hint">
-                  Type it, or load the list from the provider. Nothing here validates the name
-                  against a fixed list, so a model released today works today.
-                </div>
-              </div>
-              <ModelField
-                stage="refine"
-                value={draft.refineModel}
-                fallback={refineMeta.models}
-                unsavedChanges={unsaved}
-                onChange={(v) => set("refineModel", v)}
-              />
-            </div>
-          </>
-        )}
-
-        <div className="field">
-          <div>
-            <div className="field-name">Backup provider</div>
-            <div className="field-hint">
-              If the main provider fails, this one retries the same text. Uses its own key from
-              the Keys list below. When both fail, the job is saved to Pending for a manual
-              retry.
-            </div>
-          </div>
-          <Toggle
-            on={draft.refineBackupEnabled}
-            onClick={() => set("refineBackupEnabled", !draft.refineBackupEnabled)}
-          />
-        </div>
-
-        {draft.refineBackupEnabled && (
-          <>
-            <div className="field">
-              <div>
-                <div className="field-name">Backup: provider</div>
-              </div>
-              <select
-                value={draft.refineBackupProvider}
-                onChange={(e) => {
-                  const id = e.target.value as RefineProvider;
-                  const meta = REFINE_PROVIDERS.find((p) => p.id === id)!;
-                  setDraft((d) => ({
-                    ...d,
-                    refineBackupProvider: id,
-                    refineBackupModel: meta.models[0] ?? "",
-                  }));
-                }}
-              >
-                {REFINE_PROVIDERS.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <div>
-                <div className="field-name">Backup: model</div>
-              </div>
-              <input
-                value={draft.refineBackupModel}
-                placeholder="model name"
-                onChange={(e) => set("refineBackupModel", e.target.value)}
-              />
-            </div>
-          </>
-        )}
-
-        <div style={{ padding: "10px 0 14px" }}>
-          <div className="field-hint" style={{ marginBottom: 10 }}>
-            Sends a one-word prompt through the real code path and reports exactly what came
-            back.
-          </div>
-          <TestButton stage="refine" disabled={!draft.refineEnabled} unsavedChanges={unsaved} />
-        </div>
-      </div>
-      )}
-
-      {/* ------------------------------------------------------------- keys */}
-      {tab === "keys" && (
-      <div className="section">
-        <div className="section-title">Keys</div>
-        {KEY_FIELDS.map((f) => {
-          const needed = requiredSlots.has(f.slot);
-          return (
-            <div className="field" key={f.slot} style={needed ? undefined : { opacity: 0.5 }}>
-              <div>
-                <div className="field-name">
-                  {f.name}{" "}
-                  {needed ? (
-                    keys[f.slot] ? (
-                      <span className="tag-ok">· saved</span>
-                    ) : (
-                      <span className="tag-missing">· required, not set</span>
-                    )
-                  ) : keys[f.slot] ? (
-                    <span className="field-hint">· saved, unused</span>
-                  ) : (
-                    <span className="field-hint">· not needed</span>
-                  )}
-                </div>
-                <div className="field-hint">From {f.where}</div>
-              </div>
-              <input
-                type="password"
-                placeholder={keys[f.slot] ? "•••••••• (leave blank to keep)" : f.placeholder}
-                value={keyInputs[f.slot] ?? ""}
-                onChange={(e) =>
-                  setKeyInputs((k) => ({ ...k, [f.slot]: e.target.value }))
-                }
-              />
-            </div>
-          );
-        })}
-      </div>
-      )}
-
-      {/* --------------------------------------------------------- capture */}
-      {tab === "capture" && (
-      <div className="section">
-        <div className="section-title">Capture</div>
-
-        <div className="field">
-          <div>
-            <div className="field-name">Language hint</div>
-            <div className="field-hint">
-              Passed to both stages. Naming the dialect matters far more than naming the
-              language.
-            </div>
-          </div>
-          <input
-            value={draft.languageHint}
-            onChange={(e) => set("languageHint", e.target.value)}
-          />
-        </div>
-
-        <div className="field">
-          <div>
-            <div className="field-name">Microphone</div>
-          </div>
-          <select value={draft.microphone} onChange={(e) => set("microphone", e.target.value)}>
-            {mics.map((m) => (
-              <option key={m}>{m}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="field">
-          <div>
-            <div className="field-name">Keep recordings</div>
-            <div className="field-hint">
-              Saves each recording next to its History entry so it can be played back - the
-              only way to settle what was actually said when a transcript reads oddly. The
-              newest 100 are kept. Off means nothing but text is ever written to disk.
-            </div>
-          </div>
-          <Toggle on={draft.saveAudio} onClick={() => set("saveAudio", !draft.saveAudio)} />
-        </div>
-      </div>
-      )}
-
-      {/* ------------------------------------------------------- shortcuts */}
-      {tab === "capture" && (
-      <div className="section">
-        <div className="section-title">Shortcuts</div>
-        <div style={{ padding: "2px 0 6px" }}>
-          <div className="field-hint">
-            Each line carries its own hotkey now - set them on the Lines tab.
-            Every binding works in every app.
-          </div>
-        </div>
-        {(hotkeys ?? []).map((s) => (
-          <div className="field" key={s.profile_id}>
-            <div>
-              <div className="field-name">{s.name}</div>
-            </div>
-            <div className="hotkey-field">
-              <button className="hotkey-capture" disabled>
-                {prettyHotkey(s.state.spec)}
-              </button>
-              <div className="hotkey-note">
-                {s.state.reset_from ? (
-                  <span className="hotkey-bad">
-                    Saved key “{s.state.reset_from}” could not be bound, so it was reset.
-                  </span>
-                ) : s.state.bound ? (
-                  <span className="hotkey-raw">active</span>
-                ) : (
-                  <span className="hotkey-bad">{s.state.error || "Not bound."}</span>
-                )}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-      )}
-
-      {/* ------------------------------------------------------ overlay pill */}
-      {tab === "overlay" && (
-      <div className="section">
-        <div className="section-title">Recording pill</div>
-        <div style={{ padding: "2px 0 14px" }}>
-          <div className="field-hint" style={{ marginBottom: 12 }}>
-            The little indicator above the taskbar while the microphone is live. The preview
-            below runs on a simulated voice, so the real pill behaves the same.
-          </div>
-          <PillPreview
-            style={draft.overlayStyle}
-            glowInner={draft.overlayGlowInner}
-            glowOuter={draft.overlayGlowOuter}
-            auraColor={draft.overlayAuraColor}
-            bg={draft.overlayBg}
-          />
-        </div>
-
-        <div className="field">
-          <div>
-            <div className="field-name">Wave shape</div>
-            <div className="field-hint">What runs inside the pill while you speak.</div>
-          </div>
-          <select
-            value={draft.overlayStyle}
-            onChange={(e) => set("overlayStyle", e.target.value as OverlayStyle)}
-          >
-            {OVERLAY_STYLES.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} — {s.hint}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="field">
-          <div>
-            <div className="field-name">Theme</div>
-            <div className="field-hint">
-              One pick sets the glow, wave, and background together, so the colors always
-              match.
-            </div>
-          </div>
-          <div className="theme-grid">
-            {OVERLAY_THEMES.map((t) => {
-              const on = draft.overlayTheme === t.id;
-              return (
+              <div className="section-foot">
                 <button
-                  key={t.id}
-                  className={`theme-chip${on ? " on" : ""}`}
-                  onClick={() =>
-                    setDraft((d) => ({
-                      ...d,
-                      overlayTheme: t.id,
-                      overlayAuraColor: t.aura,
-                      overlayBg: t.bg,
-                    }))
+                  className="btn"
+                  onClick={() => {
+                    const p = newProfile(draft.profiles.length);
+                    set("profiles", [...draft.profiles, p]);
+                    setOpenLine(p.id);
+                  }}
+                >
+                  <Icon name="plus" size={15} />
+                  Add a line
+                </button>
+                <span className="hint dim">
+                  {draft.profiles.length} lines · they appear on the Home page in this order
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* -------------------------------------------------- stage one */}
+          {section === "stt" && (
+            <div className="section">
+              <SectionHead
+                title="Transcription"
+                sub="Stage 1: your voice to a raw transcript. Every line uses this unless it carries its own model."
+              />
+
+              <Field name="Provider" hint={sttMeta.hint}>
+                <select
+                  value={draft.sttProvider}
+                  onChange={(e) => {
+                    const id = e.target.value as SttProvider;
+                    const meta = STT_PROVIDERS.find((p) => p.id === id)!;
+                    // A model name is only meaningful to the provider it came
+                    // from - "gemini-2.5-flash" would just 404 on ElevenLabs.
+                    // Switch to the new provider's first model, or clear it for
+                    // a custom endpoint so the field demands a real answer.
+                    setDraft((d) => ({ ...d, sttProvider: id, sttModel: meta.models[0] ?? "" }));
+                  }}
+                >
+                  {STT_PROVIDERS.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              {sttMeta.custom && (
+                <Field
+                  name="Endpoint base URL"
+                  hint={
+                    <>
+                      Include the version segment, no trailing slash. Sends to{" "}
+                      <code>/audio/transcriptions</code>.
+                    </>
                   }
                 >
-                  <span
-                    className="theme-dot"
-                    style={{ background: t.aura, boxShadow: `0 0 8px ${t.aura}` }}
+                  <input
+                    value={draft.sttBaseUrl}
+                    placeholder="https://api.groq.com/openai/v1"
+                    onChange={(e) => set("sttBaseUrl", e.target.value)}
                   />
-                  <span
-                    className="theme-bg"
-                    style={{ background: t.bg, border: `1px solid ${t.aura}55` }}
+                </Field>
+              )}
+
+              <Field
+                name="Model"
+                wide
+                hint="Type it, or load the list to see exactly what this key can reach. Providers retire model names without warning, so the loaded list is the only reliable answer."
+              >
+                <ModelField
+                  stage="stt"
+                  value={draft.sttModel}
+                  fallback={sttMeta.models}
+                  unsavedChanges={unsaved}
+                  onChange={(v) => set("sttModel", v)}
+                />
+              </Field>
+
+              <Field
+                name="Backup provider"
+                hint="If the main provider fails, this one retries the same audio with its own key. When both fail, the recording is parked on the Home page for a manual retry."
+              >
+                <Toggle
+                  on={draft.sttBackupEnabled}
+                  onClick={() => set("sttBackupEnabled", !draft.sttBackupEnabled)}
+                />
+              </Field>
+
+              {draft.sttBackupEnabled && (
+                <div className="subgroup">
+                  <Field name="Backup provider">
+                    <select
+                      value={draft.sttBackupProvider}
+                      onChange={(e) => {
+                        const id = e.target.value as SttProvider;
+                        const meta = STT_PROVIDERS.find((p) => p.id === id)!;
+                        setDraft((d) => ({
+                          ...d,
+                          sttBackupProvider: id,
+                          sttBackupModel: meta.models[0] ?? "",
+                        }));
+                      }}
+                    >
+                      {STT_PROVIDERS.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field name="Backup model">
+                    <input
+                      value={draft.sttBackupModel}
+                      placeholder="model name"
+                      onChange={(e) => set("sttBackupModel", e.target.value)}
+                    />
+                  </Field>
+                </div>
+              )}
+
+              <TestButton
+                stage="stt"
+                unsavedChanges={unsaved}
+                hint="Sends 0.3 seconds of silence through the real code path — same URL, key, and model as a dictation — and reports exactly what came back."
+              />
+            </div>
+          )}
+
+          {/* -------------------------------------------------- stage two */}
+          {section === "refine" && (
+            <div className="section">
+              <SectionHead
+                title="Refinement"
+                sub="Stage 2: the raw transcript to the finished text - cleaned up, summarised, or turned into a spec, depending on the line."
+              />
+
+              <Field
+                name="Second stage"
+                hint="Transcript only is faster and skips the second API call entirely."
+              >
+                <div className="segmented">
+                  <button
+                    className={!draft.refineEnabled ? "on" : ""}
+                    onClick={() => set("refineEnabled", false)}
+                  >
+                    Transcript only
+                  </button>
+                  <button
+                    className={draft.refineEnabled ? "on" : ""}
+                    onClick={() => set("refineEnabled", true)}
+                  >
+                    Refine it
+                  </button>
+                </div>
+              </Field>
+
+              {draft.refineEnabled && (
+                <>
+                  <Field name="Provider" hint={refineMeta.hint}>
+                    <select
+                      value={draft.refineProvider}
+                      onChange={(e) => {
+                        const id = e.target.value as RefineProvider;
+                        const meta = REFINE_PROVIDERS.find((p) => p.id === id)!;
+                        setDraft((d) => ({
+                          ...d,
+                          refineProvider: id,
+                          refineModel: meta.models[0] ?? "",
+                        }));
+                      }}
+                    >
+                      {REFINE_PROVIDERS.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  {draft.refineProvider === "anthropic" && (
+                    <Field
+                      name="Anthropic-compatible base URL"
+                      wide
+                      hint={
+                        <>
+                          Leave empty for the official api.anthropic.com. Sends to{" "}
+                          <code>/v1/messages</code>. Known bases:{" "}
+                          {ANTHROPIC_BASE_EXAMPLES.map((x, i) => (
+                            <span key={x.url}>
+                              {i > 0 && " · "}
+                              <button
+                                className="link"
+                                onClick={() => set("refineAnthropicBaseUrl", x.url)}
+                                title={x.url}
+                              >
+                                {x.name}
+                              </button>
+                            </span>
+                          ))}
+                        </>
+                      }
+                    >
+                      <input
+                        value={draft.refineAnthropicBaseUrl}
+                        placeholder="empty = https://api.anthropic.com"
+                        onChange={(e) => set("refineAnthropicBaseUrl", e.target.value)}
+                      />
+                    </Field>
+                  )}
+
+                  {refineMeta.custom && (
+                    <Field
+                      name="Endpoint base URL"
+                      wide
+                      hint={
+                        <>
+                          Sends to <code>/chat/completions</code>. Known bases:{" "}
+                          {ENDPOINT_EXAMPLES.map((x, i) => (
+                            <span key={x.url}>
+                              {i > 0 && " · "}
+                              <button
+                                className="link"
+                                onClick={() => set("refineBaseUrl", x.url)}
+                                title={x.url}
+                              >
+                                {x.name}
+                              </button>
+                            </span>
+                          ))}
+                        </>
+                      }
+                    >
+                      <input
+                        value={draft.refineBaseUrl}
+                        placeholder="https://open.bigmodel.cn/api/paas/v4"
+                        onChange={(e) => set("refineBaseUrl", e.target.value)}
+                      />
+                    </Field>
+                  )}
+
+                  <Field
+                    name="Model"
+                    wide
+                    hint="Type it, or load the list from the provider. Nothing here validates the name against a fixed list, so a model released today works today."
+                  >
+                    <ModelField
+                      stage="refine"
+                      value={draft.refineModel}
+                      fallback={refineMeta.models}
+                      unsavedChanges={unsaved}
+                      onChange={(v) => set("refineModel", v)}
+                    />
+                  </Field>
+                </>
+              )}
+
+              <Field
+                name="Backup provider"
+                hint="If the main provider fails, this one retries the same text with its own key. When both fail, the job is parked on the Home page for a manual retry."
+              >
+                <Toggle
+                  on={draft.refineBackupEnabled}
+                  onClick={() => set("refineBackupEnabled", !draft.refineBackupEnabled)}
+                />
+              </Field>
+
+              {draft.refineBackupEnabled && (
+                <div className="subgroup">
+                  <Field name="Backup provider">
+                    <select
+                      value={draft.refineBackupProvider}
+                      onChange={(e) => {
+                        const id = e.target.value as RefineProvider;
+                        const meta = REFINE_PROVIDERS.find((p) => p.id === id)!;
+                        setDraft((d) => ({
+                          ...d,
+                          refineBackupProvider: id,
+                          refineBackupModel: meta.models[0] ?? "",
+                        }));
+                      }}
+                    >
+                      {REFINE_PROVIDERS.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field name="Backup model">
+                    <input
+                      value={draft.refineBackupModel}
+                      placeholder="model name"
+                      onChange={(e) => set("refineBackupModel", e.target.value)}
+                    />
+                  </Field>
+                </div>
+              )}
+
+              <TestButton
+                stage="refine"
+                disabled={!draft.refineEnabled}
+                unsavedChanges={unsaved}
+                hint="Sends a one-word prompt through the real code path and reports exactly what came back."
+              />
+            </div>
+          )}
+
+          {/* --------------------------------------------------------- keys */}
+          {section === "keys" && (
+            <>
+              <div className="section">
+                <SectionHead
+                  title="Keys your setup needs"
+                  sub="Stored in the Windows Credential Manager, never in the settings file and never in this app's folder."
+                />
+                {KEY_FIELDS.filter((f) => requiredSlots.has(f.slot)).map((f) => (
+                  <KeyField
+                    key={f.slot}
+                    field={f}
+                    present={keyPresent(f.slot)}
+                    saved={Boolean(keys[f.slot])}
+                    cleared={clearKeys.includes(f.slot)}
+                    required
+                    value={keyInputs[f.slot] ?? ""}
+                    onChange={(v) => setKeyInputs((k) => ({ ...k, [f.slot]: v }))}
+                    onClear={() => setClearKeys((c) => [...c, f.slot])}
+                    onRestore={() => setClearKeys((c) => c.filter((x) => x !== f.slot))}
                   />
-                  {t.name}
+                ))}
+              </div>
+
+              <div className="section">
+                <SectionHead
+                  title="Not used right now"
+                  sub="Nothing in your current configuration reads these. A key left here stays saved and costs nothing."
+                />
+                {KEY_FIELDS.filter((f) => !requiredSlots.has(f.slot)).map((f) => (
+                  <KeyField
+                    key={f.slot}
+                    field={f}
+                    present={keyPresent(f.slot)}
+                    saved={Boolean(keys[f.slot])}
+                    cleared={clearKeys.includes(f.slot)}
+                    value={keyInputs[f.slot] ?? ""}
+                    onChange={(v) => setKeyInputs((k) => ({ ...k, [f.slot]: v }))}
+                    onClear={() => setClearKeys((c) => [...c, f.slot])}
+                    onRestore={() => setClearKeys((c) => c.filter((x) => x !== f.slot))}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* ------------------------------------------------------ capture */}
+          {section === "capture" && (
+            <div className="section">
+              <SectionHead
+                title="Audio & input"
+                sub="What nutq listens to, and what it keeps afterwards."
+              />
+
+              <Field
+                name="Microphone"
+                hint="Default follows whatever Windows is set to. Pick a device to pin it."
+              >
+                <select
+                  value={draft.microphone}
+                  onChange={(e) => set("microphone", e.target.value)}
+                >
+                  {mics.map((m) => (
+                    <option key={m}>{m}</option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field
+                name="Language hint"
+                wide
+                hint="Passed to both stages. Naming the dialect matters far more than naming the language."
+              >
+                <input
+                  value={draft.languageHint}
+                  dir="auto"
+                  onChange={(e) => set("languageHint", e.target.value)}
+                />
+              </Field>
+
+              <Field
+                name="Keep recordings"
+                hint="Saves each recording next to its History entry so it can be played back - the only way to settle what was actually said when a transcript reads oddly. The newest 100 are kept. Off means nothing but text is ever written to disk."
+              >
+                <Toggle on={draft.saveAudio} onClick={() => set("saveAudio", !draft.saveAudio)} />
+              </Field>
+
+              <div className="section-foot">
+                <div className="hint dim">
+                  Hotkeys belong to the lines that use them - set them under{" "}
+                  <button className="link" onClick={() => setSection("lines")}>
+                    Lines
+                  </button>
+                  . Every binding works in every app.
+                </div>
+                <div style={{ marginTop: 10 }}>
+                  {(hotkeys ?? []).map((s) => (
+                    <div className="row" key={s.profile_id} style={{ padding: "4px 0" }}>
+                      <span style={{ minWidth: 150, fontWeight: 600 }}>{s.name}</span>
+                      <Kbd spec={s.state.spec} />
+                      {s.state.reset_from ? (
+                        <span className="chip bad">was reset</span>
+                      ) : s.state.bound ? (
+                        <span className="chip ok">active</span>
+                      ) : (
+                        <span className="chip bad">{s.state.error || "not bound"}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ------------------------------------------------ overlay pill */}
+          {section === "overlay" && (
+            <div className="section">
+              <SectionHead
+                title="Recording pill"
+                sub="The little indicator above the taskbar while the microphone is live. The preview runs on a simulated voice, so what you see is what the real pill does."
+              />
+
+              <div style={{ padding: "16px 0 4px" }}>
+                <PillPreview
+                  style={draft.overlayStyle}
+                  glowInner={draft.overlayGlowInner}
+                  glowOuter={draft.overlayGlowOuter}
+                  auraColor={draft.overlayAuraColor}
+                  bg={draft.overlayBg}
+                />
+              </div>
+
+              <Field name="Wave shape" hint="What runs inside the pill while you speak.">
+                <select
+                  value={draft.overlayStyle}
+                  onChange={(e) => set("overlayStyle", e.target.value as OverlayStyle)}
+                >
+                  {OVERLAY_STYLES.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} — {s.hint}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field
+                name="Theme"
+                wide
+                hint="One pick sets the glow, the wave and the background together, so the colours always match."
+              >
+                <div className="theme-grid">
+                  {OVERLAY_THEMES.map((t) => {
+                    const on = draft.overlayTheme === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        className={`theme-chip${on ? " on" : ""}`}
+                        onClick={() =>
+                          setDraft((d) => ({
+                            ...d,
+                            overlayTheme: t.id,
+                            overlayAuraColor: t.aura,
+                            overlayBg: t.bg,
+                          }))
+                        }
+                      >
+                        <span
+                          className="theme-dot"
+                          style={{ background: t.aura, boxShadow: `0 0 8px ${t.aura}` }}
+                        />
+                        <span
+                          className="theme-bg"
+                          style={{ background: t.bg, border: `1px solid ${t.aura}55` }}
+                        />
+                        {t.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Field>
+
+              <Field
+                name="Glow — inner"
+                hint="Light on the pill's own edges, brightening with your voice."
+              >
+                <Toggle
+                  on={draft.overlayGlowInner}
+                  onClick={() => set("overlayGlowInner", !draft.overlayGlowInner)}
+                />
+              </Field>
+
+              <Field
+                name="Glow — outer"
+                hint="Light cast around the pill onto the screen behind it."
+              >
+                <Toggle
+                  on={draft.overlayGlowOuter}
+                  onClick={() => set("overlayGlowOuter", !draft.overlayGlowOuter)}
+                />
+              </Field>
+            </div>
+          )}
+
+          {/* --------------------------------------------------- appearance */}
+          {section === "appearance" && (
+            <div className="section">
+              <SectionHead
+                title="Appearance"
+                sub="How this window paints itself. The recording pill has its own themes, under Recording pill."
+              />
+
+              <Field name="Theme" wide>
+                <div className="choices">
+                  {THEMES.map((t) => (
+                    <button
+                      key={t.id}
+                      className={`choice${draft.theme === t.id ? " on" : ""}`}
+                      onClick={() => set("theme", t.id)}
+                    >
+                      <span className="choice-name">
+                        <Icon name={t.icon} size={15} />
+                        {t.name}
+                        {draft.theme === t.id && <Icon name="check" size={14} />}
+                      </span>
+                      <span className="choice-hint">{t.hint}</span>
+                    </button>
+                  ))}
+                </div>
+              </Field>
+
+              <div className="section-foot">
+                <div className="hint dim">
+                  The theme applies the moment you pick it, so you can see it before
+                  saving. Discard puts it back.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* --------------------------------------------------- vocabulary */}
+          {section === "words" && (
+            <>
+              <div className="section">
+                <SectionHead
+                  title="Corrections"
+                  sub="Terms the transcriber mishears. Left is what comes out wrong, right is what you actually said."
+                />
+                <div style={{ padding: "14px 0" }}>
+                  {draft.dictionary.map((d, i) => (
+                    <div className="list-row" key={i}>
+                      <input
+                        placeholder="heard as"
+                        dir="auto"
+                        value={d.from}
+                        onChange={(e) => {
+                          const next = [...draft.dictionary];
+                          next[i] = { ...next[i], from: e.target.value };
+                          set("dictionary", next);
+                        }}
+                      />
+                      <input
+                        placeholder="should be"
+                        dir="auto"
+                        value={d.to}
+                        onChange={(e) => {
+                          const next = [...draft.dictionary];
+                          next[i] = { ...next[i], to: e.target.value };
+                          set("dictionary", next);
+                        }}
+                      />
+                      <button
+                        className="icon-btn danger"
+                        title="Remove"
+                        onClick={() =>
+                          set("dictionary", draft.dictionary.filter((_, j) => j !== i))
+                        }
+                      >
+                        <Icon name="trash" />
+                      </button>
+                    </div>
+                  ))}
+                  {draft.dictionary.length === 0 && (
+                    <div className="hint dim" style={{ marginBottom: 10 }}>
+                      Nothing yet. Add the words this app keeps getting wrong.
+                    </div>
+                  )}
+                  <button
+                    className="btn"
+                    onClick={() => set("dictionary", [...draft.dictionary, { from: "", to: "" }])}
+                  >
+                    <Icon name="plus" size={15} />
+                    Add a correction
+                  </button>
+                </div>
+              </div>
+
+              <div className="section">
+                <SectionHead
+                  title="Snippets"
+                  sub="Say the trigger out loud and it expands to the text."
+                />
+                <div style={{ padding: "14px 0" }}>
+                  {draft.snippets.map((s, i) => (
+                    <div className="list-row" key={i}>
+                      <input
+                        placeholder="when I say"
+                        dir="auto"
+                        value={s.trigger}
+                        onChange={(e) => {
+                          const next = [...draft.snippets];
+                          next[i] = { ...next[i], trigger: e.target.value };
+                          set("snippets", next);
+                        }}
+                      />
+                      <input
+                        placeholder="write this"
+                        dir="auto"
+                        value={s.text}
+                        onChange={(e) => {
+                          const next = [...draft.snippets];
+                          next[i] = { ...next[i], text: e.target.value };
+                          set("snippets", next);
+                        }}
+                      />
+                      <button
+                        className="icon-btn danger"
+                        title="Remove"
+                        onClick={() =>
+                          set("snippets", draft.snippets.filter((_, j) => j !== i))
+                        }
+                      >
+                        <Icon name="trash" />
+                      </button>
+                    </div>
+                  ))}
+                  {draft.snippets.length === 0 && (
+                    <div className="hint dim" style={{ marginBottom: 10 }}>
+                      Nothing yet. A snippet turns one spoken word into a whole phrase.
+                    </div>
+                  )}
+                  <button
+                    className="btn"
+                    onClick={() =>
+                      set("snippets", [...draft.snippets, { trigger: "", text: "" }])
+                    }
+                  >
+                    <Icon name="plus" size={15} />
+                    Add a snippet
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {problem && (
+            <div className="banner error">
+              <Icon name="alert" size={18} className="banner-ico" />
+              <div className="banner-text">{problem}</div>
+              <div className="banner-actions">
+                <button className="btn sm" onClick={() => setProblem(null)}>
+                  Dismiss
                 </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="field">
-          <div>
-            <div className="field-name">Glow — inner</div>
-            <div className="field-hint">
-              Light on the pill's own edges, brightening with your voice.
+              </div>
             </div>
-          </div>
-          <Toggle
-            on={draft.overlayGlowInner}
-            onClick={() => set("overlayGlowInner", !draft.overlayGlowInner)}
-          />
-        </div>
+          )}
 
-        <div className="field">
-          <div>
-            <div className="field-name">Glow — outer</div>
-            <div className="field-hint">
-              Light cast around the pill onto the screen behind it.
+          {/* Settings are a draft until saved, and the only honest place for
+              that fact is pinned to the bottom of the page it applies to. */}
+          <div className={`savebar${unsaved ? " dirty" : ""}`}>
+            <div className="savebar-text">
+              {unsaved ? (
+                <>
+                  <span className="dot busy" />
+                  <b>Unsaved changes</b>
+                  <span>· Ctrl+S saves</span>
+                </>
+              ) : saved ? (
+                <>
+                  <Icon name="check" size={15} />
+                  <b>Saved</b>
+                </>
+              ) : (
+                <span>Everything on this page is saved.</span>
+              )}
             </div>
+            <div className="spacer" />
+            <button className="btn ghost" disabled={!unsaved} onClick={discard}>
+              Discard
+            </button>
+            <button className="btn primary" disabled={!unsaved} onClick={() => void save()}>
+              Save changes
+            </button>
           </div>
-          <Toggle
-            on={draft.overlayGlowOuter}
-            onClick={() => set("overlayGlowOuter", !draft.overlayGlowOuter)}
-          />
         </div>
-      </div>
-      )}
-
-      {/* ------------------------------------------------------ vocabulary */}
-      {tab === "words" && (
-      <div className="section">
-        <div className="section-title">Dictionary</div>
-        <div style={{ padding: "6px 0 16px" }}>
-          <div className="field-hint" style={{ marginBottom: 12 }}>
-            Terms the transcriber mishears. Left is what comes out wrong, right is what you
-            actually said.
-          </div>
-          {draft.dictionary.map((d, i) => (
-            <div className="list-row" key={i}>
-              <input
-                placeholder="heard as"
-                value={d.from}
-                onChange={(e) => {
-                  const next = [...draft.dictionary];
-                  next[i] = { ...next[i], from: e.target.value };
-                  set("dictionary", next);
-                }}
-              />
-              <input
-                placeholder="should be"
-                value={d.to}
-                onChange={(e) => {
-                  const next = [...draft.dictionary];
-                  next[i] = { ...next[i], to: e.target.value };
-                  set("dictionary", next);
-                }}
-              />
-              <button
-                className="icon-btn"
-                onClick={() =>
-                  set("dictionary", draft.dictionary.filter((_, j) => j !== i))
-                }
-              >
-                ×
-              </button>
-            </div>
-          ))}
-          <button
-            className="btn ghost"
-            onClick={() => set("dictionary", [...draft.dictionary, { from: "", to: "" }])}
-          >
-            + Add correction
-          </button>
-        </div>
-      </div>
-      )}
-
-      {tab === "words" && (
-      <div className="section">
-        <div className="section-title">Snippets</div>
-        <div style={{ padding: "6px 0 16px" }}>
-          <div className="field-hint" style={{ marginBottom: 12 }}>
-            Say the trigger out loud and it expands to the text.
-          </div>
-          {draft.snippets.map((s, i) => (
-            <div className="list-row" key={i}>
-              <input
-                placeholder="when I say"
-                value={s.trigger}
-                onChange={(e) => {
-                  const next = [...draft.snippets];
-                  next[i] = { ...next[i], trigger: e.target.value };
-                  set("snippets", next);
-                }}
-              />
-              <input
-                placeholder="write this"
-                value={s.text}
-                onChange={(e) => {
-                  const next = [...draft.snippets];
-                  next[i] = { ...next[i], text: e.target.value };
-                  set("snippets", next);
-                }}
-              />
-              <button
-                className="icon-btn"
-                onClick={() => set("snippets", draft.snippets.filter((_, j) => j !== i))}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-          <button
-            className="btn ghost"
-            onClick={() => set("snippets", [...draft.snippets, { trigger: "", text: "" }])}
-          >
-            + Add snippet
-          </button>
-        </div>
-      </div>
-      )}
-
-      {problem && (
-        <div className="banner error" style={{ marginBottom: 14 }}>
-          <span>{problem}</span>
-        </div>
-      )}
-
-      <div className="row">
-        <button className="btn primary" onClick={save}>
-          {saved ? "Saved" : "Save changes"}
-        </button>
-        <button
-          className="btn ghost"
-          onClick={() => {
-            setDraft(settings);
-            setKeyInputs({});
-          }}
-        >
-          Discard
-        </button>
       </div>
     </>
+  );
+}
+
+/** One credential slot: what it is, where it comes from, and whether it is
+ *  there. The value is write-only - a saved key is never read back into the
+ *  page, so nothing on screen can leak it, and "forget this key" is a draft
+ *  like everything else here: it happens on Save, and Discard undoes it. */
+function KeyField({
+  field,
+  present,
+  saved,
+  cleared,
+  required,
+  value,
+  onChange,
+  onClear,
+  onRestore,
+}: {
+  field: { slot: string; name: string; where: string; placeholder: string };
+  present: boolean;
+  saved: boolean;
+  cleared: boolean;
+  required?: boolean;
+  value: string;
+  onChange: (v: string) => void;
+  onClear: () => void;
+  onRestore: () => void;
+}) {
+  return (
+    <Field
+      name={field.name}
+      badge={
+        cleared ? (
+          <span className="chip warn">forgotten on save</span>
+        ) : present ? (
+          <span className="chip ok">saved</span>
+        ) : required ? (
+          <span className="chip warn">needed</span>
+        ) : (
+          <span className="chip">empty</span>
+        )
+      }
+      hint={`From ${field.where}`}
+    >
+      <input
+        type="password"
+        autoComplete="off"
+        spellCheck={false}
+        placeholder={
+          saved && !cleared ? "•••••••• (leave blank to keep)" : field.placeholder
+        }
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {saved &&
+        (cleared ? (
+          <button className="btn sm" title="Keep this key after all" onClick={onRestore}>
+            Undo
+          </button>
+        ) : (
+          <button className="icon-btn danger" title="Forget this key" onClick={onClear}>
+            <Icon name="trash" />
+          </button>
+        ))}
+    </Field>
   );
 }

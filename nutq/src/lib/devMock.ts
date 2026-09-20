@@ -88,6 +88,7 @@ const settings = {
   snippets: [],
   play_sounds: false,
   save_audio: true,
+  theme: "system",
   overlay_glow_inner: true,
   overlay_glow_outer: true,
   overlay_theme: "teal_night",

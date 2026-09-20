@@ -7,6 +7,7 @@ import {
   type UsageBucket,
   type UsageRange,
 } from "../lib/api";
+import { Empty, Icon, PageHead } from "../lib/ui";
 
 /** Entries per page. The whole list is fetched once - it is text and capped at
  *  500 - but rendering it in one scroll made the page unusable at any size. */
@@ -45,7 +46,7 @@ function ClipPlayer({ id }: { id: string }) {
   return (
     <>
       <button
-        className="btn ghost"
+        className="btn sm"
         disabled={loading}
         onClick={async () => {
           setLoading(true);
@@ -59,7 +60,8 @@ function ClipPlayer({ id }: { id: string }) {
           }
         }}
       >
-        {loading ? "Loading…" : "▶ Play"}
+        <Icon name="play" size={14} />
+        {loading ? "Loading…" : "Play the recording"}
       </button>
       {error && <span className="hist-audio-error">{error}</span>}
     </>
@@ -187,7 +189,7 @@ function AxisUsageChart({
             y={top - 6}
             width={band}
             height={panelH * 2 + gap + 6}
-            fill="rgba(22, 27, 35, 0.05)"
+            fill="var(--surface-2)"
             rx={6}
           />
         )}
@@ -199,10 +201,10 @@ function AxisUsageChart({
           const peak = Math.max(...totals);
           return (
             <g key={p.title}>
-              <text x={padL} y={y0 - panelH - 8} fontSize={12} fontWeight={600} fill="var(--muted)">
+              <text x={padL} y={y0 - panelH - 8} fontSize={12} fontWeight={600} fill="var(--text-2)">
                 {p.title}
               </text>
-              <text x={p.unitX} y={y0 - panelH - 8} fontSize={10.5} fill="var(--faint)">
+              <text x={p.unitX} y={y0 - panelH - 8} fontSize={10.5} fill="var(--text-3)">
                 · {per}
               </text>
               {[0, 1, 2, 3].map((t) => (
@@ -212,9 +214,9 @@ function AxisUsageChart({
                     x2={W - padR}
                     y1={yv(t * p.step)}
                     y2={yv(t * p.step)}
-                    stroke={t === 0 ? "#d6dce4" : "#e8edf3"}
+                    stroke={t === 0 ? "var(--border-strong)" : "var(--border)"}
                   />
-                  <text x={padL - 8} y={yv(t * p.step) + 4} textAnchor="end" fontSize={10} fill="var(--faint)">
+                  <text x={padL - 8} y={yv(t * p.step) + 4} textAnchor="end" fontSize={10} fill="var(--text-3)">
                     {p.fmt(t * p.step)}
                   </text>
                 </g>
@@ -230,7 +232,7 @@ function AxisUsageChart({
                 return (
                   <g key={b.label}>
                     {total === 0 && (
-                      <rect x={x} y={y0 - 2} width={bw} height={2} rx={1} fill="var(--panel-2)" />
+                      <rect x={x} y={y0 - 2} width={bw} height={2} rx={1} fill="var(--surface-3)" />
                     )}
                     {segs.map((s, si) => {
                       const h = Math.max((s.v / axisMax) * panelH, 1.5);
@@ -255,7 +257,7 @@ function AxisUsageChart({
                         textAnchor="middle"
                         fontSize={9.5}
                         fontWeight={total === peak ? 700 : 400}
-                        fill={total === peak ? "var(--text)" : "var(--faint)"}
+                        fill={total === peak ? "var(--text)" : "var(--text-3)"}
                       >
                         {p.fmt(total)}
                       </text>
@@ -274,7 +276,7 @@ function AxisUsageChart({
               />
               {/* Left-anchored: the right edge is where the newest, usually
                   tallest bar lives, so an average tag there always collides. */}
-              <text x={padL + 8} y={yv(p.avg) - 5} fontSize={9.5} fill="var(--faint)">
+              <text x={padL + 8} y={yv(p.avg) - 5} fontSize={9.5} fill="var(--text-3)">
                 avg {p.avgFmt(p.avg)}
                 {suffix}
               </text>
@@ -289,7 +291,7 @@ function AxisUsageChart({
               y={H - 8}
               textAnchor="middle"
               fontSize={10}
-              fill="var(--faint)"
+              fill="var(--text-3)"
             >
               {shortLabel(b.label)}
             </text>
@@ -369,7 +371,7 @@ function UsageLedger({
 
   const pct = (v: number, t: number) => (t > 0 ? Math.round((v / t) * 100) : 0) + "%";
   const heat = (v: number, max: number, rgb: string) =>
-    v <= 0 ? "var(--panel-2)" : `rgba(${rgb},${(0.14 + 0.86 * Math.sqrt(v / max)).toFixed(3)})`;
+    v <= 0 ? "var(--surface-3)" : `rgba(${rgb},${(0.14 + 0.86 * Math.sqrt(v / max)).toFixed(3)})`;
 
   // The busiest stretch: a sliding window of about a sixth of the range,
   // which on Day lands on the midday cluster and on Month on the busiest
@@ -501,6 +503,10 @@ export default function HistoryView() {
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [stats, setStats] = useState<UsageBucket[]>([]);
   const [showRaw, setShowRaw] = useState<Record<string, boolean>>({});
+  /** Entries whose text is shown in full rather than clamped. */
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  /** The entry whose Copy button just fired, for its tick. */
+  const [copied, setCopied] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [confirmClear, setConfirmClear] = useState(false);
   /** The id whose Delete button is in its confirm step, if any. */
@@ -626,21 +632,26 @@ export default function HistoryView() {
 
   return (
     <>
-      <div className="eyebrow">Archive</div>
-      <h1>History</h1>
-      <p className="lede">
-        The last 500 results, kept on this machine only, ten per page. Recordings
-        are kept for the most recent 100 of them, so older entries keep their
-        text but lose their audio.
-      </p>
+      <PageHead
+        eyebrow="Archive"
+        title="History"
+        lede="The last 500 results, kept on this machine only, ten per page. Recordings are kept for the most recent 100, so older entries keep their text but lose their audio."
+        actions={
+          entries.length > 0 ? (
+            <button className="btn" onClick={() => setConfirmClear(true)}>
+              <Icon name="trash" size={15} />
+              Clear history
+            </button>
+          ) : null
+        }
+      />
 
       {regenError && (
-        <div className="diag bad" style={{ marginBottom: 10 }}>
-          <div className="diag-detail" style={{ whiteSpace: "pre-wrap" }}>
-            {regenError}
-          </div>
-          <div className="row" style={{ flex: "none" }}>
-            <button className="btn ghost" onClick={() => setRegenError(null)}>
+        <div className="banner error">
+          <Icon name="alert" size={18} className="banner-ico" />
+          <div className="banner-text">{regenError}</div>
+          <div className="banner-actions">
+            <button className="btn sm" onClick={() => setRegenError(null)}>
               Dismiss
             </button>
           </div>
@@ -651,7 +662,7 @@ export default function HistoryView() {
         <div className="usage-card" ref={cardRef}>
           <div className="usage-head">
             <div>
-              <div className="usage-title">Usage</div>
+              <h2>Usage</h2>
               <div className="usage-totals">
                 {duration(totalSeconds)} of audio · {totalCount} requests
               </div>
@@ -719,93 +730,126 @@ export default function HistoryView() {
         </div>
       )}
 
-      {entries.length > 0 && (
-        <div className="row" style={{ marginBottom: 18 }}>
-          <button className="btn ghost" onClick={() => setConfirmClear(true)}>
-            Clear history
-          </button>
-        </div>
-      )}
+      <div style={{ height: 16 }} />
 
       {entries.length === 0 ? (
-        <div className="empty-state">Nothing here yet. Press your hotkey and say something.</div>
+        <Empty
+          icon="clock"
+          title="Nothing here yet"
+          sub="Press a line's hotkey, say something, and every result is kept here with what it cost and which models produced it."
+        />
       ) : (
         <>
-          {slice.map((e) => (
-            <div className="hist" key={e.id}>
-              <div className="hist-meta">
-                <span className="pill">{MODE_LABELS[e.mode].name}</span>
-                <span>{e.at}</span>
-                <span>· {e.seconds.toFixed(1)}s</span>
-                <span>· ${e.cost_usd.toFixed(5)}</span>
-                {e.stt_model && (
-                  <span className="hist-models">
-                    {e.stt_model}
-                    {e.stt_via_backup ? " · backup" : ""}
-                    {e.refine_model
-                      ? ` → ${e.refine_model}${e.refine_via_backup ? " · backup" : ""}`
-                      : " → raw"}
-                  </span>
-                )}
-                <div className="spacer" />
-                <button
-                  className="btn ghost"
-                  onClick={() => setShowRaw((s) => ({ ...s, [e.id]: !s[e.id] }))}
-                >
-                  {showRaw[e.id] ? "Show refined" : "Show raw"}
-                </button>
-                <button className="btn ghost" onClick={() => void api.copyText(e.refined)}>
-                  Copy
-                </button>
-                <button
-                  className="btn ghost"
-                  disabled={regenId !== null}
-                  title={
-                    e.audio_file
-                      ? "Run this entry through the current providers again, starting from the kept audio"
-                      : "The recording is gone - re-run refinement over the saved transcript"
-                  }
-                  onClick={() => void regenerate(e.id)}
-                >
-                  {regenId === e.id ? "Regenerating…" : "Regenerate"}
-                </button>
-                {confirmDelete === e.id ? (
-                  <>
-                    <button className="btn danger" onClick={() => void deleteEntry(e.id)}>
-                      Delete this entry
-                    </button>
-                    <button
-                      className="btn ghost"
-                      onClick={() => setConfirmDelete(null)}
-                    >
-                      Cancel
-                    </button>
-                  </>
-                ) : (
-                  <button className="btn ghost" onClick={() => setConfirmDelete(e.id)}>
-                    Delete
-                  </button>
-                )}
-              </div>
-
-              {/* Where the audio came from, and the audio itself. Entries
-               * recorded before either was tracked simply show neither. */}
-              {(e.microphone || e.audio_file) && (
-                <div className="hist-source">
-                  {e.microphone && (
-                    <span className="hist-mic" title={`Recorded from ${e.microphone}`}>
-                      🎙 {e.microphone}
+          {slice.map((e) => {
+            const text = showRaw[e.id] ? e.raw : e.refined;
+            const long = text.length > 320 || text.split("\n").length > 5;
+            const open = expanded[e.id];
+            return (
+              <div className="hist" key={e.id}>
+                <div className="hist-meta">
+                  <span className="chip">{MODE_LABELS[e.mode].name}</span>
+                  <span className="nums">{e.at}</span>
+                  <span className="nums">· {e.seconds.toFixed(1)}s</span>
+                  <span className="nums">· ${e.cost_usd.toFixed(5)}</span>
+                  {e.profile && <span className="chip">{e.profile}</span>}
+                  {e.stt_model && (
+                    <span className="hist-models">
+                      {e.stt_model}
+                      {e.stt_via_backup ? " · backup" : ""}
+                      {e.refine_model
+                        ? ` → ${e.refine_model}${e.refine_via_backup ? " · backup" : ""}`
+                        : " → raw"}
                     </span>
                   )}
-                  {e.audio_file && <ClipPlayer id={e.id} />}
-                </div>
-              )}
 
-              <div className="hist-text" dir="auto">
-                {showRaw[e.id] ? e.raw : e.refined}
+                  <div className="hist-actions">
+                    <button
+                      className="icon-btn"
+                      title={showRaw[e.id] ? "Show the finished text" : "Show the raw transcript"}
+                      onClick={() => setShowRaw((r) => ({ ...r, [e.id]: !r[e.id] }))}
+                    >
+                      <Icon name="eye" />
+                    </button>
+                    <button
+                      className="icon-btn"
+                      title="Copy this result"
+                      onClick={async () => {
+                        await api.copyText(e.refined);
+                        setCopied(e.id);
+                        setTimeout(() => setCopied(null), 1400);
+                      }}
+                    >
+                      <Icon name={copied === e.id ? "check" : "copy"} />
+                    </button>
+                    <button
+                      className="icon-btn"
+                      disabled={regenId !== null}
+                      title={
+                        e.audio_file
+                          ? "Run this entry through the current providers again, starting from the kept audio"
+                          : "The recording is gone - re-run refinement over the saved transcript"
+                      }
+                      onClick={() => void regenerate(e.id)}
+                    >
+                      <Icon name="refresh" />
+                    </button>
+                    {confirmDelete === e.id ? (
+                      <>
+                        <button className="btn danger sm" onClick={() => void deleteEntry(e.id)}>
+                          Delete
+                        </button>
+                        <button
+                          className="btn ghost sm"
+                          onClick={() => setConfirmDelete(null)}
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        className="icon-btn danger"
+                        title="Delete this entry"
+                        onClick={() => setConfirmDelete(e.id)}
+                      >
+                        <Icon name="trash" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Where the audio came from, and the audio itself. Entries
+                 * recorded before either was tracked simply show neither. */}
+                {(e.microphone || e.audio_file) && (
+                  <div className="hist-source">
+                    {e.microphone && (
+                      <span className="hist-mic" title={`Recorded from ${e.microphone}`}>
+                        🎙 {e.microphone}
+                      </span>
+                    )}
+                    {e.audio_file && <ClipPlayer id={e.id} />}
+                  </div>
+                )}
+
+                <div
+                  className={`hist-text${open ? " open" : long ? " clipped" : ""}`}
+                  dir="auto"
+                >
+                  {regenId === e.id ? "Regenerating…" : text}
+                </div>
+
+                {long && (
+                  <div className="hist-more">
+                    <button
+                      className="btn ghost sm"
+                      onClick={() => setExpanded((x) => ({ ...x, [e.id]: !x[e.id] }))}
+                    >
+                      {open ? "Show less" : "Show the whole thing"}
+                    </button>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           <div className="pager">
             <button

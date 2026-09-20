@@ -261,6 +261,11 @@ pub struct Settings {
     /// played back. Off means nothing but text is ever written.
     pub save_audio: bool,
 
+    /// How the main window paints itself: "system" follows Windows' own
+    /// light/dark setting, "light" and "dark" pin it. The recording pill has
+    /// its own themes and is not affected by this.
+    pub theme: String,
+
     /// The bottom-of-screen recording pill: which wave runs inside it, an
     /// optional two-part glow, and the theme that coordinates its colors.
     /// The glow's inner part lights the pill's own edges; the outer part
@@ -326,6 +331,7 @@ impl Default for Settings {
             snippets: Vec::new(),
             play_sounds: false,
             save_audio: true,
+            theme: "system".into(),
             // The glow sits between the plain and the charged preview strengths
             // and always breathes with the voice; teal night is the identity
             // the rest of the app already speaks.

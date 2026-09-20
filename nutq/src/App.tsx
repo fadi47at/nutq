@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import {
   api,
@@ -11,8 +11,10 @@ import {
   type PendingEntry,
   type Settings,
   type Status,
+  type Theme,
 } from "./lib/api";
 import { prettyHotkey } from "./lib/hotkeys";
+import { applyTheme, Icon, type IconName } from "./lib/ui";
 import Home from "./views/Home";
 import SettingsView from "./views/SettingsView";
 import HistoryView from "./views/HistoryView";
@@ -22,48 +24,26 @@ import NotesView from "./views/NotesView";
 
 type View = "home" | "notes" | "todos" | "history" | "settings" | "logs";
 
-/** One drawn glyph per page, so the sidebar can fold to a rail of icons when
- *  the window gets phone-sized. Stroke-based on a 20px grid. */
-const NAV_ICONS: Record<View, ReactElement> = {
-  home: (
-    <>
-      <path d="M3.6 10.1 10 4.4l6.4 5.7" />
-      <path d="M5.4 9.2v7.2h9.2V9.2" />
-    </>
-  ),
-  history: (
-    <>
-      <circle cx="10" cy="10" r="6.3" />
-      <path d="M10 6.7V10l2.4 1.6" />
-    </>
-  ),
-  todos: (
-    <>
-      <rect x="3.4" y="4" width="13.2" height="12.6" rx="1.6" />
-      <path d="m6.4 8.2 1.5 1.5 2.5-2.7M6.4 12.6l1.5 1.5 2.5-2.7M12.4 8.9h3.4M12.4 13.3h3.4" />
-    </>
-  ),
-  notes: (
-    <>
-      <path d="M5.4 3.8h7.2l3 3v9.4h-10.2z" />
-      <path d="M12.4 3.8v3.2h3.2M7.6 10h4.8M7.6 12.8h4.8" />
-    </>
-  ),
-  settings: (
-    <>
-      <path d="M4.2 6.2h11.6M4.2 10h11.6M4.2 13.8h11.6" />
-      <circle cx="8" cy="6.2" r="1.7" />
-      <circle cx="12.6" cy="10" r="1.7" />
-      <circle cx="7.2" cy="13.8" r="1.7" />
-    </>
-  ),
-  logs: (
-    <>
-      <rect x="4.6" y="3.6" width="10.8" height="12.8" rx="1.6" />
-      <path d="M7.4 7.4h5.2M7.4 10h5.2M7.4 12.6h3.2" />
-    </>
-  ),
-};
+/** The rail, in two groups: what you work in, and what the app keeps about
+ *  itself. Icons are shared with the rest of the app (lib/ui). */
+const NAV: { group: string; items: [View, string, IconName][] }[] = [
+  {
+    group: "Workspace",
+    items: [
+      ["home", "Home", "home"],
+      ["notes", "Notes", "note"],
+      ["todos", "To-do", "checklist"],
+      ["history", "History", "clock"],
+    ],
+  },
+  {
+    group: "App",
+    items: [
+      ["settings", "Settings", "sliders"],
+      ["logs", "Logs", "logs"],
+    ],
+  },
+];
 
 const STATUS_SUB: Record<Status, string> = {
   idle: "waiting for your hotkey",
@@ -94,6 +74,10 @@ export default function App() {
   /** The bundle's own version, from the app config, so the sidebar can say
    *  which release is actually running. */
   const [appVersion, setAppVersion] = useState("");
+  /** A theme the Settings page is trying on but has not saved. One owner for
+   *  the window's appearance means nothing can stomp the preview - which is
+   *  exactly what happened when both places painted. */
+  const [themePreview, setThemePreview] = useState<Theme | null>(null);
 
   const refresh = useCallback(async () => {
     const [s, k, st, p, hk] = await Promise.all([
@@ -124,6 +108,18 @@ export default function App() {
     void refresh();
     void refreshLogs();
   }, [refresh, refreshLogs]);
+
+  // The chosen theme is written on <html>, where the stylesheet's
+  // [data-theme="dark"] block can see it. "system" follows Windows live, so
+  // the app changes with it at sunset without a restart.
+  const theme = themePreview ?? settings?.theme ?? "system";
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = () => applyTheme(theme);
+    apply();
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
+  }, [theme]);
 
   useEffect(() => {
     const unlisteners = [
@@ -161,8 +157,8 @@ export default function App() {
   const missingStt = !keys[sttSlot];
   const missingRefine = settings.refineEnabled && !keys[refineSlot];
 
-  // Every line with a binding problem earns one line of banner - an
-  // unbound key is an app that looks fine and answers nothing.
+  // Every line with a binding problem earns one line of banner - an unbound
+  // key is an app that looks fine and answers nothing.
   const hotkeyProblems: string[] = (hotkeys ?? [])
     .filter((s) => s.state.reset_from || !s.state.bound)
     .map((s) =>
@@ -172,62 +168,55 @@ export default function App() {
         : `The "${s.name}" hotkey ${prettyHotkey(s.state.spec)} is not active. ${s.state.error}`,
     );
   const missingKeys = missingStt || missingRefine;
-  /** Shared by the sidebar toast and the Logs rail dot: something the user
-   *  has not dismissed yet. */
+  /** Shared by the sidebar toast and the Logs rail dot: something the user has
+   *  not dismissed yet. */
   const latestLog = logs.find((l) => !dismissed.includes(l.id));
+  const counts: Partial<Record<View, number>> = {
+    logs: logs.length || undefined,
+  };
 
   return (
     <div className="shell">
-      <aside className="sidebar">
+      <aside className="sidebar zone-dark">
         <div className="brand">
           <div className="brand-mark">N</div>
-          <div>
+          <div className="brand-text">
             <div className="brand-name">nutq</div>
             <div className="brand-sub">voice to text</div>
           </div>
         </div>
 
-        <div className="nav-label">Workspace</div>
-        {(
-          [
-            ["home", "Home"],
-            ["notes", "Notes"],
-            ["todos", "To-do"],
-            ["history", "History"],
-            ["settings", "Settings"],
-            ["logs", "Logs"],
-          ] as [View, string][]
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            className={`nav-item${view === id ? " active" : ""}`}
-            onClick={() => setView(id)}
-            title={label}
-          >
-            <svg
-              className="nav-ico"
-              viewBox="0 0 20 20"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.7}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
-            >
-              {NAV_ICONS[id]}
-            </svg>
-            <span className="nav-txt">{label}</span>
-            {id === "logs" && latestLog && (
-              <span
-                className="nav-dot"
-                style={{
-                  background: latestLog.level === "error" ? "var(--danger)" : "var(--warn)",
-                }}
-                title={latestLog.message}
-              />
-            )}
-          </button>
-        ))}
+        <nav>
+          {NAV.map((g) => (
+            <div key={g.group}>
+              <div className="nav-label">{g.group}</div>
+              {g.items.map(([id, label, icon]) => (
+                <button
+                  key={id}
+                  className={`nav-item${view === id ? " active" : ""}`}
+                  onClick={() => setView(id)}
+                  title={label}
+                >
+                  <Icon name={icon} size={17} className="nav-ico" />
+                  <span className="nav-txt">{label}</span>
+                  {counts[id] !== undefined && (
+                    <span className="nav-count nums">{counts[id]}</span>
+                  )}
+                  {id === "logs" && latestLog && (
+                    <span
+                      className="nav-dot"
+                      style={{
+                        background:
+                          latestLog.level === "error" ? "var(--danger)" : "var(--warn)",
+                      }}
+                      title={latestLog.message}
+                    />
+                  )}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
 
         {/* Messages live in the sidebar's empty middle.
          *
@@ -237,32 +226,35 @@ export default function App() {
          * content. This gap is already reserved by the layout and otherwise
          * unused, so a message costs neither movement nor coverage.
          *
-         * Only the newest log shows here, and it stays until dismissed -
-         * a provider problem that was worked around is still something the
-         * user asked to see. The full list lives on the Logs page. */}
+         * Only the newest log shows here, and it stays until dismissed - a
+         * provider problem that was worked around is still something the user
+         * asked to see. The full list lives on the Logs page. */}
         <div className="toasts">
           {latestLog ? (
             <div className={`toast ${latestLog.level}`}>
               <div className="toast-head">
+                <span className="toast-kind">{latestLog.level}</span>
                 <span className="log-time">{latestLog.at}</span>
               </div>
               <div className="toast-text">{latestLog.message}</div>
               <div className="toast-actions">
-                <button onClick={() => void api.copyText(latestLog.message)}>
-                  Copy
-                </button>
-                <button
-                  onClick={() => setDismissed((d) => [...d, latestLog.id])}
-                >
+                <button onClick={() => void api.copyText(latestLog.message)}>Copy</button>
+                <button onClick={() => setDismissed((d) => [...d, latestLog.id])}>
                   Dismiss
                 </button>
+                <button onClick={() => setView("logs")}>Details</button>
               </div>
             </div>
           ) : null}
         </div>
 
         <div className="sidebar-foot">
-          <div className="status-chip">
+          <div
+            className={
+              "status-chip" +
+              (status === "recording" ? " live" : status === "idle" ? "" : " busy")
+            }
+          >
             <span
               className={
                 "dot" +
@@ -274,59 +266,74 @@ export default function App() {
               <div className="status-sub">{STATUS_SUB[status]}</div>
             </div>
           </div>
-          {appVersion && <div className="foot-version">v{appVersion}</div>}
+          {appVersion && <div className="foot-version">version {appVersion}</div>}
         </div>
       </aside>
 
       <main className="main">
-        {/* A hotkey problem is decided during startup, before this window
-            exists to be told about it, so it is asked for rather than pushed.
-            It is worth a banner: the app has no other way in, and silence was
-            precisely what made the last one hard to diagnose. */}
-        {hotkeyProblems.length > 0 && view !== "settings" && (
-          <div className="banner warn">
-            <div className="banner-text">{hotkeyProblems[0]}</div>
-            <div className="banner-actions">
-              <button onClick={() => setView("settings")}>Open settings</button>
+        <div className="page">
+          {/* A hotkey problem is decided during startup, before this window
+              exists to be told about it, so it is asked for rather than pushed.
+              It is worth a banner: the app has no other way in, and silence was
+              precisely what made the last one hard to diagnose. */}
+          {hotkeyProblems.length > 0 && view !== "settings" && (
+            <div className="banner warn">
+              <Icon name="alert" size={18} className="banner-ico" />
+              <div className="banner-text">{hotkeyProblems[0]}</div>
+              <div className="banner-actions">
+                <button className="btn sm" onClick={() => setView("settings")}>
+                  Open settings
+                </button>
+              </div>
             </div>
-          </div>
-        )}
-        {missingKeys && view !== "settings" && (
-          <div className="banner warn">
-            <div className="banner-text">
-              {missingStt
-                ? "No API key saved for the transcription provider you selected."
-                : "Refinement is on but no API key is saved for its provider."}
+          )}
+          {missingKeys && view !== "settings" && (
+            <div className="banner warn">
+              <Icon name="key" size={18} className="banner-ico" />
+              <div className="banner-text">
+                {missingStt
+                  ? "No API key saved for the transcription provider you selected. Nothing can be transcribed until one is."
+                  : "Refinement is on but no API key is saved for its provider."}
+              </div>
+              <div className="banner-actions">
+                <button className="btn sm" onClick={() => setView("settings")}>
+                  Add the key
+                </button>
+              </div>
             </div>
-            <div className="banner-actions">
-              <button onClick={() => setView("settings")}>Open settings</button>
-            </div>
-          </div>
-        )}
+          )}
 
-        {view === "home" && (
-          <Home
-            status={status}
-            settings={settings}
-            ready={!missingKeys}
-            pending={pending}
-          />
-        )}
-        {view === "todos" && <TodosView />}
-        {view === "notes" && <NotesView />}
-        {view === "history" && <HistoryView />}
-        {view === "settings" && (
-          <SettingsView settings={settings} keys={keys} onSave={saveSettings} />
-        )}
-        {view === "logs" && (
-          <LogsView
-            logs={logs}
-            onClear={() => {
-              void api.clearLogs().then(refreshLogs);
-              setDismissed([]);
-            }}
-          />
-        )}
+          {view === "home" && (
+            <Home
+              status={status}
+              settings={settings}
+              ready={!missingKeys}
+              pending={pending}
+              appVersion={appVersion}
+              onOpenSettings={() => setView("settings")}
+            />
+          )}
+          {view === "todos" && <TodosView />}
+          {view === "notes" && <NotesView />}
+          {view === "history" && <HistoryView />}
+          {view === "settings" && (
+            <SettingsView
+              settings={settings}
+              keys={keys}
+              onSave={saveSettings}
+              onPreviewTheme={setThemePreview}
+            />
+          )}
+          {view === "logs" && (
+            <LogsView
+              logs={logs}
+              onClear={() => {
+                void api.clearLogs().then(refreshLogs);
+                setDismissed([]);
+              }}
+            />
+          )}
+        </div>
       </main>
     </div>
   );

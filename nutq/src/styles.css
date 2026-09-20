@@ -1,50 +1,160 @@
-﻿/*
- * Two zones, like the reference: a dark sidebar rail and a light content area,
- * with one dark "stage" island inside the light half for the recording panel.
+/*
+ * nutq's design system.
  *
- * Tokens are scoped rather than global. `:root` carries the light content
- * palette; `.sidebar` and `.stage` redefine the same names locally, so a
- * component reads --text and gets whichever zone it happens to sit in.
+ * One token vocabulary, three zones.
+ *
+ * `:root` carries the light theme; `[data-theme="dark"]` redefines the same
+ * names, and `.zone-dark` (the sidebar, and anything that wants to read dark
+ * on a light page) redefines them locally. A component therefore never picks
+ * a colour - it reads --text, --surface, --border and gets whichever zone it
+ * happens to sit in, which is what makes one stylesheet serve both themes.
+ *
+ * Sizes are on a 4px grid and the type scale is fixed: a size that is not in
+ * the scale below does not belong on screen.
  */
 
 :root {
-  /* content zone (light) */
-  --bg: #f3f5f8;
-  --panel: #ffffff;
-  --panel-2: #eef1f5;
-  --line: #e1e6ed;
-  --text: #161b23;
-  --muted: #57626f;
-  --faint: #8895a4;
-  --accent: #0f9d76;
+  /* ---- surfaces ---------------------------------------------------- */
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --surface-2: #eff2f5;
+  --surface-3: #e5e9ef;
+  --border: #e2e7ed;
+  --border-strong: #cfd7e0;
+
+  /* ---- ink --------------------------------------------------------- */
+  --text: #111720;
+  --text-2: #56616f;
+  --text-3: #8b97a5;
+
+  /* ---- accent ------------------------------------------------------ */
+  --accent: #0d9b73;
+  --accent-hover: #0b8462;
   --accent-ink: #ffffff;
-  --danger: #c8384a;
-  --warn: #9a6400;
-  --shadow: 0 1px 2px rgba(22, 27, 35, 0.05), 0 6px 18px rgba(22, 27, 35, 0.04);
+  --accent-soft: #e7f7f1;
+  --accent-line: #b6e5d4;
+
+  /* ---- states ------------------------------------------------------ */
+  --danger: #c93a4b;
+  --danger-ink: #ffffff;
+  --danger-soft: #fdeef0;
+  --danger-line: #f2c8ce;
+  --danger-text: #9c2233;
+
+  --warn: #b57a00;
+  --warn-soft: #fdf5e6;
+  --warn-line: #ecdcb6;
+  --warn-text: #7d5300;
+
+  --ok-text: #0a6d51;
+
+  /* ---- elevation --------------------------------------------------- */
+  --shadow-1: 0 1px 2px rgba(16, 21, 28, 0.06);
+  --shadow-2: 0 1px 2px rgba(16, 21, 28, 0.05), 0 8px 22px rgba(16, 21, 28, 0.05);
+  --shadow-3: 0 24px 60px rgba(16, 21, 28, 0.22);
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+
+  /* ---- geometry ---------------------------------------------------- */
+  --r-sm: 6px;
+  --r-md: 9px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+  --r-full: 999px;
+
+  /* ---- type -------------------------------------------------------- */
+  --fs-micro: 10.5px;  /* all-caps labels */
+  --fs-xs: 11.5px;     /* meta, captions */
+  --fs-sm: 12.5px;     /* hints, secondary */
+  --fs-md: 13.5px;     /* body, controls */
+  --fs-lg: 15px;       /* reading text */
+  --fs-xl: 17px;       /* card titles */
+  --fs-2xl: 22px;      /* page title */
+  --fs-3xl: 26px;      /* figures */
+
+  --mono: "Cascadia Mono", "SF Mono", Consolas, ui-monospace, monospace;
+
+  /* The content column. Text that runs the full width of a maximised window
+   * is unreadable; every page centres itself in this. */
+  --measure: 1080px;
 
   color-scheme: light;
-  /* Vazirmatn everywhere: it is bundled with the app (@fontsource), so text
-   * renders identically offline, and its Arabic covers the UI's mixed copy. */
+  /* Vazirmatn everywhere: it ships with the app (@fontsource), so text renders
+   * identically offline, and its Arabic covers the UI's mixed copy. */
   font-family: "Vazirmatn", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
-  font-size: 14px;
+  font-size: var(--fs-md);
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Both dark zones share one palette. */
-.sidebar,
-.stage {
-  --panel: #1c212b;
-  --panel-2: #232937;
-  --line: #2b3341;
-  --text: #e7ecf3;
-  --muted: #94a1b4;
-  --faint: #6c7a8c;
+/* The dark theme. Same names, so nothing below this block knows about it. */
+[data-theme="dark"] {
+  --bg: #0d1117;
+  --surface: #161b23;
+  --surface-2: #1c222c;
+  --surface-3: #252d39;
+  --border: #242c37;
+  --border-strong: #35404f;
+
+  --text: #e9eef5;
+  --text-2: #9aa7b8;
+  --text-3: #6d7a8b;
+
   --accent: #2fd6a5;
-  --accent-ink: #06110d;
+  --accent-hover: #55e2bb;
+  --accent-ink: #06130e;
+  --accent-soft: rgba(47, 214, 165, 0.13);
+  --accent-line: rgba(47, 214, 165, 0.32);
+
   --danger: #ef6b6b;
+  --danger-ink: #1a0c0c;
+  --danger-soft: rgba(239, 107, 107, 0.13);
+  --danger-line: rgba(239, 107, 107, 0.34);
+  --danger-text: #f79191;
+
   --warn: #e5b062;
+  --warn-soft: rgba(229, 176, 98, 0.13);
+  --warn-line: rgba(229, 176, 98, 0.32);
+  --warn-text: #ecc389;
+
+  --ok-text: #6fe0bb;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 1px 2px rgba(0, 0, 0, 0.35), 0 10px 26px rgba(0, 0, 0, 0.3);
+  --shadow-3: 0 24px 60px rgba(0, 0, 0, 0.55);
 
   color-scheme: dark;
 }
+
+/* A dark island on a light page - the sidebar, and anything that belongs with
+ * it. In the dark theme it simply sits one step deeper than the page, which is
+ * how a rail reads as a rail without needing a border. */
+.zone-dark {
+  --surface: #1a212b;
+  --surface-2: #222a36;
+  --surface-3: #2b3542;
+  --border: #262f3c;
+  --border-strong: #38434f;
+  --text: #e9eef5;
+  --text-2: #98a5b6;
+  --text-3: #6d7a8b;
+  --accent: #2fd6a5;
+  --accent-hover: #55e2bb;
+  --accent-ink: #06130e;
+  --accent-soft: rgba(47, 214, 165, 0.14);
+  --accent-line: rgba(47, 214, 165, 0.3);
+  --danger: #ef6b6b;
+  --danger-soft: rgba(239, 107, 107, 0.14);
+  --danger-line: rgba(239, 107, 107, 0.36);
+  --danger-text: #f6a0a0;
+  --warn: #e5b062;
+  --warn-soft: rgba(229, 176, 98, 0.14);
+  --warn-line: rgba(229, 176, 98, 0.34);
+  --warn-text: #edc68f;
+  --ring: 0 0 0 3px rgba(47, 214, 165, 0.25);
+
+  color-scheme: dark;
+}
+
+/* ------------------------------------------------------------------ base */
 
 * {
   box-sizing: border-box;
@@ -63,6 +173,38 @@ body {
   overflow: hidden;
 }
 
+::selection {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+/* One scrollbar treatment for the whole app: the default Windows bar is wide,
+ * bright, and the loudest thing on an otherwise quiet page. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: var(--r-full);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--text-3);
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 button {
   font: inherit;
   cursor: pointer;
@@ -71,87 +213,186 @@ button {
   color: inherit;
 }
 
+/* Keyboard focus is visible everywhere, mouse focus nowhere - the ring is a
+ * navigation aid, not decoration on every click. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
 input,
 select,
 textarea {
   font: inherit;
+  font-size: var(--fs-md);
   color: var(--text);
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
   padding: 8px 11px;
   outline: none;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+textarea {
+  line-height: 1.6;
+  resize: vertical;
+  width: 100%;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-3);
+}
+
+input:hover:not(:disabled),
+select:hover:not(:disabled),
+textarea:hover:not(:disabled) {
+  border-color: var(--text-3);
 }
 
 input:focus,
 select:focus,
 textarea:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(15, 157, 118, 0.13);
+  box-shadow: var(--ring);
+  outline: none;
 }
 
 input:disabled,
-select:disabled {
-  background: var(--panel-2);
-  color: var(--faint);
+select:disabled,
+textarea:disabled {
+  background: var(--surface-2);
+  color: var(--text-3);
   cursor: not-allowed;
 }
 
-/* ---------------------------------------------------------------- shell */
+/* The native arrow is drawn by Windows in its own colours, which read as a
+ * foreign object on a dark panel; this is the same glyph in our ink. */
+select {
+  appearance: none;
+  padding-right: 30px;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 15px) calc(50% + 1px), calc(100% - 10px) calc(50% + 1px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+code,
+kbd {
+  font-family: var(--mono);
+}
+
+code {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 1px 5px;
+  font-size: var(--fs-xs);
+}
+
+/* A real keycap. Hotkeys are this product's entire interface, so they are
+ * drawn as keys rather than written as prose. */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.kbd kbd {
+  display: inline-block;
+  min-width: 20px;
+  text-align: center;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--r-sm);
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
+.kbd i {
+  font-style: normal;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+
+.kbd.unset kbd {
+  color: var(--text-3);
+  font-weight: 500;
+}
+
+/* ----------------------------------------------------------------- shell */
 
 .shell {
   display: grid;
-  grid-template-columns: 232px 1fr;
+  grid-template-columns: 236px 1fr;
   height: 100%;
 }
 
 .sidebar {
-  background: #12161d;
-  color: var(--text);
+  background: #10151c;
   display: flex;
   flex-direction: column;
-  padding: 22px 14px 14px;
+  padding: 18px 12px 12px;
+  border-right: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+[data-theme="dark"] .sidebar {
+  background: #0a0e13;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 0 8px 26px;
+  gap: 10px;
+  padding: 2px 8px 20px;
 }
 
 .brand-mark {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: linear-gradient(140deg, #2fd6a5, #1d8f6e);
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: linear-gradient(145deg, #34e0ac, #0f8a68);
   display: grid;
   place-items: center;
-  color: #06110d;
+  color: #04120d;
   font-weight: 800;
-  font-size: 17px;
+  font-size: var(--fs-lg);
+  box-shadow: 0 2px 10px rgba(47, 214, 165, 0.25);
+  flex: none;
 }
 
 .brand-name {
-  font-size: 17px;
+  font-size: var(--fs-xl);
   font-weight: 700;
-  letter-spacing: 0.02em;
+  letter-spacing: -0.01em;
   line-height: 1.1;
+  color: var(--text);
 }
 
 .brand-sub {
-  font-size: 10.5px;
-  color: var(--faint);
-  letter-spacing: 0.11em;
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  letter-spacing: 0.12em;
   text-transform: uppercase;
+  margin-top: 2px;
 }
 
 .nav-label {
-  font-size: 10.5px;
+  font-size: var(--fs-micro);
   letter-spacing: 0.13em;
   text-transform: uppercase;
-  color: var(--faint);
-  padding: 0 10px 9px;
+  color: var(--text-3);
+  padding: 12px 10px 6px;
+  font-weight: 600;
 }
 
 .nav-item {
@@ -161,17 +402,60 @@ select:disabled {
   position: relative;
   width: 100%;
   text-align: left;
-  padding: 11px 14px;
-  border-radius: 9px;
-  color: var(--muted);
+  padding: 8px 12px;
+  border-radius: var(--r-md);
+  color: var(--text-2);
+  font-size: var(--fs-md);
   font-weight: 500;
-  margin-bottom: 3px;
+  margin-bottom: 2px;
+  transition: background 0.12s ease, color 0.12s ease;
 }
 
 .nav-ico {
-  width: 18px;
-  height: 18px;
+  width: 17px;
+  height: 17px;
   flex: none;
+  opacity: 0.9;
+}
+
+.nav-item:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* Active is a tinted row with an accent edge, not a solid slab: the rail is
+ * chrome, and chrome that shouts competes with the page it frames. */
+.nav-item.active {
+  background: var(--accent-soft);
+  color: #5ee3bb;
+  font-weight: 600;
+}
+
+.nav-item.active::before {
+  content: "";
+  position: absolute;
+  left: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 18px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+}
+
+.nav-count {
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+  background: var(--surface);
+  border-radius: var(--r-full);
+  padding: 1px 7px;
+}
+
+.nav-item.active .nav-count {
+  color: var(--accent);
+  background: rgba(0, 0, 0, 0.2);
 }
 
 /* Unseen-log signal for the folded rail; hidden while the toast that carries
@@ -179,52 +463,41 @@ select:disabled {
 .nav-dot {
   display: none;
   position: absolute;
-  top: 8px;
-  right: 10px;
-  width: 7px;
-  height: 7px;
+  top: 7px;
+  right: 9px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-}
-
-.nav-item:hover {
-  background: var(--panel);
-  color: var(--text);
-}
-
-.nav-item.active {
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-weight: 650;
 }
 
 .sidebar-foot {
   margin-top: auto;
-  border-top: 1px solid var(--line);
-  padding-top: 13px;
-}
-
-/* The release actually running, read from the app config - the fastest way
- * to tell whether an install took. */
-.foot-version {
-  margin-top: 8px;
-  padding: 0 13px;
-  font-size: 10.5px;
-  color: var(--faint);
-  letter-spacing: 0.09em;
+  padding-top: 10px;
 }
 
 .status-chip {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 11px 13px;
-  background: var(--panel);
-  border-radius: 9px;
+  padding: 9px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+.status-chip.live {
+  border-color: var(--danger-line);
+  background: var(--danger-soft);
+}
+
+.status-chip.busy {
+  border-color: var(--warn-line);
+  background: var(--warn-soft);
 }
 
 .dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--accent);
   flex: none;
@@ -242,208 +515,476 @@ select:disabled {
 
 @keyframes pulse {
   50% {
-    opacity: 0.3;
+    opacity: 0.25;
   }
 }
 
 .status-name {
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   text-transform: capitalize;
+  color: var(--text);
 }
 
 .status-sub {
-  font-size: 11px;
-  color: var(--faint);
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  margin-top: 1px;
 }
 
-/* ---------------------------------------------------------------- main */
+/* The release actually running, read from the app config - the fastest way to
+ * tell whether an install took. */
+.foot-version {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 0 12px 2px;
+  font-size: var(--fs-micro);
+  color: var(--text-3);
+  letter-spacing: 0.07em;
+}
+
+.foot-version .up {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------------ main */
 
 .main {
   overflow-y: auto;
-  padding: 30px 34px 40px;
   background: var(--bg);
+  padding: 26px 32px 44px;
+}
+
+.page {
+  max-width: var(--measure);
+  margin: 0 auto;
+}
+
+/* ---- page header --------------------------------------------------- */
+
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.page-head-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.page-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding-bottom: 2px;
 }
 
 .eyebrow {
-  font-size: 10.5px;
-  letter-spacing: 0.16em;
+  font-size: var(--fs-micro);
+  letter-spacing: 0.15em;
   text-transform: uppercase;
   color: var(--accent);
   font-weight: 700;
 }
 
 h1 {
-  font-size: 23px;
-  margin: 6px 0 4px;
-  letter-spacing: -0.02em;
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  margin: 5px 0 0;
+  letter-spacing: -0.021em;
+  line-height: 1.2;
 }
 
 .lede {
-  color: var(--muted);
-  font-size: 12.5px;
-  margin: 0 0 16px;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+  margin: 5px 0 0;
+  max-width: 78ch;
 }
 
 h2 {
-  font-size: 15px;
-  margin: 0 0 14px;
+  font-size: var(--fs-xl);
+  font-weight: 650;
+  margin: 0;
+  letter-spacing: -0.014em;
+}
+
+/* ---- primitives ----------------------------------------------------- */
+
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.spacer {
+  margin-left: auto;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  font-weight: 600;
+  font-size: var(--fs-md);
+  color: var(--text);
+  white-space: nowrap;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--text-3);
+}
+
+.btn:active:not(:disabled) {
+  background: var(--surface-3);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn.primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: transparent;
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: transparent;
+}
+
+/* Destructive confirm step: clear-history and per-entry delete both land here
+ * after an explicit "are you sure", so it should read as final. */
+.btn.danger {
+  background: var(--danger);
+  color: var(--danger-ink);
+  border-color: transparent;
+}
+
+.btn.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 85%, black);
+  border-color: transparent;
+}
+
+.btn.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-2);
+  font-weight: 550;
+}
+
+.btn.ghost:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: transparent;
+  color: var(--text);
+}
+
+.btn.sm {
+  padding: 5px 10px;
+  font-size: var(--fs-sm);
+  border-radius: var(--r-sm);
+}
+
+.btn.block {
+  width: 100%;
+}
+
+/* Square icon-only button. Used for row actions, where four words of ghost
+ * text used to sit and shout. */
+.icon-btn {
+  width: 30px;
+  height: 30px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-3);
+  flex: none;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.icon-btn:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.icon-btn.danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+  border-color: var(--danger-line);
+  color: var(--danger);
+}
+
+.icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.link {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  padding: 0;
+  background: none;
+  border: 0;
+  font-size: inherit;
+}
+
+/* ---- chips and badges ----------------------------------------------- */
+
+/* A quiet fact about the thing it sits on: a mode, a duration, a count. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  background: var(--surface-2);
+  color: var(--text-2);
+  border: 1px solid transparent;
+  padding: 2px 8px;
+  border-radius: var(--r-full);
+  white-space: nowrap;
+}
+
+.chip.mono {
+  font-family: var(--mono);
+  font-weight: 500;
   letter-spacing: -0.01em;
 }
 
-/* ------------------------------------------------------------------ toasts */
-
-/* In the sidebar's reserved gap: no fixed positioning, no overlay, and no
- * reflow of the page when one arrives or leaves. */
-.toasts {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  margin-top: 14px;
+.chip.ok {
+  background: var(--accent-soft);
+  color: var(--ok-text);
+  border-color: var(--accent-line);
 }
 
-.toast {
-  border-radius: 9px;
-  padding: 9px 10px;
-  font-size: 11.5px;
-  line-height: 1.45;
-  animation: toast-in 0.16s ease-out;
+.chip.warn {
+  background: var(--warn-soft);
+  color: var(--warn-text);
+  border-color: var(--warn-line);
 }
 
-@keyframes toast-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
+.chip.bad {
+  background: var(--danger-soft);
+  color: var(--danger-text);
+  border-color: var(--danger-line);
 }
 
-.toast-text {
-  /* The messages carry deliberate blank lines separating the cause, what the
-     provider said, and the URL. Collapsing them makes it one run-on. */
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 150px;
-  overflow-y: auto;
+.chip.accent {
+  background: var(--accent-soft);
+  color: var(--ok-text);
 }
 
-.toast-actions {
-  display: flex;
-  gap: 6px;
-  margin-top: 7px;
-}
-
-.toast-actions button {
-  font: inherit;
-  font-size: 10.5px;
-  padding: 2px 7px;
-  border-radius: 5px;
-  border: 1px solid currentColor;
+.chip.plain {
   background: transparent;
-  color: inherit;
-  opacity: 0.7;
-  cursor: pointer;
+  border-color: var(--border-strong);
+  color: var(--text-2);
 }
 
-.toast-actions button:hover {
-  opacity: 1;
+/* An all-caps micro label above a value or a group of fields. */
+.label {
+  font-size: var(--fs-micro);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  font-weight: 700;
 }
 
-/* Compact mode: below 760px the window is too narrow to spend 232px on a
- * text sidebar, so the rail folds to icons only. The signals survive the
- * fold - the status chip keeps its dot, and unseen warnings keep the Logs
- * dot (hover either for the text). This query lives after the sidebar and
- * toast rules so its display:none wins the cascade. */
-@media (max-width: 760px) {
-  .shell {
-    grid-template-columns: 62px 1fr;
-  }
-
-  .sidebar {
-    padding: 16px 9px 12px;
-  }
-
-  .brand {
-    justify-content: center;
-    padding: 0 0 18px;
-  }
-
-  .brand-name,
-  .brand-sub,
-  .nav-label,
-  .nav-txt,
-  .toasts,
-  .status-txt,
-  .foot-version {
-    display: none;
-  }
-
-  .nav-item {
-    justify-content: center;
-    padding: 11px 0;
-  }
-
-  .nav-dot {
-    display: block;
-  }
-
-  .status-chip {
-    justify-content: center;
-    padding: 10px 0;
-  }
-
-  .main {
-    padding: 18px 16px 30px;
-  }
+.hint {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  line-height: 1.55;
 }
 
-/* When the newest sidebar message arrived - the thing that makes "is this
- * stale?" answerable at a glance. */
-.toast-head {
+.hint.dim {
+  color: var(--text-3);
+}
+
+.mono {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+}
+
+.nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- segmented control ---------------------------------------------- */
+
+.segmented {
+  display: inline-flex;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 3px;
+  gap: 2px;
+}
+
+.segmented button {
+  padding: 5px 12px;
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-2);
+  white-space: nowrap;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.segmented button:hover:not(.on) {
+  color: var(--text);
+}
+
+.segmented button.on {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-1);
+}
+
+.segmented.accent button.on {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.segmented.small button {
+  padding: 4px 10px;
+  font-size: var(--fs-xs);
+}
+
+/* ---- switch ---------------------------------------------------------- */
+
+.switch {
+  width: 40px;
+  height: 23px;
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  position: relative;
+  flex: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  transition: transform 0.15s ease;
+}
+
+.switch.on {
+  background: var(--accent);
+  border-color: transparent;
+}
+
+.switch.on::after {
+  transform: translateX(17px);
+  background: #fff;
+}
+
+.switch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---- cards ----------------------------------------------------------- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-1);
+}
+
+.card-head {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 3px;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
 }
 
-/* Muted against the dark rail - a message should read, not shout. */
-.toast.warn {
-  background: rgba(229, 176, 98, 0.14);
-  border: 1px solid rgba(229, 176, 98, 0.35);
-  color: #e5b062;
+.card-head h2 {
+  font-size: var(--fs-md);
+  font-weight: 650;
 }
 
-.toast.error {
-  background: rgba(239, 107, 107, 0.14);
-  border: 1px solid rgba(239, 107, 107, 0.38);
-  color: #ef6b6b;
+.card-body {
+  padding: 16px;
 }
 
-/* Provenance line under the latest result, matching a history row. */
-.result-meta {
+.card-foot {
+  padding: 11px 16px;
+  border-top: 1px solid var(--border);
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 10px;
 }
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ---- banners --------------------------------------------------------- */
 
 .banner {
   display: flex;
-  /* Diagnostics run to several lines; centring them looks broken and hides
-     the first line behind the buttons on the right. */
+  /* Diagnostics run to several lines; centring them looks broken and hides the
+     first line behind the buttons on the right. */
   align-items: flex-start;
   gap: 12px;
-  padding: 13px 16px;
-  border-radius: 11px;
-  margin-bottom: 20px;
-  font-size: 13px;
+  padding: 12px 14px;
+  border-radius: var(--r-lg);
+  margin-bottom: 14px;
+  font-size: var(--fs-md);
   line-height: 1.55;
+  border: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.banner-ico {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
 }
 
 .banner-text {
   /* The messages carry deliberate blank lines separating the cause, what the
-     provider said, and the URL. Collapsing them makes the whole thing one
-     unreadable run-on. */
+     provider said, and the URL. Collapsing them makes one unreadable run-on. */
   white-space: pre-wrap;
   word-break: break-word;
   flex: 1;
@@ -459,506 +1000,1105 @@ h2 {
 }
 
 .banner.warn {
-  background: #fdf6e6;
-  border: 1px solid #eddcb4;
-  color: #7a5000;
+  background: var(--warn-soft);
+  border-color: var(--warn-line);
+  color: var(--warn-text);
 }
 
 .banner.error {
-  background: #fdeef0;
-  border: 1px solid #f2c6cd;
-  color: #9c2233;
+  background: var(--danger-soft);
+  border-color: var(--danger-line);
+  color: var(--danger-text);
 }
 
 .banner.ok {
-  background: #e9f8f2;
-  border: 1px solid #b8e5d4;
-  color: #0b6f53;
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  color: var(--ok-text);
 }
 
-.banner button {
-  margin-left: auto;
-  font-weight: 600;
-  padding: 6px 12px;
-  border-radius: 7px;
-  background: rgba(0, 0, 0, 0.06);
-  flex: none;
+.banner .btn {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  border-color: color-mix(in srgb, currentColor 25%, transparent);
+  color: inherit;
 }
 
-/* Four figures across, collapsing to two on a narrow window. */
-.stats {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-  margin-top: 12px;
+.banner .btn:hover:not(:disabled) {
+  background: color-mix(in srgb, currentColor 18%, transparent);
+  border-color: currentColor;
+  color: inherit;
 }
 
-@media (max-width: 860px) {
-  .stats {
-    grid-template-columns: repeat(2, 1fr);
+/* ---- toasts in the rail ---------------------------------------------- */
+
+/* In the sidebar's reserved gap: no fixed positioning, no overlay, and no
+ * reflow of the page when one arrives or leaves. */
+.toasts {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 16px;
+  min-height: 0;
+}
+
+.toast {
+  border-radius: var(--r-md);
+  padding: 10px 11px;
+  font-size: var(--fs-xs);
+  line-height: 1.5;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  animation: toast-in 0.16s ease-out;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
   }
 }
 
-.stage {
-  background: #131922;
-  color: var(--text);
-  border-radius: 12px;
-  padding: 12px 14px;
-  box-shadow: 0 6px 18px rgba(19, 25, 34, 0.14);
-}
-
-/* One row: control, state, level, mode. */
-.stage.bar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.stage-copy {
-  flex: none;
-  min-width: 108px;
-}
-
-.stage-state {
-  font-size: 13.5px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-
-.stage-hint {
-  font-size: 11px;
-  color: var(--faint);
-  margin-top: 1px;
-}
-
-/* Takes the slack so the mode buttons stay pinned right. */
-.stage.bar .wave {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-}
-
-.stage-head {
+.toast-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 12.5px;
-  color: var(--faint);
+  gap: 8px;
+  margin-bottom: 5px;
 }
 
-.stage-title {
-  font-size: 26px;
+.toast-kind {
+  font-size: var(--fs-micro);
   font-weight: 700;
-  line-height: 1.25;
-  margin: 20px 0 26px;
-  letter-spacing: -0.02em;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
+.toast-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 132px;
+  overflow-y: auto;
+  color: var(--text-2);
+}
 
+.toast-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
 
-.mic {
-  width: 118px;
-  height: 118px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 34% 28%, #2fd6a5, #1d8f6e);
-  color: #06110d;
+.toast-actions button {
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-2);
+}
+
+.toast-actions button:hover {
+  color: var(--text);
+  border-color: var(--text-3);
+}
+
+.toast.warning {
+  background: var(--warn-soft);
+  border-color: var(--warn-line);
+}
+
+.toast.warning .toast-kind {
+  color: var(--warn);
+}
+
+.toast.error {
+  background: var(--danger-soft);
+  border-color: var(--danger-line);
+}
+
+.toast.error .toast-kind {
+  color: var(--danger);
+}
+
+/* ---- empty states ---------------------------------------------------- */
+
+.empty {
   display: grid;
   place-items: center;
-  box-shadow: 0 0 0 9px rgba(47, 214, 165, 0.1);
-  transition: transform 0.15s, box-shadow 0.2s;
+  gap: 6px;
+  text-align: center;
+  padding: 54px 24px;
+  color: var(--text-3);
+  background: var(--surface);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-lg);
 }
 
-/* Inline size for the bar layout - the 118px circle was built for a panel
- * that no longer exists. */
-.mic.small {
-  width: 40px;
-  height: 40px;
-  flex: none;
-  box-shadow: 0 0 0 5px rgba(47, 214, 165, 0.1);
+.empty-title {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text-2);
 }
 
-.mic:hover:not(:disabled) {
-  transform: scale(1.04);
+.empty-sub {
+  font-size: var(--fs-sm);
+  max-width: 46ch;
+  line-height: 1.6;
 }
 
-.mic:disabled {
-  opacity: 0.4;
+/* ------------------------------------------------------------ home page */
+
+/* The launcher: one tile per dictation line, plus the live state of the
+ * microphone. The controls are pressed by a global hotkey from other
+ * applications, so this is a mirror and a fallback, not the main event - it
+ * gets one card, not half the window. */
+.launcher {
+  overflow: hidden;
+}
+
+.launcher-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.launcher-state {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: var(--fs-md);
+  font-weight: 650;
+}
+
+.launcher-sub {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  font-weight: 500;
+  margin-top: 1px;
+}
+
+.line-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 8px;
+  padding: 14px 16px 16px;
+}
+
+.line-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  transition: border-color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
+}
+
+.line-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.line-btn.live {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  box-shadow: 0 0 0 3px var(--danger-soft);
+}
+
+.line-btn:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-.mic.live {
-  background: radial-gradient(circle at 34% 28%, #ff8080, #c23c3c);
-  box-shadow: 0 0 0 9px rgba(239, 107, 107, 0.15);
+.line-name {
+  font-size: var(--fs-md);
+  font-weight: 650;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
 }
 
+.line-name .dot {
+  margin-left: auto;
+}
+
+.line-meta {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* The live level meter. Idle it is a flat line of ticks; recording it dances.
+ * It lives in the launcher header so the card has one obvious "am I live?". */
 .wave {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 4px;
-  height: 26px;
-  margin-bottom: 22px;
+  gap: 3px;
+  height: 22px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  justify-content: flex-end;
 }
 
 .wave i {
   width: 3px;
-  height: 4px;
+  height: 3px;
   border-radius: 2px;
-  background: var(--line);
+  background: var(--border-strong);
   display: block;
 }
 
 .wave.live i {
-  background: var(--accent);
+  background: var(--danger);
   animation: bounce 0.9s ease-in-out infinite;
 }
 
 @keyframes bounce {
   50% {
-    height: 21px;
+    height: 18px;
   }
 }
 
-.mode-row {
+/* ---- stats ----------------------------------------------------------- */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 13px 15px;
+  box-shadow: var(--shadow-1);
+  min-width: 0;
+}
+
+.stat-label {
+  font-size: var(--fs-micro);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  font-weight: 700;
+}
+
+.stat-value {
+  font-size: var(--fs-3xl);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.25;
+  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-note {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  margin-top: 3px;
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The pipeline card trades the big figure for two model names. */
+.stat-chain {
+  margin-top: 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--fs-xs);
+}
+
+.stat-chain span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.stat-chain b {
+  font-weight: 600;
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stat-chain em {
+  font-style: normal;
+  color: var(--text-3);
+  flex: none;
+}
+
+/* ---- provider allowance ---------------------------------------------- */
+
+.quota-block + .quota-block {
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px solid var(--border);
+}
+
+.quota-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  margin-bottom: 10px;
+}
+
+.quota-host {
+  font-weight: 650;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+}
+
+.quota-at {
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  margin-left: auto;
+}
+
+.quota-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 26px;
+}
+
+.quota-kind {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.quota-nums {
+  font-size: var(--fs-lg);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+  margin-top: 2px;
+}
+
+.quota-nums b {
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* A day's progress reads faster as a bar than as a percentage. */
+.quota-bar {
+  height: 5px;
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  margin-top: 12px;
+  overflow: hidden;
+}
+
+.quota-bar span {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  transition: width 0.3s ease;
+}
+
+.quota-bar.tight span {
+  background: var(--warn);
+}
+
+/* Only appears when the instantaneous allowance is actually close. */
+.quota-tight {
+  margin-top: 8px;
+  font-size: var(--fs-xs);
+  color: var(--warn-text);
+}
+
+/* ---- result ---------------------------------------------------------- */
+
+.result-text {
+  white-space: pre-wrap;
+  line-height: 1.75;
+  font-size: var(--fs-lg);
+  color: var(--text);
+  /* The tallest thing on the page on purpose: this is what the page is for. */
+  min-height: 150px;
+  max-height: 44vh;
+  overflow-y: auto;
+}
+
+.result-text.empty-text {
+  color: var(--text-3);
+  display: grid;
+  place-items: center;
+  text-align: center;
+  font-size: var(--fs-md);
+}
+
+/* Provenance row: which models wrote this and which microphone heard it. */
+.meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+/* ---- pending / update cards ------------------------------------------ */
+
+.pending-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
+  padding: 11px 0;
+  border-top: 1px solid var(--border);
 }
 
-.mode-label {
-  font-size: 10.5px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--faint);
+.pending-row:first-of-type {
+  border-top: none;
+  padding-top: 2px;
 }
 
-.segmented {
-  display: flex;
-  background: var(--panel-2);
-  border-radius: 9px;
-  padding: 3px;
-  gap: 2px;
-}
-
-.segmented button {
-  padding: 7px 14px;
-  border-radius: 7px;
-  font-size: 12.5px;
-  font-weight: 550;
-  color: var(--muted);
-}
-
-.segmented button.on {
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-weight: 650;
-}
-
-
-
-.card {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 11px 13px;
-  box-shadow: var(--shadow);
-}
-
-.card.accent {
-  background: #e9f8f2;
-  border-color: #c4e8da;
-}
-
-.card-label {
-  font-size: 9.5px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--faint);
-  margin-bottom: 4px;
+.pending-title {
   font-weight: 600;
+  font-size: var(--fs-md);
 }
 
-.card-big {
-  font-size: 19px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-
-.card-note {
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 3px;
-  line-height: 1.45;
-}
-
-.result {
-  margin-top: 12px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 13px;
-  padding: 19px 20px;
-  box-shadow: var(--shadow);
-}
-
-.result-head {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  margin-bottom: 13px;
-  flex-wrap: wrap;
-}
-
-.pill {
-  font-size: 10.5px;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  background: var(--panel-2);
-  color: var(--muted);
-  padding: 4px 9px;
-  border-radius: 6px;
-  font-weight: 600;
-}
-
-.result-text {
-  white-space: pre-wrap;
-  line-height: 1.7;
-  font-size: 15px;
-  color: var(--text);
-  /* The tallest thing on the page on purpose: this is what the page is for. */
-  min-height: 190px;
-  max-height: 46vh;
-  overflow-y: auto;
-}
-
-.result-text.empty {
-  color: var(--faint);
-}
-
-.btn {
-  padding: 8px 15px;
-  border-radius: 8px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  font-weight: 600;
-  font-size: 13px;
-  color: var(--text);
-}
-
-.btn:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.btn.primary {
-  background: var(--accent);
-  color: var(--accent-ink);
-  border-color: transparent;
-}
-
-.btn.primary:hover:not(:disabled) {
-  background: #0c8763;
-  color: var(--accent-ink);
-}
-
-/* Destructive confirm step: clear-history and per-entry delete both land on
- * this after an explicit "are you sure", so it should read as final. */
-.btn.danger {
-  background: var(--danger);
-  color: #fff;
-  border-color: transparent;
-}
-
-.btn.danger:hover:not(:disabled) {
-  background: #b13241;
-  color: #fff;
-}
-
-.btn.ghost {
-  background: none;
-  border-color: transparent;
-  color: var(--muted);
-}
-
-.spacer {
-  margin-left: auto;
+.pending-err {
+  color: var(--danger-text);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+  max-width: 62ch;
 }
 
 /* ---------------------------------------------------------------- forms */
 
+/* One setting per row: name and hint on the left, the control on the right,
+ * with the control column capped so a select does not stretch to the width of
+ * a maximised window. */
 .field {
   display: grid;
-  grid-template-columns: 250px 1fr;
-  gap: 16px;
+  grid-template-columns: minmax(200px, 1fr) minmax(0, 340px);
+  gap: 20px;
   align-items: center;
-  padding: 9px 0;
-  border-bottom: 1px solid var(--line);
+  padding: 13px 0;
+  border-bottom: 1px solid var(--border);
 }
 
 .field:last-child {
   border-bottom: none;
 }
 
+/* For controls that need the whole width: a prompt box, a model row with its
+ * own button, a grid of theme chips. */
+.field.wide {
+  grid-template-columns: 1fr;
+  gap: 8px;
+  align-items: stretch;
+}
+
 .field-name {
   font-weight: 600;
-}
-
-.field-hint {
-  font-size: 12px;
-  color: var(--faint);
-  margin-top: 3px;
-  line-height: 1.45;
-  font-weight: 400;
-}
-
-.field input,
-.field select,
-.field textarea {
-  width: 100%;
-}
-
-.row {
+  font-size: var(--fs-md);
   display: flex;
-  gap: 9px;
   align-items: center;
+  gap: 7px;
   flex-wrap: wrap;
 }
 
-.switch {
-  width: 44px;
-  height: 25px;
-  border-radius: 13px;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  position: relative;
-  flex: none;
-  transition: background 0.15s;
+.field-hint {
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+  margin-top: 4px;
+  line-height: 1.55;
+  font-weight: 400;
+  max-width: 68ch;
 }
 
-.switch::after {
-  content: "";
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 19px;
-  height: 19px;
-  border-radius: 50%;
-  background: var(--faint);
-  transition: transform 0.15s, background 0.15s;
+.field-control {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
-.switch.on {
-  background: var(--accent);
-  border-color: transparent;
+.field-control > input,
+.field-control > select,
+.field-control > textarea,
+.field-control > .grow,
+.field-control > .choices,
+.field-control > .theme-grid {
+  width: 100%;
+  min-width: 0;
 }
 
-.switch.on::after {
-  transform: translateX(19px);
-  background: #fff;
+.field.wide .field-control {
+  justify-content: flex-start;
 }
 
-.link {
-  color: var(--accent);
-  font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  padding: 0;
+/* A group of rows that belong together inside a section, e.g. the backup
+ * provider's own two fields. */
+.subgroup {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  padding: 2px 14px;
+  margin: 4px 0 14px;
 }
 
-code {
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 1px 5px;
-  font-size: 11.5px;
-  font-family: "Cascadia Mono", Consolas, monospace;
+.subgroup .field {
+  border-bottom-color: var(--border-strong);
 }
 
-.tag-ok {
-  color: var(--accent);
-  font-size: 12px;
-  font-weight: 600;
+.subgroup .field:last-child {
+  border-bottom: none;
 }
-
-.tag-missing {
-  color: #b06a00;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-/* ---------------------------------------------------------------- lists */
 
 .list-row {
   display: grid;
   grid-template-columns: 1fr 1fr auto;
-  gap: 9px;
+  gap: 8px;
   margin-bottom: 8px;
+  align-items: center;
 }
 
-.icon-btn {
-  width: 34px;
+/* ------------------------------------------------------------- settings */
+
+/* Two columns: the section list, and the section. A seven-name tab strip made
+ * every group look equally important and hid the last two off the edge. */
+.settings-layout {
+  display: grid;
+  grid-template-columns: 208px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.settings-nav {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.settings-nav .label {
+  padding: 12px 10px 5px;
+}
+
+.settings-nav .label:first-child {
+  padding-top: 0;
+}
+
+.snav {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 11px;
+  border-radius: var(--r-md);
+  color: var(--text-2);
+  font-size: var(--fs-md);
+  font-weight: 550;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.snav:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.snav.on {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 7px 10px;
+  color: var(--text);
+  font-weight: 650;
+  box-shadow: var(--shadow-1);
+}
+
+.snav svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  color: var(--text-3);
+}
+
+.snav.on svg {
+  color: var(--accent);
+}
+
+.snav .warn-dot {
+  margin-left: auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+  flex: none;
+}
+
+.section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 0 18px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-1);
+}
+
+.section-head {
+  padding: 15px 0 12px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2px;
+}
+
+.section-title {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.section-sub {
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+  margin-top: 4px;
+  line-height: 1.55;
+  max-width: 76ch;
+}
+
+.section-foot {
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+}
+
+/* The save bar. Settings are a draft until saved, and the only honest place
+ * for that fact is pinned to the bottom of the page it applies to. */
+.savebar {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 11px 14px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border-strong);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-2);
+}
+
+.savebar.dirty {
+  border-color: var(--accent-line);
+}
+
+.savebar-text {
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.savebar-text b {
+  color: var(--text);
+  font-weight: 650;
+}
+
+/* ---- the lines list --------------------------------------------------- */
+
+.line-card {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  margin-bottom: 8px;
+  overflow: hidden;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.line-card.open {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-1);
+}
+
+.line-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.line-card-grip {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: none;
+}
+
+.line-card-grip button {
+  width: 20px;
+  height: 14px;
   display: grid;
   place-items: center;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  color: var(--muted);
+  color: var(--text-3);
+  border-radius: 3px;
+  line-height: 0;
 }
 
-.icon-btn:hover {
-  color: var(--danger);
-  border-color: var(--danger);
+.line-card-grip button:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
 }
+
+.line-card-grip button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.line-card-open {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 3px 4px;
+  border-radius: var(--r-sm);
+}
+
+.line-card-open:hover {
+  background: var(--surface-2);
+}
+
+.line-card-title {
+  font-weight: 650;
+  font-size: var(--fs-md);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.line-card-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.chev {
+  margin-left: auto;
+  color: var(--text-3);
+  flex: none;
+  transition: transform 0.15s ease;
+}
+
+.line-card.open .chev {
+  transform: rotate(90deg);
+}
+
+.line-card-body {
+  padding: 2px 14px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+/* Two fields side by side inside a line's panel. */
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.pair > div {
+  min-width: 0;
+}
+
+.stack-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.stack-field:last-child {
+  border-bottom: none;
+}
+
+/* ---- hotkey capture --------------------------------------------------- */
+
+.hotkey-field {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+  min-width: 0;
+}
+
+/* Reads as an input, behaves as a button: clicking it starts listening. */
+.hotkey-capture {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font: inherit;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  padding: 6px 12px;
+  min-height: 36px;
+  min-width: 150px;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.hotkey-capture:hover:not(:disabled) {
+  border-color: var(--text-3);
+}
+
+.hotkey-capture.capturing {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: var(--ring);
+}
+
+.hotkey-capture:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.hotkey-note {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  line-height: 1.45;
+}
+
+.hotkey-bad {
+  color: var(--danger-text);
+}
+
+/* ---- diagnostics box --------------------------------------------------- */
+
+.diag {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 12px 14px;
+  margin: 0 0 12px;
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+  background: var(--surface-2);
+}
+
+.diag.ok {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+
+.diag.bad {
+  background: var(--danger-soft);
+  border-color: var(--danger-line);
+}
+
+.diag-title {
+  font-weight: 700;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.diag.ok .diag-title {
+  color: var(--ok-text);
+}
+
+.diag.bad .diag-title {
+  color: var(--danger-text);
+}
+
+.diag-detail {
+  color: var(--text-2);
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* ---- theme and pill pickers -------------------------------------------- */
+
+.theme-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.theme-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 11px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-sm);
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.theme-chip:hover {
+  border-color: var(--text-3);
+}
+
+.theme-chip.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 650;
+}
+
+.theme-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.theme-bg {
+  width: 15px;
+  height: 11px;
+  border-radius: 4px;
+  flex: none;
+}
+
+/* Radio cards: a choice with a name and a sentence, for settings where the
+ * option needs explaining (appearance, wave shape, destination). */
+.choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: 8px;
+}
+
+.choice {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.choice:hover {
+  border-color: var(--text-3);
+}
+
+.choice.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.choice-name {
+  font-size: var(--fs-md);
+  font-weight: 650;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.choice.on .choice-name {
+  color: var(--ok-text);
+}
+
+.choice-hint {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  line-height: 1.5;
+}
+
+/* -------------------------------------------------------------- history */
 
 .hist {
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  padding: 15px 17px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
   margin-bottom: 10px;
-  background: var(--panel);
-  box-shadow: var(--shadow);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
 }
 
 .hist-meta {
   display: flex;
   align-items: center;
-  gap: 9px;
-  font-size: 11.5px;
-  color: var(--faint);
-  margin-bottom: 9px;
+  gap: 8px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  padding: 10px 14px;
   flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
 }
 
-/* The model chain that produced this entry, e.g. "gemini-3.8-flash · backup → glm-5.3". */
+.hist-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+/* The model chain that produced this entry. */
 .hist-models {
-  font-family: "Cascadia Mono", Consolas, monospace;
-  font-size: 11px;
-  color: var(--muted);
-  background: var(--panel-2);
-  border-radius: 6px;
-  padding: 2px 7px;
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 1px 7px;
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* Provenance row: which mic this came from, and the clip itself. Sits between
- * the meta line and the text so the text stays the thing you read first. */
+/* Provenance row: which mic this came from, and the clip itself. */
 .hist-source {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  margin-bottom: 10px;
+  padding: 10px 14px 0;
 }
 
 .hist-mic {
-  font-size: 11.5px;
-  color: var(--muted);
-  background: var(--panel-2);
-  border-radius: 6px;
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  background: var(--surface-2);
+  border-radius: var(--r-sm);
   padding: 3px 8px;
   max-width: 320px;
   overflow: hidden;
@@ -975,105 +2115,79 @@ code {
 }
 
 .hist-audio-error {
-  font-size: 11.5px;
-  color: var(--danger);
+  font-size: var(--fs-xs);
+  color: var(--danger-text);
 }
 
 .hist-text {
   white-space: pre-wrap;
-  line-height: 1.6;
-  max-height: 130px;
+  line-height: 1.65;
+  padding: 12px 14px 14px;
+  max-height: 128px;
   overflow: hidden;
+  position: relative;
+  font-size: var(--fs-md);
 }
 
-.empty-state {
-  text-align: center;
-  padding: 60px 20px;
-  color: var(--faint);
+/* A clamped entry fades out instead of guillotining a line in half. */
+.hist-text.clipped::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 44px;
+  background: linear-gradient(to bottom, transparent, var(--surface));
+  pointer-events: none;
 }
 
-/* ----------------------------------------------------------- logs page */
-
-/* One filed warning/error. Lighter than a history row - these are read once
- * for context, not revisited like dictations. */
-.log-row {
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  padding: 13px 15px;
-  margin-bottom: 9px;
-  background: var(--panel);
-  box-shadow: var(--shadow);
+.hist-text.open {
+  max-height: none;
 }
 
-.log-head {
+.hist-more {
+  padding: 0 14px 12px;
+}
+
+.pager {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 7px;
+  justify-content: center;
+  gap: 12px;
+  margin: 16px 0 4px;
 }
 
-.log-level.warning {
-  background: #fdf3e2;
-  color: #9a6400;
-}
-
-.log-level.error {
-  background: #fdeef0;
-  color: #c8384a;
-}
-
-.log-time {
-  font-size: 11px;
-  color: var(--faint);
+.pager-info {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
 
-.log-msg {
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-size: 12.5px;
-  line-height: 1.55;
-  color: var(--muted);
-  max-height: 200px;
-  overflow-y: auto;
-}
+/* ---- usage chart ------------------------------------------------------- */
 
-/* ------------------------------------------------------------ usage chart */
-
-/* The daily-usage card at the top of History. One toggle switches between
- * two faces of the same buckets: "Charts" (two stacked bar panels on a real
- * SVG axis) and "Analysis" (heat strips, per-model table, computed notes). */
 .usage-card {
   position: relative;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 13px;
-  padding: 15px 17px 13px;
-  margin-bottom: 16px;
-  box-shadow: var(--shadow);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 14px 16px 12px;
+  box-shadow: var(--shadow-1);
 }
 
 .usage-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 12px;
-}
-
-.usage-title {
-  font-size: 10.5px;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
-  color: var(--faint);
-  font-weight: 700;
+  margin-bottom: 14px;
 }
 
 .usage-totals {
-  font-size: 11.5px;
-  color: var(--muted);
+  font-size: var(--fs-xs);
+  color: var(--text-3);
   font-variant-numeric: tabular-nums;
+  margin-top: 3px;
 }
 
 .usage-controls {
@@ -1095,19 +2209,20 @@ code {
   z-index: 5;
   pointer-events: none;
   max-width: 250px;
-  background: #161b23;
-  color: #e7ecf3;
-  border-radius: 9px;
+  background: #10151c;
+  color: #e9eef5;
+  border: 1px solid #2b3441;
+  border-radius: var(--r-md);
   padding: 9px 12px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   line-height: 1.55;
-  box-shadow: 0 6px 20px rgba(22, 27, 35, 0.28);
+  box-shadow: var(--shadow-3);
   font-variant-numeric: tabular-nums;
 }
 
 .usage-tip b {
   display: block;
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   margin-bottom: 3px;
 }
 
@@ -1134,16 +2249,16 @@ code {
 /* The Analysis view: two aligned heat strips (audio, then requests), the
  * per-model table, and the auto-computed notes underneath. */
 .ledger-label {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 600;
-  color: var(--muted);
+  color: var(--text-2);
   margin: 2px 0 7px;
 }
 
 .ledger-label span {
-  color: var(--faint);
+  color: var(--text-3);
   font-weight: 400;
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 .ledger-strip {
@@ -1168,7 +2283,7 @@ code {
   gap: 3px;
   margin: 2px 0 18px;
   font-size: 10px;
-  color: var(--faint);
+  color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1190,20 +2305,20 @@ code {
 
 .ledger-table th {
   text-align: left;
-  font-size: 10.5px;
+  font-size: var(--fs-micro);
   text-transform: uppercase;
   letter-spacing: 0.09em;
-  color: var(--faint);
+  color: var(--text-3);
   font-weight: 700;
   padding: 0 10px 7px 0;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
 
 .ledger-table td {
   padding: 9px 10px 9px 0;
-  border-bottom: 1px solid var(--line);
-  font-size: 12.5px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-sm);
   font-variant-numeric: tabular-nums;
   vertical-align: middle;
   white-space: nowrap;
@@ -1216,8 +2331,8 @@ code {
 
 .ledger-table em {
   font-style: normal;
-  color: var(--faint);
-  font-size: 11px;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
   margin-left: 5px;
 }
 
@@ -1236,9 +2351,9 @@ code {
 }
 
 .ledger-share {
-  height: 9px;
-  border-radius: 5px;
-  background: var(--panel-2);
+  height: 8px;
+  border-radius: var(--r-full);
+  background: var(--surface-3);
   overflow: hidden;
 }
 
@@ -1248,20 +2363,20 @@ code {
   min-width: 2px;
 }
 
-/* Which color belongs to which model. */
+/* Which colour belongs to which model. */
 .chart-legend {
   display: flex;
   flex-wrap: wrap;
   gap: 5px 14px;
-  margin-top: 9px;
+  margin-top: 10px;
 }
 
 .chart-key {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 10.5px;
-  color: var(--muted);
+  font-size: var(--fs-micro);
+  color: var(--text-2);
   white-space: nowrap;
   max-width: 150px;
   overflow: hidden;
@@ -1275,8 +2390,8 @@ code {
   flex: none;
 }
 
-/* The Analysis notes: one line per computed observation, each with a quiet
- * accent dot. Values carry the weight, so the sentences stay muted. */
+/* The Analysis notes: one line per computed observation. Values carry the
+ * weight, so the sentences stay muted. */
 .usage-reads {
   margin: 0;
   padding: 0;
@@ -1287,20 +2402,20 @@ code {
   position: relative;
   padding-left: 18px;
   margin-bottom: 8px;
-  font-size: 12.5px;
-  color: var(--muted);
+  font-size: var(--fs-sm);
+  color: var(--text-2);
 }
 
 .usage-reads li::before {
   content: "";
   position: absolute;
   left: 2px;
-  top: 0.5em;
-  width: 8px;
-  height: 8px;
+  top: 0.55em;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--accent);
-  opacity: 0.8;
+  opacity: 0.85;
 }
 
 .usage-reads b {
@@ -1308,57 +2423,222 @@ code {
   font-weight: 650;
 }
 
-/* ---------------------------------------------------------------- pager */
+/* ------------------------------------------------------------ notes/todo */
 
-.pager {
+.note-head {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 13px;
-  margin: 16px 0 4px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
-.pager-info {
-  font-size: 11.5px;
-  color: var(--faint);
+.note-title {
+  font-size: var(--fs-md);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 44ch;
+}
+
+.note-text {
+  white-space: pre-wrap;
+  line-height: 1.75;
+  font-size: var(--fs-md);
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+/* The kind picker styled as a badge on note cards. Only the background
+ * *colour* is set here: the shorthand would drop the arrow the base `select`
+ * rule draws, and a select with no arrow reads as a label. */
+.pill-select {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-full);
+  background-color: var(--surface-2);
+  color: var(--text-2);
+  font: inherit;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  padding: 2px 24px 2px 9px;
+  background-position: calc(100% - 12px) calc(50% + 1px), calc(100% - 8px) calc(50% + 1px);
+  cursor: pointer;
+}
+
+.todo-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.todo-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: var(--r-sm);
+}
+
+.todo-item:hover {
+  background: var(--surface-2);
+}
+
+.todo-item .icon-btn {
+  opacity: 0;
+}
+
+.todo-item:hover .icon-btn,
+.todo-item .icon-btn:focus-visible {
+  opacity: 1;
+}
+
+.todo-check {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 5px;
+  background: transparent;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  padding: 0;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.todo-check:hover {
+  border-color: var(--accent);
+}
+
+.todo-check.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.todo-text {
+  flex: 1;
+  font-size: var(--fs-md);
+  line-height: 1.5;
+}
+
+.todo-item.done .todo-text {
+  text-decoration: line-through;
+  color: var(--text-3);
+}
+
+.todo-progress {
+  height: 4px;
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.todo-progress span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--r-full);
+  transition: width 0.25s ease;
+}
+
+/* ----------------------------------------------------------------- logs */
+
+.log-row {
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: var(--r-md);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.log-row.warning {
+  border-left-color: var(--warn);
+}
+
+.log-row.error {
+  border-left-color: var(--danger);
+}
+
+.log-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 6px;
+}
+
+.log-time {
+  font-size: var(--fs-xs);
+  color: var(--text-3);
   font-variant-numeric: tabular-nums;
 }
 
-/* ------------------------------------------------------------- dialog */
+.log-msg {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+  color: var(--text-2);
+  max-height: 200px;
+  overflow-y: auto;
+}
 
-/* Clearing history is irreversible, so its confirmation is a real modal
- * rather than buttons swapping in place - an inline change can be clicked
- * through on momentum, a dimmed page cannot. */
+/* --------------------------------------------------------------- dialog */
+
+/* Clearing history is irreversible, so its confirmation is a real modal rather
+ * than buttons swapping in place - an inline change can be clicked through on
+ * momentum, a dimmed page cannot. */
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 19, 26, 0.48);
+  background: rgba(10, 14, 19, 0.55);
+  backdrop-filter: blur(2px);
   display: grid;
   place-items: center;
   z-index: 60;
+  animation: fade-in 0.12s ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
 }
 
 .modal {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
   padding: 20px 22px;
-  width: min(430px, calc(100vw - 70px));
-  box-shadow: 0 18px 50px rgba(22, 27, 35, 0.28);
+  width: min(440px, calc(100vw - 70px));
+  box-shadow: var(--shadow-3);
+  animation: modal-in 0.16s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
 }
 
 .modal-title {
-  font-size: 15.5px;
+  font-size: var(--fs-xl);
   font-weight: 700;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
   margin-bottom: 8px;
 }
 
 .modal-text {
-  margin: 0 0 16px;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.55;
+  margin: 0 0 18px;
+  color: var(--text-2);
+  font-size: var(--fs-md);
+  line-height: 1.6;
 }
 
 .modal-actions {
@@ -1367,241 +2647,7 @@ code {
   gap: 8px;
 }
 
-/* The chart's range filter, compact enough to sit in the card header. */
-.segmented.small button {
-  padding: 4px 10px;
-  font-size: 11.5px;
-  border-radius: 6px;
-}
-
-/* ------------------------------------------------------------ settings tabs */
-
-.tabs {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 14px;
-  padding: 3px;
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  /* Five names fit a normal window; a narrow one scrolls rather than wraps
-     into a second row that shifts everything below it. */
-  overflow-x: auto;
-}
-
-.tab {
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-  padding: 7px 13px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.tab:hover {
-  color: var(--text);
-}
-
-.tab.on {
-  background: var(--panel);
-  color: var(--text);
-  box-shadow: var(--shadow);
-}
-
-.section {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 13px;
-  padding: 4px 18px;
-  margin-bottom: 14px;
-  box-shadow: var(--shadow);
-}
-
-.section-title {
-  font-size: 10.5px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--faint);
-  padding: 14px 0 2px;
-  font-weight: 700;
-}
-
-/* ------------------------------------------------------ diagnostics box */
-
-.diag {
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 13px 15px;
-  margin: 0 0 14px;
-  font-size: 12.5px;
-  line-height: 1.6;
-  background: var(--panel-2);
-}
-
-.diag.ok {
-  background: #e9f8f2;
-  border-color: #b8e5d4;
-}
-
-.diag.bad {
-  background: #fdeef0;
-  border-color: #f2c6cd;
-}
-
-.diag-title {
-  font-weight: 700;
-  margin-bottom: 5px;
-}
-
-.diag-detail {
-  color: var(--muted);
-  word-break: break-word;
-}
-
-.diag-url {
-  font-family: "Cascadia Mono", Consolas, monospace;
-  font-size: 11.5px;
-  color: var(--muted);
-  word-break: break-all;
-  margin-top: 5px;
-}
-
-/* --------------------------------------------------------- provider budget */
-
-/* Sits inside the dark stage panel under the stat cards, so it reads as part
- * of the same summary rather than a separate widget. */
-.quota {
-  margin-top: 14px;
-  padding-top: 13px;
-  border-top: 1px solid var(--line);
-}
-
-.quota-block + .quota-block {
-  margin-top: 13px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-}
-
-/* A day's progress reads faster as a bar than as a percentage. */
-.quota-bar {
-  height: 4px;
-  border-radius: 2px;
-  background: var(--panel-2);
-  margin-top: 10px;
-  overflow: hidden;
-}
-
-.quota-bar span {
-  display: block;
-  height: 100%;
-  border-radius: 2px;
-  background: var(--accent);
-}
-
-/* Only appears when the instantaneous allowance is actually close. */
-.quota-tight {
-  margin-top: 8px;
-  font-size: 11.5px;
-  color: var(--warn);
-}
-
-.quota-none {
-  font-size: 11.5px;
-  color: var(--faint);
-}
-
-.quota-head {
-  font-size: 11.5px;
-  color: var(--muted);
-  margin-bottom: 9px;
-}
-
-.quota-at {
-  color: var(--faint);
-  margin-left: 5px;
-}
-
-.quota-items {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 22px;
-}
-
-.quota-kind {
-  font-size: 11px;
-  color: var(--faint);
-  text-transform: capitalize;
-}
-
-.quota-nums {
-  font-size: 15px;
-  font-variant-numeric: tabular-nums;
-  color: var(--text);
-}
-
-.quota-nums b {
-  color: var(--accent);
-}
-
-.quota-reset {
-  font-size: 10.5px;
-  color: var(--faint);
-}
-
-/* ------------------------------------------------------------- hotkey field */
-
-.hotkey-field {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-  min-width: 220px;
-}
-
-/* Reads as an input, behaves as a button: clicking it starts listening. */
-.hotkey-capture {
-  font: inherit;
-  font-weight: 600;
-  color: var(--text);
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 7px 13px;
-  min-width: 160px;
-  cursor: pointer;
-}
-
-.hotkey-capture:hover {
-  border-color: var(--faint);
-}
-
-.hotkey-capture.capturing {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--panel);
-}
-
-.hotkey-note {
-  font-size: 11px;
-  text-align: right;
-  max-width: 300px;
-}
-
-/* The spec as stored, so what got saved is never a mystery. */
-.hotkey-raw {
-  font-family: "Cascadia Mono", Consolas, monospace;
-  color: var(--faint);
-}
-
-.hotkey-bad {
-  color: var(--danger);
-}
-
-/* ------------------------------------------------------ recording overlay */
+/* ----------------------------------------------------- recording overlay */
 
 /* The pill floats in its own window, which is a transparent surface larger
  * than the pill: the margin around it is where the outer glow renders. The
@@ -1609,10 +2655,10 @@ code {
  * Win32 region clip whose stair-stepped edges showed on every screenshot.
  *
  * Idle the page draws nothing at all, and that is the whole of "hidden": the
- * window stays on screen at the pill's spot for the life of the app, because
- * a window parked off every monitor is treated as occluded (its renderer
- * stops drawing) and a hidden one is suspended outright - either way the pill
- * can fail to appear when the hotkey is pressed. */
+ * window stays on screen at the pill's spot for the life of the app, because a
+ * window parked off every monitor is treated as occluded (its renderer stops
+ * drawing) and a hidden one is suspended outright - either way the pill can
+ * fail to appear when the hotkey is pressed. */
 body.overlay-mode {
   background: transparent;
   overflow: hidden;
@@ -1626,7 +2672,7 @@ body.overlay-mode {
 
 /* Compact whisper-style capture pill: dot, wave, timer. All sizes are 20%
  * above the original 196x38 window so the wave reads from arm's length. The
- * window centers it inside a transparent margin where the outer glow lives. */
+ * window centres it inside a transparent margin where the outer glow lives. */
 .overlay-pill {
   box-sizing: border-box;
   width: 236px;
@@ -1665,8 +2711,8 @@ body.overlay-mode {
   animation: overlay-pulse 1.1s ease-in-out infinite;
 }
 
-/* Amber: either a working state (transcribing/refining) or a mic that has
- * been silent for over a second. */
+/* Amber: either a working state (transcribing/refining) or a mic that has been
+ * silent for over a second. */
 .overlay-dot.warn {
   background: #e5b062;
 }
@@ -1703,8 +2749,8 @@ body.overlay-mode {
   font-size: 14.5px;
 }
 
-/* Optional wave shapes, chosen in Settings. The canvas fills the pill's
- * middle for the ribbon and syllable styles. */
+/* Optional wave shapes, chosen in Settings. The canvas fills the pill's middle
+ * for the ribbon and syllable styles. */
 .overlay-canvas {
   flex: 1 1 auto;
   min-width: 0;
@@ -1777,16 +2823,13 @@ body.overlay-mode {
   opacity: 0.06;
 }
 
-/* ------------------------------------------------------- pill customization */
-
 /* The Settings page's live miniature of the recording pill. */
 .pill-preview {
   width: 100%;
-  max-width: 320px;
-  border-radius: 12px;
+  border-radius: var(--r-lg);
   background: linear-gradient(180deg, #171d28, #0d1118);
   border: 1px solid #1a2230;
-  padding: 22px 14px;
+  padding: 24px 14px;
   display: grid;
   place-items: center;
 }
@@ -1796,187 +2839,124 @@ body.overlay-mode {
   height: 46px;
 }
 
-/* Theme chips: one coordinated pick sets glow, wave, and background. */
-.theme-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+/* ------------------------------------------------------------ responsive */
+
+/* Below 920px the settings section list gives up its column: the sections
+ * become one scrolling strip above the panel rather than squeezing both. The
+ * group wrappers go `display: contents` so the buttons themselves line up in
+ * that strip - left as blocks they would stack into three little columns. */
+@media (max-width: 920px) {
+  .settings-layout {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .settings-nav {
+    position: static;
+    flex-direction: row;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 3px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+  }
+
+  .settings-nav > div {
+    display: contents;
+  }
+
+  .settings-nav .label {
+    display: none;
+  }
+
+  .snav {
+    padding: 6px 11px;
+    white-space: nowrap;
+  }
+
+  .snav svg {
+    display: none;
+  }
+
+  .snav.on {
+    padding: 5px 10px;
+  }
 }
 
-.theme-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  color: var(--text);
-  font: inherit;
-  font-size: 12.5px;
-  cursor: pointer;
+@media (max-width: 900px) {
+  .stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .field {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .field-control {
+    justify-content: flex-start;
+  }
+
+  .pair {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
 }
 
-.theme-chip:hover {
-  border-color: var(--faint);
-}
+/* Compact mode: below 760px the window is too narrow to spend 236px on a text
+ * sidebar, so the rail folds to icons only. The signals survive the fold - the
+ * status chip keeps its dot, and unseen warnings keep the Logs dot (hover
+ * either for the text). */
+@media (max-width: 760px) {
+  .shell {
+    grid-template-columns: 58px 1fr;
+  }
 
-.theme-chip.on {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 9%, var(--panel));
-  font-weight: 600;
-}
+  .sidebar {
+    padding: 16px 9px 12px;
+  }
 
-.theme-dot {
-  width: 13px;
-  height: 13px;
-  border-radius: 50%;
-  flex: none;
-}
+  .brand {
+    justify-content: center;
+    padding: 0 0 16px;
+  }
 
-.theme-bg {
-  width: 16px;
-  height: 12px;
-  border-radius: 4px;
-  flex: none;
-}
+  .brand-text,
+  .nav-label,
+  .nav-txt,
+  .nav-count,
+  .toasts,
+  .status-txt,
+  .foot-version {
+    display: none;
+  }
 
-/* --------------------------------------------------------- pending retries */
+  .nav-item {
+    justify-content: center;
+    padding: 9px 0;
+  }
 
-.pending-box {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 13px;
-  padding: 14px 18px;
-  margin-bottom: 14px;
-  box-shadow: var(--shadow);
-}
+  .nav-item.active::before {
+    left: -9px;
+  }
 
-.pending-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-}
+  .nav-dot {
+    display: block;
+  }
 
-.pending-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 10px 0;
-  border-top: 1px solid var(--line);
-}
+  .status-chip {
+    justify-content: center;
+    padding: 9px 0;
+  }
 
-.pending-info {
-  min-width: 0;
-}
+  .main {
+    padding: 18px 16px 34px;
+  }
 
-.pending-title {
-  font-weight: 600;
-  font-size: 13px;
-}
-
-.pending-err {
-  color: var(--danger);
-  font-size: 12.5px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-top: 2px;
-}
-
-/* ---- Lines: one button per dictation line on the Home page ---- */
-.line-row {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items: stretch;
-}
-.line-btn {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 3px;
-  padding: 10px 14px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-  min-width: 96px;
-}
-.line-btn:hover:not(:disabled) {
-  border-color: var(--accent);
-}
-.line-btn.live {
-  border-color: var(--accent);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 45%, transparent);
-}
-.line-btn:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-.line-name {
-  font-size: 13px;
-  font-weight: 600;
-}
-.line-key {
-  font-size: 11px;
-  color: var(--muted);
-  font-family: var(--mono, monospace);
-}
-
-/* ---- To-do page ---- */
-.todo-items {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.todo-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 8px;
-  border-radius: 8px;
-}
-.todo-item:hover {
-  background: color-mix(in srgb, var(--line) 35%, transparent);
-}
-.todo-check {
-  flex: none;
-  width: 18px;
-  height: 18px;
-  border: 1.5px solid var(--line);
-  border-radius: 5px;
-  background: transparent;
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  padding: 0;
-}
-.todo-check.on {
-  background: var(--accent);
-  border-color: var(--accent);
-}
-.todo-text {
-  flex: 1;
-  font-size: 14px;
-}
-.todo-item.done .todo-text {
-  text-decoration: line-through;
-  color: var(--muted);
-}
-
-/* The kind picker styled as a badge on note cards. */
-.pill-select {
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--panel-2);
-  color: var(--muted);
-  font: inherit;
-  font-size: 12px;
-  padding: 2px 8px;
-  cursor: pointer;
+  .page-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
 }

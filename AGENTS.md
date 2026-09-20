@@ -128,6 +128,30 @@ restarted the app" — and each one is load-bearing:
   installed build captures no stderr, so this file is the only evidence after
   an intermittent failure. `logs.json` stays for things the user should read.
 
+## The look
+
+The UI is one design system, not a collection of pages, and it stays that way
+by rule:
+
+- **No component names a colour, a font size, or a radius.** They are tokens in
+  `nutq/src/styles.css` (`--surface`, `--text-2`, `--fs-md`, `--r-lg`, ...).
+  The dark theme is the same names redefined under `[data-theme="dark"]`, and
+  the sidebar is the same names redefined again under `.zone-dark` - which is
+  why one stylesheet serves a dark rail on a light page and a fully dark app.
+  A hard-coded hex in a `.tsx` file is a bug.
+- **Shared pieces live in `nutq/src/lib/ui.tsx`** - `PageHead`, `Field`,
+  `Toggle`, `Empty`, `Kbd`, `Icon`. Every page opens with a `PageHead`; every
+  hotkey is drawn by `Kbd`; every glyph comes from `Icon` (one 20px grid, 1.7
+  stroke). Adding a one-off button style or a second icon set is how the app
+  stops looking like one program.
+- **Settings is a draft until saved.** The page edits a copy, the pinned bar
+  reports whether anything is unsaved, and Save/Discard/`Ctrl+S` are the only
+  ways out. Anything that writes immediately (an API key, a removed key) has
+  to join that model rather than working behind it.
+- **The theme is a setting** (`theme`: system/light/dark), applied by
+  `applyTheme` in `lib/ui.tsx`. The recording pill keeps its own themes and is
+  deliberately unaffected by it.
+
 ## Build & verify (Windows)
 
 - Dev run: `npm install` then `npm run tauri dev` (in `nutq/`).
