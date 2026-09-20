@@ -1229,6 +1229,19 @@ h2 {
   margin-left: auto;
 }
 
+.line-ico {
+  color: var(--text-3);
+  flex: none;
+}
+
+.line-btn:hover:not(:disabled) .line-ico {
+  color: var(--accent);
+}
+
+.line-btn.live .line-ico {
+  color: var(--danger);
+}
+
 .line-meta {
   font-size: var(--fs-xs);
   color: var(--text-3);
@@ -1949,17 +1962,49 @@ h2 {
 
 /* ---- theme and pill pickers -------------------------------------------- */
 
+/* The theme picker. Each swatch is a miniature of the pill itself - the
+ * background you will get with the wave you will get on top of it - because a
+ * coloured dot beside a name says nothing about how the two read together. */
+.theme-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.theme-groups .label {
+  margin-bottom: 6px;
+}
+
 .theme-grid {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
 }
 
+.theme-swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 42px;
+  height: 20px;
+  border-radius: var(--r-full);
+  border: 1px solid;
+  flex: none;
+}
+
+.theme-swatch i {
+  width: 2.5px;
+  border-radius: 2px;
+  display: block;
+}
+
 .theme-chip {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 11px;
+  padding: 5px 11px 5px 6px;
   border-radius: var(--r-md);
   border: 1px solid var(--border);
   background: var(--surface);
@@ -2717,6 +2762,44 @@ body.overlay-mode {
   background: #e5b062;
 }
 
+/* A pale pill needs darker signals; the dark-theme red and amber wash out on
+ * it completely. */
+.overlay-pill.light .overlay-dot {
+  background: #d32f3a;
+}
+
+.overlay-pill.light .overlay-dot.warn {
+  background: #a86a00;
+}
+
+/* The head of the pill when it is drawn as the line's own glyph: a mic for
+ * dictation, a note for a notes line, a bulb for an idea. It says what the
+ * speech is about to become, which a name can only spell out. Colour is set
+ * from the wave, so the pill reads as one object. */
+.overlay-icon {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: #2fd6a5;
+  animation: overlay-pulse 1.6s ease-in-out infinite;
+}
+
+/* Pulse rings around a glyph need a wider centre than they do around a dot. */
+.overlay-ringbox.wide {
+  width: 18px;
+  height: 18px;
+}
+
+.overlay-ringbox .overlay-icon {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  animation: none;
+}
+
 @keyframes overlay-pulse {
   50% {
     opacity: 0.35;
@@ -2837,6 +2920,42 @@ body.overlay-mode {
 .pill-preview .overlay-pill {
   width: 236px;
   height: 46px;
+}
+
+/* Which glyph belongs to which of your lines, with the one the preview is
+ * currently wearing lit up. */
+.pill-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 14px;
+  margin-top: 16px;
+  font-size: var(--fs-xs);
+  color: #6c7a8c;
+}
+
+.pill-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: color 0.2s ease;
+}
+
+.pill-legend span.on {
+  color: #e7ecf3;
+  font-weight: 600;
+}
+
+/* The glyph on a line row in Settings, and on a Home tile: the same picture
+ * the pill will show, so the two are never a guess apart. */
+.line-card-icon {
+  color: var(--text-3);
+  flex: none;
+}
+
+.line-card.open .line-card-icon,
+.line-card-open:hover .line-card-icon {
+  color: var(--accent);
 }
 
 /* ------------------------------------------------------------ responsive */

@@ -1698,6 +1698,13 @@ struct OverlayState {
     /// Which line is recording, so the pill can say what the speech will
     /// become. Empty when idle.
     label: String,
+    /// That line's kind ("mic", "note", "idea", ...) - what the pill draws
+    /// when the indicator is set to the line's icon.
+    kind: String,
+    /// "icon", "dot", or "none".
+    indicator: String,
+    /// Whether the line's name is written next to the timer.
+    show_name: bool,
 }
 
 /// One poll = everything the indicator needs. Event delivery to a hidden,
@@ -1710,11 +1717,11 @@ fn overlay_state(state: State<AppState>) -> OverlayState {
     state.overlay_watch.lock().unwrap().poll = Some(Instant::now());
     let s = state.settings.lock().unwrap();
     let recording = state.status() == Status::Recording;
-    let label = if recording {
-        s.profile(&state.pending_profile.lock().unwrap()).name
-    } else {
-        String::new()
-    };
+    // The kind outlives the recording on purpose: the pill keeps the line's
+    // icon through transcribing and refining, so the thing you started is the
+    // thing you are still watching.
+    let profile = s.profile(&state.pending_profile.lock().unwrap());
+    let label = if recording { profile.name.clone() } else { String::new() };
     OverlayState {
         status: state.status(),
         level: f32::from_bits(
@@ -1729,6 +1736,9 @@ fn overlay_state(state: State<AppState>) -> OverlayState {
         aura_color: s.overlay_aura_color.clone(),
         bg: s.overlay_bg.clone(),
         label,
+        kind: profile.kind().to_string(),
+        indicator: s.overlay_indicator.clone(),
+        show_name: s.overlay_show_name,
     }
 }
 

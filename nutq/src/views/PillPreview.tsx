@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
-import type { OverlayStyle } from "../lib/api";
+import { useEffect, useRef, useState } from "react";
+import type { OverlayIndicator, OverlayStyle } from "../lib/api";
+import { Icon, KIND_ICON, KIND_NAME } from "../lib/ui";
 
 /**
  * The Settings page's live miniature of the recording pill.
@@ -23,6 +24,10 @@ export function isLightBg(hex: string): boolean {
   return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > 0.6;
 }
 
+/** The "quiet mic" colour, dark enough to read on a Day theme. Mirrors the
+ *  overlay's own, so the preview never flatters the real thing. */
+const warnColor = (bg: string) => (isLightBg(bg) ? "#a86a00" : "#e5b062");
+
 /** A live miniature of the pill with the chosen look, driven by a simulated
  *  voice so colors and shapes can be judged without dictating. Mirrors the
  *  glow composition the real overlay uses: two independent parts. */
@@ -32,12 +37,23 @@ export default function PillPreview({
   glowOuter,
   auraColor,
   bg,
+  indicator,
+  showName,
+  kinds,
+  names,
 }: {
   style: OverlayStyle;
   glowInner: boolean;
   glowOuter: boolean;
   auraColor: string;
   bg: string;
+  indicator: OverlayIndicator;
+  showName: boolean;
+  /** The kinds of the user's own lines, so the preview shows the glyphs that
+   *  will actually appear rather than one stand-in. */
+  kinds: string[];
+  /** Their names, for the label the pill can carry. */
+  names: string[];
 }) {
   const pill = useRef<HTMLDivElement | null>(null);
   const canvas = useRef<HTMLCanvasElement | null>(null);
@@ -47,6 +63,17 @@ export default function PillPreview({
   const peak = useRef(0.02);
   const hist = useRef<number[]>([]);
   const phase = useRef(0);
+  const icon = useRef<HTMLSpanElement | null>(null);
+  /** The preview walks through the user's own lines, a few seconds each, so
+   *  the glyphs are seen rather than described. */
+  const [slot, setSlot] = useState(0);
+  const count = Math.max(1, kinds.length);
+
+  useEffect(() => {
+    if (count < 2) return;
+    const t = setInterval(() => setSlot((i) => (i + 1) % count), 2600);
+    return () => clearInterval(t);
+  }, [count]);
 
   useEffect(() => {
     let raf = 0;
@@ -90,7 +117,8 @@ export default function PillPreview({
         }
       }
 
-      const color = silent ? "#e5b062" : auraColor;
+      const color = silent ? warnColor(bg) : auraColor;
+      if (icon.current) icon.current.style.color = color;
       if (wave.current) {
         wave.current.querySelectorAll<HTMLElement>("i").forEach((bar, i, all) => {
           const t = (phase.current * 0.62 + i / all.length) % 1;
@@ -158,7 +186,8 @@ export default function PillPreview({
       }
       if (fill.current) {
         fill.current.style.width = `${v * 100}%`;
-        fill.current.style.background = `linear-gradient(90deg, ${color} 0%, ${color} 62%, #e5b062 84%, #ef6b6b 97%)`;
+        fill.current.style.background =
+          `linear-gradient(90deg, ${color} 0%, ${color} 62%, ${warnColor(bg)} 84%, #ef6b6b 97%)`;
       }
       if (ring.current) {
         const d = 10 + v * 28;
@@ -173,6 +202,11 @@ export default function PillPreview({
     return () => cancelAnimationFrame(raf);
   }, [style, glowInner, glowOuter, auraColor, bg]);
 
+  const kind = kinds[slot % count] ?? "mic";
+  const name = names[slot % count] ?? "";
+  // Pulse is rings around something; with no head there is nothing to circle.
+  const head: OverlayIndicator = style === "ring" && indicator === "none" ? "dot" : indicator;
+
   const resetCanvas = (el: HTMLCanvasElement | null) => {
     canvas.current = el;
     if (el) el.width = 0;
@@ -180,15 +214,30 @@ export default function PillPreview({
 
   return (
     <div className="pill-preview">
-      <div className="overlay-pill" ref={pill} style={{ background: bg }}>
-        {style === "ring" ? (
-          <span className="overlay-ringbox">
+      <div
+        className={`overlay-pill${isLightBg(bg) ? " light" : ""}`}
+        ref={pill}
+        style={{ background: bg }}
+      >
+        {head !== "none" &&
+          (style === "ring" ? (
+            <span className={`overlay-ringbox${head === "icon" ? " wide" : ""}`}>
+              {head === "icon" ? (
+                <span className="overlay-icon" ref={icon} style={{ color: auraColor }}>
+                  <Icon name={KIND_ICON[kind] ?? "mic"} size={15} />
+                </span>
+              ) : (
+                <span className="overlay-dot" />
+              )}
+              <i className="overlay-ring" ref={ring} />
+            </span>
+          ) : head === "icon" ? (
+            <span className="overlay-icon" ref={icon} style={{ color: auraColor }}>
+              <Icon name={KIND_ICON[kind] ?? "mic"} size={16} />
+            </span>
+          ) : (
             <span className="overlay-dot" />
-            <i className="overlay-ring" ref={ring} />
-          </span>
-        ) : (
-          <span className="overlay-dot" />
-        )}
+          ))}
         {style === "bars" && (
           <span className="overlay-wave" ref={wave}>
             {Array.from({ length: 16 }, (_, i) => (
@@ -206,9 +255,19 @@ export default function PillPreview({
           className="overlay-timer"
           style={isLightBg(bg) ? { color: "#4a5563" } : undefined}
         >
-          0:07
+          {showName && name ? `${name} · ` : ""}0:07
         </span>
       </div>
+      {head === "icon" && (
+        <div className="pill-legend">
+          {kinds.map((k, i) => (
+            <span key={`${k}-${i}`} className={i === slot % count ? "on" : ""}>
+              <Icon name={KIND_ICON[k] ?? "mic"} size={13} />
+              {names[i] || KIND_NAME[k] || k}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

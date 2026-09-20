@@ -189,6 +189,31 @@ const PATHS: Record<string, ReactNode> = {
     </>
   ),
   bolt: <path d="M11 3.4 5.4 11h4L9 16.6 14.6 9h-4z" />,
+  /* An idea: a bulb. The dome is left open at the bottom and the base is two
+   * separate rings - closed into a teardrop it reads as a map pin instead,
+   * which is what the first attempt looked like at 16px. */
+  bulb: (
+    <>
+      <path d="M12.6 11.9c.2-.8.6-1.4 1.2-2 .8-.8 1.2-1.8 1.2-2.9a5 5 0 0 0-10 0c0 1.1.4 2.1 1.2 2.9.6.6 1 1.2 1.2 2" />
+      <path d="M7.6 14.4h4.8M8.7 16.8h2.6" />
+    </>
+  ),
+  /* Verbatim: the words exactly as they were said. */
+  quote: (
+    <>
+      <path d="M7.4 5.6c-1.9.7-3 2.3-3 4.4v4.4h4.4v-4.4H6.2c0-1.4.4-2.3 1.7-2.9z" />
+      <path d="M15.4 5.6c-1.9.7-3 2.3-3 4.4v4.4h4.4v-4.4h-2.6c0-1.4.4-2.3 1.7-2.9z" />
+    </>
+  ),
+  /* A summary: long line, shorter line, shorter still. */
+  list: <path d="M4.4 5.8h11.2M4.4 10h8.4M4.4 14.2h5.6" />,
+  /* Custom instructions: the wand that turns speech into your own shape. */
+  wand: (
+    <>
+      <path d="m5 15 7.4-7.4M13.6 6.4l-1.2-1.2" />
+      <path d="M15.2 3.2v2.6M16.5 4.5h-2.6M7.2 4.4l.5 1.3 1.3.5-1.3.5-.5 1.3-.5-1.3-1.3-.5 1.3-.5z" />
+    </>
+  ),
 };
 
 export type IconName = keyof typeof PATHS;
@@ -218,6 +243,60 @@ export function Icon({
       {PATHS[name]}
     </svg>
   );
+}
+
+/* ------------------------------------------------------------------ lines */
+
+/**
+ * What a line *makes*, in one word.
+ *
+ * Mirrors `Profile::kind` in `src-tauri/src/settings.rs`, which is what the
+ * recording pill reads - the two have to agree, or the tile you pressed and
+ * the pill that appears would show different glyphs. Keep them in step.
+ */
+export function lineKind(p: {
+  mode: string;
+  output: string;
+  custom_prompt: string;
+}): string {
+  if (p.custom_prompt.trim()) return "custom";
+  if (p.output === "notes") return p.mode === "spec" || p.mode === "summary" ? "idea" : "note";
+  if (p.mode === "checklist") return "checklist";
+  if (p.mode === "spec") return "idea";
+  if (p.mode === "summary") return "summary";
+  if (p.mode === "verbatim") return "verbatim";
+  return "mic";
+}
+
+/** The glyph for each kind. One picture per kind of result, everywhere it
+ *  shows: the Home tiles, the Settings list, and the recording pill. */
+export const KIND_ICON: Record<string, IconName> = {
+  mic: "mic",
+  note: "note",
+  idea: "bulb",
+  checklist: "checklist",
+  summary: "list",
+  verbatim: "quote",
+  custom: "wand",
+};
+
+/** What each kind is called, for tooltips and the pill preview. */
+export const KIND_NAME: Record<string, string> = {
+  mic: "Dictation",
+  note: "Note",
+  idea: "Idea",
+  checklist: "Checklist",
+  summary: "Summary",
+  verbatim: "Word for word",
+  custom: "Your own instructions",
+};
+
+export function lineIcon(p: {
+  mode: string;
+  output: string;
+  custom_prompt: string;
+}): IconName {
+  return KIND_ICON[lineKind(p)] ?? "mic";
 }
 
 /* ----------------------------------------------------------------- hotkeys */

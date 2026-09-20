@@ -180,6 +180,29 @@ impl Default for Profile {
 }
 
 impl Profile {
+    /// What this line *makes*, in one word - the key the pill turns into an
+    /// icon, so the indicator says "this is going to be a note" without
+    /// spelling the line's name across the screen.
+    ///
+    /// Mirrored by `lineKind` in `src/lib/ui.tsx`, which draws the same icon
+    /// on the Home tiles and in the Settings list. Keep the two in step.
+    pub fn kind(&self) -> &'static str {
+        if !self.custom_prompt.trim().is_empty() {
+            return "custom";
+        }
+        match (self.output, self.mode) {
+            // A note that was a rambling thought is an idea, whatever the
+            // line is called.
+            (Output::Notes, Mode::Spec | Mode::Summary) => "idea",
+            (Output::Notes, _) => "note",
+            (_, Mode::Checklist) => "checklist",
+            (_, Mode::Spec) => "idea",
+            (_, Mode::Summary) => "summary",
+            (_, Mode::Verbatim) => "verbatim",
+            (_, Mode::Natural) => "mic",
+        }
+    }
+
     fn new(id: &str, name: &str, hotkey: &str, mode: Mode, output: Output) -> Self {
         Self {
             id: id.into(),
@@ -284,6 +307,12 @@ pub struct Settings {
     /// Which wave runs inside the pill: "bars", "ribbon", "blobs", "meter",
     /// or "ring".
     pub overlay_style: String,
+    /// What sits at the head of the pill: "icon" (the recording line's own
+    /// glyph - mic, note, idea...), "dot" (the classic red dot), or "none".
+    pub overlay_indicator: String,
+    /// Also write the line's name inside the pill. Off by default: the icon
+    /// already says what this is, and the pill is 236px wide.
+    pub overlay_show_name: bool,
 
     /// The dictation lines: each its own hotkey, button, and processing.
     /// An empty list is migrated to the defaults on load - either a fresh
@@ -341,6 +370,8 @@ impl Default for Settings {
             overlay_aura_color: "#2fd6a5".into(),
             overlay_bg: "#12161d".into(),
             overlay_style: "bars".into(),
+            overlay_indicator: "icon".into(),
+            overlay_show_name: false,
             profiles: default_profiles(),
             custom_prompt: String::new(),
             notes_lines_added: false,

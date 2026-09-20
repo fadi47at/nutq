@@ -12,6 +12,7 @@ import {
   type HotkeySlot,
   type HotkeyState,
   type KeyStatus,
+  type OverlayIndicator,
   type OverlayStyle,
   type Profile,
   type RefineProvider,
@@ -21,7 +22,17 @@ import {
   type Theme,
 } from "../lib/api";
 import { specFromEvent } from "../lib/hotkeys";
-import { Field, Icon, Kbd, PageHead, Toggle, type IconName } from "../lib/ui";
+import {
+  Field,
+  Icon,
+  Kbd,
+  KIND_NAME,
+  lineIcon,
+  lineKind,
+  PageHead,
+  Toggle,
+  type IconName,
+} from "../lib/ui";
 import PillPreview from "./PillPreview";
 
 interface Props {
@@ -111,25 +122,64 @@ const OVERLAY_STYLES: { id: OverlayStyle; name: string; hint: string }[] = [
   { id: "ring", name: "Pulse", hint: "Rings around the dot, no wave at all" },
 ];
 
-/** Coordinated colour themes for the pill. One pick sets the glow-and-wave
- *  colour and the background together, so the result always matches. Light
- *  ("Day") themes keep the wave dark enough to read on a pale pill. */
-const OVERLAY_THEMES: { id: string; name: string; aura: string; bg: string }[] = [
-  { id: "teal_night", name: "Teal Night", aura: "#2fd6a5", bg: "#12161d" },
-  { id: "pure_day", name: "Pure Day", aura: "#0f9d8f", bg: "#f3f6f8" },
-  { id: "desert", name: "Desert", aura: "#e8b45a", bg: "#1d1712" },
-  { id: "day_sand", name: "Day Sand", aura: "#a56a20", bg: "#f7f1e4" },
-  { id: "ocean", name: "Ocean", aura: "#4aa8ff", bg: "#0e1520" },
-  { id: "day_sky", name: "Day Sky", aura: "#1668c9", bg: "#eef4fc" },
-  { id: "rose", name: "Rose", aura: "#ff7d9c", bg: "#1c1218" },
-  { id: "day_blossom", name: "Day Blossom", aura: "#c2436a", bg: "#fdeff3" },
-  { id: "violet", name: "Violet", aura: "#a78bfa", bg: "#151021" },
-  { id: "emerald", name: "Emerald", aura: "#34d399", bg: "#0d1a14" },
-  { id: "day_mint", name: "Day Mint", aura: "#0e8a63", bg: "#eefaf3" },
-  { id: "amber", name: "Amber", aura: "#f59e0b", bg: "#1a120a" },
-  { id: "crimson", name: "Crimson", aura: "#ef6b6b", bg: "#1a0f0f" },
-  { id: "frost", name: "Frost", aura: "#9be8e0", bg: "#101820" },
-  { id: "day_slate", name: "Day Slate", aura: "#3b4c63", bg: "#eef1f5" },
+/** Coordinated colour themes for the pill, in two families.
+ *
+ * One pick sets the glow-and-wave colour and the background together, so the
+ * result always matches: a wave picked on its own against a background picked
+ * on its own is how you end up with a pill you cannot read. The Day family
+ * keeps the wave dark enough to carry on a pale pill. */
+const OVERLAY_THEMES: { group: string; items: { id: string; name: string; aura: string; bg: string }[] }[] = [
+  {
+    group: "Night",
+    items: [
+      { id: "teal_night", name: "Teal Night", aura: "#2fd6a5", bg: "#12161d" },
+      { id: "emerald", name: "Emerald", aura: "#34d399", bg: "#0d1a14" },
+      { id: "matrix", name: "Matrix", aura: "#22c55e", bg: "#05100a" },
+      { id: "lime", name: "Lime", aura: "#a3e635", bg: "#121a0d" },
+      { id: "cyan", name: "Cyan", aura: "#22d3ee", bg: "#0b1a20" },
+      { id: "frost", name: "Frost", aura: "#9be8e0", bg: "#101820" },
+      { id: "ocean", name: "Ocean", aura: "#4aa8ff", bg: "#0e1520" },
+      { id: "indigo", name: "Indigo", aura: "#818cf8", bg: "#0d1020" },
+      { id: "violet", name: "Violet", aura: "#a78bfa", bg: "#151021" },
+      { id: "magenta", name: "Magenta", aura: "#f472d0", bg: "#1a0f1a" },
+      { id: "rose", name: "Rose", aura: "#ff7d9c", bg: "#1c1218" },
+      { id: "crimson", name: "Crimson", aura: "#ef6b6b", bg: "#1a0f0f" },
+      { id: "ember", name: "Ember", aura: "#ff7a45", bg: "#1b1008" },
+      { id: "amber", name: "Amber", aura: "#f59e0b", bg: "#1a120a" },
+      { id: "gold", name: "Gold", aura: "#ffd166", bg: "#17130a" },
+      { id: "desert", name: "Desert", aura: "#e8b45a", bg: "#1d1712" },
+      { id: "steel", name: "Steel", aura: "#cbd5e1", bg: "#0f141b" },
+      { id: "carbon", name: "Carbon", aura: "#ffffff", bg: "#000000" },
+    ],
+  },
+  {
+    group: "Day",
+    items: [
+      { id: "pure_day", name: "Pure Day", aura: "#0f9d8f", bg: "#f3f6f8" },
+      { id: "day_mint", name: "Day Mint", aura: "#0e8a63", bg: "#eefaf3" },
+      { id: "day_sky", name: "Day Sky", aura: "#1668c9", bg: "#eef4fc" },
+      { id: "day_ocean", name: "Day Ocean", aura: "#0b6fb0", bg: "#eaf6ff" },
+      { id: "day_lilac", name: "Day Lilac", aura: "#6d4aff", bg: "#f2efff" },
+      { id: "day_blossom", name: "Day Blossom", aura: "#c2436a", bg: "#fdeff3" },
+      { id: "day_coral", name: "Day Coral", aura: "#d1495b", bg: "#fff1ef" },
+      { id: "day_sun", name: "Day Sun", aura: "#b07a00", bg: "#fff8e6" },
+      { id: "day_sand", name: "Day Sand", aura: "#a56a20", bg: "#f7f1e4" },
+      { id: "day_slate", name: "Day Slate", aura: "#3b4c63", bg: "#eef1f5" },
+      { id: "paper", name: "Paper", aura: "#3f4a57", bg: "#ffffff" },
+    ],
+  },
+];
+
+/** What can sit at the head of the pill. */
+const INDICATORS: { id: OverlayIndicator; name: string; hint: string; icon: IconName }[] = [
+  {
+    id: "icon",
+    name: "The line's icon",
+    hint: "A mic, a note, a bulb - what this line is about to make",
+    icon: "mic",
+  },
+  { id: "dot", name: "Red dot", hint: "The classic recording bead", icon: "bolt" },
+  { id: "none", name: "Nothing", hint: "Wave and timer only", icon: "close" },
 ];
 
 const THEMES: { id: Theme; name: string; hint: string; icon: IconName }[] = [
@@ -615,6 +665,11 @@ export default function SettingsView({ settings, keys, onSave, onPreviewTheme }:
                           className="line-card-open"
                           onClick={() => setOpenLine(open ? null : p.id)}
                         >
+                          <Icon
+                            name={lineIcon(p)}
+                            size={16}
+                            className="line-card-icon"
+                          />
                           <span className="line-card-title">
                             {p.name || `Line ${i + 1}`}
                           </span>
@@ -700,9 +755,16 @@ export default function SettingsView({ settings, keys, onSave, onPreviewTheme }:
                           </div>
 
                           <div className="stack-field">
-                            <div className="field-name">Processing</div>
+                            <div className="field-name">
+                              Processing
+                              <span className="chip">
+                                <Icon name={lineIcon(p)} size={13} />
+                                {KIND_NAME[lineKind(p)]}
+                              </span>
+                            </div>
                             <div className="field-hint">
-                              How the transcript is turned into the finished text.
+                              How the transcript is turned into the finished text - and
+                              which icon this line shows on the recording pill.
                             </div>
                             <select
                               disabled={Boolean(p.custom_prompt.trim())}
@@ -1293,7 +1355,7 @@ export default function SettingsView({ settings, keys, onSave, onPreviewTheme }:
             <div className="section">
               <SectionHead
                 title="Recording pill"
-                sub="The little indicator above the taskbar while the microphone is live. The preview runs on a simulated voice, so what you see is what the real pill does."
+                sub="The little indicator above the taskbar while the microphone is live. The preview runs on a simulated voice and walks through your own lines, so what you see is what the real pill does."
               />
 
               <div style={{ padding: "16px 0 4px" }}>
@@ -1303,17 +1365,54 @@ export default function SettingsView({ settings, keys, onSave, onPreviewTheme }:
                   glowOuter={draft.overlayGlowOuter}
                   auraColor={draft.overlayAuraColor}
                   bg={draft.overlayBg}
+                  indicator={draft.overlayIndicator}
+                  showName={draft.overlayShowName}
+                  kinds={draft.profiles.map((p) => lineKind(p))}
+                  names={draft.profiles.map((p) => p.name)}
                 />
               </div>
+
+              <Field
+                name="Head of the pill"
+                wide
+                hint="The icon is the point: it says a note is being taken, or an idea is being turned into a spec, without writing the line's name across the screen."
+              >
+                <div className="choices">
+                  {INDICATORS.map((o) => (
+                    <button
+                      key={o.id}
+                      className={`choice${draft.overlayIndicator === o.id ? " on" : ""}`}
+                      onClick={() => set("overlayIndicator", o.id)}
+                    >
+                      <span className="choice-name">
+                        <Icon name={o.icon} size={15} />
+                        {o.name}
+                        {draft.overlayIndicator === o.id && <Icon name="check" size={14} />}
+                      </span>
+                      <span className="choice-hint">{o.hint}</span>
+                    </button>
+                  ))}
+                </div>
+              </Field>
+
+              <Field
+                name="Write the line's name too"
+                hint="Off, the icon carries it and the pill stays short. On, the name is spelled out before the timer."
+              >
+                <Toggle
+                  on={draft.overlayShowName}
+                  onClick={() => set("overlayShowName", !draft.overlayShowName)}
+                />
+              </Field>
 
               <Field name="Wave shape" hint="What runs inside the pill while you speak.">
                 <select
                   value={draft.overlayStyle}
                   onChange={(e) => set("overlayStyle", e.target.value as OverlayStyle)}
                 >
-                  {OVERLAY_STYLES.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} — {s.hint}
+                  {OVERLAY_STYLES.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.name} — {o.hint}
                     </option>
                   ))}
                 </select>
@@ -1322,36 +1421,50 @@ export default function SettingsView({ settings, keys, onSave, onPreviewTheme }:
               <Field
                 name="Theme"
                 wide
-                hint="One pick sets the glow, the wave and the background together, so the colours always match."
+                hint="One pick sets the glow, the wave and the background together, so the colours always match. Each swatch is the pill itself."
               >
-                <div className="theme-grid">
-                  {OVERLAY_THEMES.map((t) => {
-                    const on = draft.overlayTheme === t.id;
-                    return (
-                      <button
-                        key={t.id}
-                        className={`theme-chip${on ? " on" : ""}`}
-                        onClick={() =>
-                          setDraft((d) => ({
-                            ...d,
-                            overlayTheme: t.id,
-                            overlayAuraColor: t.aura,
-                            overlayBg: t.bg,
-                          }))
-                        }
-                      >
-                        <span
-                          className="theme-dot"
-                          style={{ background: t.aura, boxShadow: `0 0 8px ${t.aura}` }}
-                        />
-                        <span
-                          className="theme-bg"
-                          style={{ background: t.bg, border: `1px solid ${t.aura}55` }}
-                        />
-                        {t.name}
-                      </button>
-                    );
-                  })}
+                <div className="theme-groups">
+                  {OVERLAY_THEMES.map((g) => (
+                    <div key={g.group}>
+                      <div className="label">{g.group}</div>
+                      <div className="theme-grid">
+                        {g.items.map((t) => {
+                          const on = draft.overlayTheme === t.id;
+                          return (
+                            <button
+                              key={t.id}
+                              className={`theme-chip${on ? " on" : ""}`}
+                              title={`${t.name} · ${t.aura} on ${t.bg}`}
+                              onClick={() =>
+                                setDraft((d) => ({
+                                  ...d,
+                                  overlayTheme: t.id,
+                                  overlayAuraColor: t.aura,
+                                  overlayBg: t.bg,
+                                }))
+                              }
+                            >
+                              <span
+                                className="theme-swatch"
+                                style={{
+                                  background: t.bg,
+                                  borderColor: `${t.aura}55`,
+                                  boxShadow: on ? `0 0 10px ${t.aura}66` : undefined,
+                                }}
+                              >
+                                <i style={{ background: t.aura, height: 5 }} />
+                                <i style={{ background: t.aura, height: 10 }} />
+                                <i style={{ background: t.aura, height: 7 }} />
+                                <i style={{ background: t.aura, height: 12 }} />
+                                <i style={{ background: t.aura, height: 6 }} />
+                              </span>
+                              {t.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </Field>
 

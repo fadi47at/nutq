@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { api, type OverlayStyle, type Status } from "../lib/api";
+import { api, type OverlayIndicator, type OverlayStyle, type Status } from "../lib/api";
+import { Icon, KIND_ICON } from "../lib/ui";
 
 const BARS = 16;
 
@@ -9,8 +10,13 @@ interface PillCfg {
   glowOuter: boolean;
   auraColor: string;
   bg: string;
-  /** Which line is recording - shown next to the timer. */
+  /** Which line is recording - shown next to the timer when the name is
+   *  asked for. */
   label: string;
+  /** That line's kind, which picks the glyph: mic, note, idea, ... */
+  kind: string;
+  indicator: OverlayIndicator;
+  showName: boolean;
 }
 
 function clock(secs: number) {
@@ -38,6 +44,10 @@ function isLightBg(hex: string): boolean {
   return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > 0.6;
 }
 
+/** The "quiet mic / still working" colour. The bright amber that reads on a
+ *  dark pill disappears on a pale one, so the Day themes get a darker one. */
+const warnColor = (bg: string) => (isLightBg(bg) ? "#a86a00" : "#e5b062");
+
 /**
  * The small capture pill that hovers just above the taskbar while the mic is
  * live. Everything about it - wave shape, the two glow parts, colors - is the
@@ -55,6 +65,9 @@ export default function Overlay() {
     auraColor: "#2fd6a5",
     bg: "#12161d",
     label: "",
+    kind: "mic",
+    indicator: "icon",
+    showName: false,
   });
   const [, setTick] = useState(0);
   const [showLabel, setShowLabel] = useState("");
@@ -121,7 +134,9 @@ export default function Overlay() {
           return s.status;
         });
         setShowLabel(s.status === "transcribing" ? "Transcribing…" : s.status === "refining" ? "Refining…" : "");
-        const look = `${s.style}|${s.glow_inner}|${s.glow_outer}|${s.aura_color}|${s.bg}|${s.label}`;
+        const look =
+          `${s.style}|${s.glow_inner}|${s.glow_outer}|${s.aura_color}|${s.bg}|` +
+          `${s.label}|${s.kind}|${s.indicator}|${s.show_name}`;
         if (look !== lastLook.current) {
           lastLook.current = look;
           cfg.current = {
@@ -131,6 +146,9 @@ export default function Overlay() {
             auraColor: s.aura_color,
             bg: s.bg,
             label: s.label ?? "",
+            kind: s.kind || "mic",
+            indicator: s.indicator ?? "icon",
+            showName: Boolean(s.show_name),
           };
           setTick((x) => x + 1);
         }
@@ -193,13 +211,23 @@ export default function Overlay() {
     const pill = pillRef.current;
     if (!pill) return;
     const { style, auraColor } = cfg.current;
-    const dot = pill.querySelector<HTMLElement>(".overlay-dot");
-    if (dot) dot.classList.toggle("warn", status !== "recording" || silent);
+    // The head is the dot or the line's glyph, whichever the user picked; both
+    // carry .overlay-head so this stays one line either way.
+    const head = pill.querySelector<HTMLElement>(".overlay-head");
+    if (head) {
+      const warning = status !== "recording" || silent;
+      head.classList.toggle("warn", warning);
+      // The glyph takes the wave's colour, so the pill reads as one object;
+      // the dot keeps its own red, which is what a dot is for.
+      if (head.classList.contains("overlay-icon")) {
+        head.style.color = warning ? warnColor(cfg.current.bg) : cfg.current.auraColor;
+      }
+    }
     glow(pill, status === "recording" ? sens(level) : 0.04);
     if (status !== "recording") return;
 
     const v = sens(level);
-    const color = silent ? "#e5b062" : auraColor;
+    const color = silent ? warnColor(cfg.current.bg) : auraColor;
 
     if (style === "bars") {
       bars.current.push(v);
@@ -212,7 +240,8 @@ export default function Overlay() {
       meterPk.current = Math.max(v, meterPk.current - 0.006);
       if (meterFill.current) {
         meterFill.current.style.width = `${v * 100}%`;
-        meterFill.current.style.background = `linear-gradient(90deg, ${color} 0%, ${color} 62%, #e5b062 84%, #ef6b6b 97%)`;
+        meterFill.current.style.background =
+          `linear-gradient(90deg, ${color} 0%, ${color} 62%, ${warnColor(cfg.current.bg)} 84%, #ef6b6b 97%)`;
       }
       if (meterPeak.current) meterPeak.current.style.left = `calc(${Math.min(meterPk.current, 1) * 100}% - 1px)`;
     } else if (style === "ring") {
@@ -298,18 +327,49 @@ export default function Overlay() {
   const silentTooLong = status === "recording" && Date.now() - lastSound.current > 1200;
   const warn = status !== "recording" || silentTooLong;
   const c = cfg.current;
+  // Pulse is rings around something; with no head there is nothing to circle,
+  // so that one combination falls back to the dot.
+  const head: OverlayIndicator =
+    c.style === "ring" && c.indicator === "none" ? "dot" : c.indicator;
 
   return (
     <div className="overlay-root">
-      <div className="overlay-pill" ref={pillRef} style={{ background: c.bg }}>
-        {c.style === "ring" && status === "recording" ? (
-          <span className="overlay-ringbox">
-            <span className={`overlay-dot${warn ? " warn" : ""}`} />
-            <i className="overlay-ring" ref={ringRef} />
-            <i className="overlay-ring lag" ref={ringLag} />
-          </span>
-        ) : (
-          <span className={`overlay-dot${warn ? " warn" : ""}`} />
+      <div
+        className={`overlay-pill${isLightBg(c.bg) ? " light" : ""}`}
+        ref={pillRef}
+        style={{ background: c.bg }}
+      >
+        {/* The head of the pill. "icon" draws what this line makes - a mic, a
+            note, a bulb - so the pill says what is being recorded without
+            spelling it out; "dot" is the classic red bead; "none" leaves the
+            wave to speak for itself. The Pulse wave needs something at its
+            centre, so it keeps a head even when the setting says none. */}
+        {head !== "none" && (
+          c.style === "ring" && status === "recording" ? (
+            <span className={`overlay-ringbox${head === "icon" ? " wide" : ""}`}>
+              {head === "icon" ? (
+                <span
+                  className={`overlay-icon overlay-head${warn ? " warn" : ""}`}
+                  style={{ color: warn ? warnColor(c.bg) : c.auraColor }}
+                >
+                  <Icon name={KIND_ICON[c.kind] ?? "mic"} size={15} />
+                </span>
+              ) : (
+                <span className={`overlay-dot overlay-head${warn ? " warn" : ""}`} />
+              )}
+              <i className="overlay-ring" ref={ringRef} />
+              <i className="overlay-ring lag" ref={ringLag} />
+            </span>
+          ) : head === "icon" ? (
+            <span
+              className={`overlay-icon overlay-head${warn ? " warn" : ""}`}
+              style={{ color: warn ? warnColor(c.bg) : c.auraColor }}
+            >
+              <Icon name={KIND_ICON[c.kind] ?? "mic"} size={16} />
+            </span>
+          ) : (
+            <span className={`overlay-dot overlay-head${warn ? " warn" : ""}`} />
+          )
         )}
         {status === "recording" ? (
           <>
@@ -339,7 +399,7 @@ export default function Overlay() {
               className="overlay-timer"
               style={isLightBg(c.bg) ? { color: "#4a5563" } : undefined}
             >
-              {c.label ? `${c.label} · ` : ""}
+              {c.showName && c.label ? `${c.label} · ` : ""}
               {clock(secs)}
             </span>
           </>

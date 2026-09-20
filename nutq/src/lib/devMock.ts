@@ -95,6 +95,8 @@ const settings = {
   overlay_aura_color: "#2fd6a5",
   overlay_bg: "#12161d",
   overlay_style: "bars",
+  overlay_indicator: "icon",
+  overlay_show_name: false,
 };
 
 /** Enough entries to push the History page past two pages of ten, spread over
@@ -241,6 +243,29 @@ const responses: Record<string, unknown> = {
     },
   ],
   check_hotkey: null,
+  // The pill, in a browser: a simulated voice so the overlay page can be
+  // opened at #overlay and judged without a Rust build. It reports recording
+  // for as long as the page is open, which is the only state worth looking at.
+  overlay_alive: null,
+  overlay_frame: null,
+  overlay_state: () => {
+    const t = Date.now() / 1000;
+    const syllable = Math.max(0, Math.sin(t * 7) * 0.5 + 0.5);
+    const phrase = Math.sin(t * 0.8) + Math.sin(t * 0.21);
+    return {
+      status: "recording",
+      level: phrase > -0.3 ? 0.01 + 0.08 * syllable : 0.001,
+      style: settings.overlay_style,
+      glow_inner: settings.overlay_glow_inner,
+      glow_outer: settings.overlay_glow_outer,
+      aura_color: settings.overlay_aura_color,
+      bg: settings.overlay_bg,
+      label: "Dictation",
+      kind: "mic",
+      indicator: settings.overlay_indicator,
+      show_name: settings.overlay_show_name,
+    };
+  },
   hotkey_status: [
     { profile_id: "dictate", name: "Dictation", state: { spec: "F8", bound: true, error: "", reset_from: "" } },
     { profile_id: "verbatim", name: "Proofread", state: { spec: "CmdOrControl+F8", bound: true, error: "", reset_from: "" } },

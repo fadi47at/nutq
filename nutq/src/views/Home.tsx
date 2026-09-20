@@ -10,7 +10,7 @@ import {
   type Quota,
   type HistoryEntry,
 } from "../lib/api";
-import { Icon, Kbd, PageHead } from "../lib/ui";
+import { Icon, Kbd, lineIcon, PageHead } from "../lib/ui";
 
 interface Props {
   status: Status;
@@ -331,6 +331,10 @@ export default function Home({
                     }}
                   >
                     <span className="line-name">
+                      {/* The same glyph the recording pill will show, so the
+                          button you press and the pill that appears are
+                          obviously the same thing. */}
+                      <Icon name={lineIcon(p)} size={15} className="line-ico" />
                       {p.name}
                       {live && <span className="dot rec" />}
                     </span>

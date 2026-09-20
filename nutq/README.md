@@ -210,6 +210,25 @@ carries Save and Discard, with `Ctrl+S` as the shortcut. A blank that would
 have become a 404 from a provider is caught there, and the page jumps to the
 section holding it.
 
+### What the pill says
+
+The pill is the only part of nutq you see while you are speaking, so it says
+what is being made rather than what it is called. Its head is the recording
+line's own glyph - a mic for dictation, a note for a notes line, a bulb for an
+idea, a checklist, quote marks for word-for-word, a wand for a line with your
+own instructions - and the same glyph sits on that line's Home tile and its
+row in Settings, so the button you press and the pill that appears are
+obviously the same thing. The mapping lives in `Profile::kind`
+(`src-tauri/src/settings.rs`) and `lineKind` (`src/lib/ui.tsx`); the two
+mirror each other.
+
+Settings › Recording pill decides the rest: the head can be the glyph, the
+classic red dot, or nothing at all; the line's name can be written out next to
+the timer as well; the wave has five shapes; and the theme - 29 of them,
+Night and Day - sets the glow, the wave and the background together, each
+swatch drawn as a miniature of the pill itself. Day themes darken the
+quiet-mic colour, which would otherwise vanish on a pale pill.
+
 ### The recording indicator
 
 The pill that appears above the taskbar while the mic is live is its own

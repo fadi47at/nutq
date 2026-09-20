@@ -18,6 +18,9 @@ export type Output = "instant" | "draft" | "notes";
 export type Status = "idle" | "recording" | "transcribing" | "refining";
 /** The wave shape that runs inside the recording pill. */
 export type OverlayStyle = "bars" | "ribbon" | "blobs" | "meter" | "ring";
+/** What sits at the head of the pill: the recording line's own glyph, the
+ *  classic red dot, or nothing at all. */
+export type OverlayIndicator = "icon" | "dot" | "none";
 /** How the main window paints itself. "system" follows Windows. */
 export type Theme = "system" | "light" | "dark";
 
@@ -90,6 +93,9 @@ export interface Settings {
   overlayAuraColor: string;
   overlayBg: string;
   overlayStyle: OverlayStyle;
+  overlayIndicator: OverlayIndicator;
+  /** Write the line's name inside the pill as well as its icon. */
+  overlayShowName: boolean;
   profiles: Profile[];
 }
 
@@ -126,6 +132,8 @@ interface RawSettings {
   overlay_aura_color: string;
   overlay_bg: string;
   overlay_style: OverlayStyle;
+  overlay_indicator: OverlayIndicator;
+  overlay_show_name: boolean;
   profiles: Profile[];
 }
 
@@ -161,6 +169,8 @@ const toUi = (r: RawSettings): Settings => ({
   overlayAuraColor: r.overlay_aura_color,
   overlayBg: r.overlay_bg,
   overlayStyle: r.overlay_style,
+  overlayIndicator: r.overlay_indicator ?? "icon",
+  overlayShowName: r.overlay_show_name ?? false,
   profiles: r.profiles ?? [],
 });
 
@@ -196,6 +206,8 @@ const toRust = (s: Settings): RawSettings => ({
   overlay_aura_color: s.overlayAuraColor,
   overlay_bg: s.overlayBg,
   overlay_style: s.overlayStyle,
+  overlay_indicator: s.overlayIndicator,
+  overlay_show_name: s.overlayShowName,
   profiles: s.profiles,
 });
 
@@ -511,6 +523,11 @@ export const api = {
       aura_color: string;
       bg: string;
       label: string;
+      /** The recording line's kind: "mic", "note", "idea", "checklist",
+       *  "summary", "verbatim" or "custom". */
+      kind: string;
+      indicator: OverlayIndicator;
+      show_name: boolean;
     }>("overlay_state"),
   /** Asks GitHub (via the updater plugin) whether a newer release exists.
    *  Null when this is the latest. Rejects when offline - callers treat

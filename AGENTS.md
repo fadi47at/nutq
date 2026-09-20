@@ -144,6 +144,13 @@ by rule:
   hotkey is drawn by `Kbd`; every glyph comes from `Icon` (one 20px grid, 1.7
   stroke). Adding a one-off button style or a second icon set is how the app
   stops looking like one program.
+- **One picture per kind of line.** What a line makes - dictation, a note, an
+  idea, a checklist, word-for-word, your own instructions - has one glyph, and
+  it shows in all three places that line appears: its Home tile, its row in
+  Settings, and the head of the recording pill. The rule lives twice, in
+  `Profile::kind` (Rust, for the pill) and `lineKind` (`src/lib/ui.tsx`, for
+  the pages); changing one without the other makes the button you press and
+  the pill that appears disagree.
 - **Settings is a draft until saved.** The page edits a copy, the pinned bar
   reports whether anything is unsaved, and Save/Discard/`Ctrl+S` are the only
   ways out. Anything that writes immediately (an API key, a removed key) has
