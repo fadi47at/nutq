@@ -1590,7 +1590,9 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                   <div className="hint" style={{ padding: "4px 0 10px" }}>
                     <b>v{update.version}</b> is out — you have v{appVersion}.
                     {update.notes && (
-                      <div style={{ marginTop: 6 }}>{update.notes.split("\n")[0]}</div>
+                      <div style={{ marginTop: 6, whiteSpace: "pre-line" }}>
+                        {update.notes}
+                      </div>
                     )}
                   </div>
                   {updateError && (

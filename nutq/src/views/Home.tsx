@@ -148,9 +148,9 @@ export default function Home({
               <span className="chip plain">you have v{appVersion}</span>
             </div>
             <div className="card-body">
-              <div className="hint" style={{ marginBottom: 12 }}>
+              <div className="hint" style={{ marginBottom: 12, whiteSpace: "pre-line" }}>
                 {update.notes
-                  ? update.notes.split("\n")[0]
+                  ? update.notes
                   : "Download, install, restart - all in one click."}
               </div>
               {updateError && (
