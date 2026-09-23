@@ -322,6 +322,22 @@
 
   .foot { margin: 0; font-size: 14px; color: var(--muted); }
 
+  /* ---------- language toggle ---------- */
+
+  .langbar { display: flex; justify-content: flex-end; }
+  .lang {
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: #131a23;
+    color: var(--muted);
+    font: inherit; font-size: 13px;
+    padding: 5px 14px;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .lang:hover { color: var(--text); border-color: var(--accent-deep); }
+  [hidden] { display: none !important; }
+
   @media (max-width: 560px) {
     .k { width: 44px; height: 40px; font-size: 11px; }
     .search span { display: none; }
@@ -335,32 +351,36 @@
   }
 </style>
 
-<div class="page" dir="rtl" lang="ar">
+<div class="page" dir="rtl" lang="ar" id="page">
+
+  <div class="langbar">
+    <button class="lang" id="langBtn" type="button">English</button>
+  </div>
 
   <div class="mast">
     <h1>nutq</h1>
-    <p>اضغط <span class="ltr">F8</span>، احكي، والكلام بينكتب محلّ ما كان المؤشر.</p>
+    <p id="tagline">اضغط <span class="ltr">F8</span>، احكي، والكلام بينكتب محلّ ما كان المؤشر.</p>
   </div>
 
   <div class="beats">
-    <span class="beat" id="b1">اضغط <span class="ltr">F8</span></span>
-    <span class="sep">←</span>
-    <span class="beat" id="b2">احكي</span>
-    <span class="sep">←</span>
-    <span class="beat" id="b3">اضغط <span class="ltr">F8</span> والكلام بمحلّه</span>
+    <span class="beat" id="b1"><span id="beat1a">اضغط</span> <span class="ltr">F8</span></span>
+    <span class="sep" id="sep1">←</span>
+    <span class="beat" id="b2" data-key="beat2">احكي</span>
+    <span class="sep" id="sep2">←</span>
+    <span class="beat" id="b3"><span id="beat3a">اضغط</span> <span class="ltr">F8</span> <span id="beat3b">والكلام بمحلّه</span></span>
   </div>
 
   <div class="screen">
     <div class="win">
       <div class="titlebar">
         <div class="caption" aria-hidden="true"><i>✕</i><i>▢</i><i>─</i></div>
-        <span class="name">الرسائل</span>
+        <span class="name" id="winName">الرسائل</span>
       </div>
 
       <div class="thread">
         <div class="bubble them">
-          <span class="who">سامر</span>
-          وصلك الملف؟ محتاجه اليوم إذا بتقدر.
+          <span class="who" id="whoThem">سامر</span>
+          <span id="themText">وصلك الملف؟ محتاجه اليوم إذا بتقدر.</span>
         </div>
         <div class="bubble mine" id="sent">
           <span id="sentText"></span><span class="tick">✓✓</span>
@@ -369,7 +389,7 @@
 
       <div class="composer">
         <div class="field"><span class="ph" id="ph">اكتب رسالة…</span><span id="typed"></span><span class="caret" aria-hidden="true"></span></div>
-        <span class="send" id="send">إرسال</span>
+        <span class="send" id="send" data-key="send">إرسال</span>
       </div>
     </div>
 
@@ -399,7 +419,7 @@
           <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="#a9b6c7" stroke-width="1.7" stroke-linecap="round">
             <circle cx="8.6" cy="8.6" r="5.4"></circle><path d="m12.7 12.7 4 4"></path>
           </svg>
-          <span>بحث</span>
+          <span id="searchLabel">بحث</span>
         </span>
         <span class="ti">
           <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="#b8c4d4" stroke-width="1.5">
@@ -443,8 +463,8 @@
           </span>
         </div>
         <div class="clock">
-          <span>3:42 م</span>
-          <span class="date">2026/09/09</span>
+          <span id="clockTime">3:42 م</span>
+          <span class="date" id="clockDate">2026/09/09</span>
         </div>
       </div>
     </div>
@@ -460,7 +480,7 @@
     <div class="k">F11</div>
   </div>
 
-  <p class="foot">بيشتغل بأي مكان بالويندوز — شات، إيميل، محرّر كود. الصوت بيضل بالذاكرة وما بينحفظ على القرص.</p>
+  <p class="foot" id="foot">بيشتغل بأي مكان بالويندوز — شات، إيميل، محرّر كود. الصوت بيضل بالذاكرة وما بينحفظ على القرص.</p>
 
 </div>
 
@@ -477,8 +497,96 @@
     var sent = document.getElementById("sent");
     var sentText = document.getElementById("sentText");
     var beats = [document.getElementById("b1"), document.getElementById("b2"), document.getElementById("b3")];
+    var page = document.getElementById("page");
+    var langBtn = document.getElementById("langBtn");
+    var tagline = document.getElementById("tagline");
+    var winName = document.getElementById("winName");
+    var whoThem = document.getElementById("whoThem");
+    var themText = document.getElementById("themText");
+    var searchLabel = document.getElementById("searchLabel");
+    var foot = document.getElementById("foot");
+    var clockTime = document.getElementById("clockTime");
+    var clockDate = document.getElementById("clockDate");
+    var beat1a = document.getElementById("beat1a");
+    var beat3a = document.getElementById("beat3a");
+    var beat3b = document.getElementById("beat3b");
+    var seps = [document.getElementById("sep1"), document.getElementById("sep2")];
 
-    var LINE = "تمام، بكرا الصبح ببعتلك الملف.";
+    var I18N = {
+      ar: {
+        dir: "rtl",
+        btn: "English",
+        tagline: 'اضغط <span class="ltr">F8</span>، احكي، والكلام بينكتب محلّ ما كان المؤشر.',
+        beat1a: "اضغط",
+        beat2: "احكي",
+        beat3a: "اضغط",
+        beat3b: "والكلام بمحلّه",
+        sep: "←",
+        winName: "الرسائل",
+        whoThem: "سامر",
+        themText: "وصلك الملف؟ محتاجه اليوم إذا بتقدر.",
+        ph: "اكتب رسالة…",
+        send: "إرسال",
+        search: "بحث",
+        clockTime: "3:42 م",
+        clockDate: "2026/09/09",
+        foot: "بيشتغل بأي مكان بالويندوز — شات، إيميل، محرّر كود. الصوت بيضل بالذاكرة وما بينحفظ على القرص.",
+        LINE: "تمام، بكرا الصبح ببعتلك الملف."
+      },
+      en: {
+        dir: "ltr",
+        btn: "العربية",
+        tagline: 'Press <span class="ltr">F8</span>, talk, and the text lands right where your cursor was.',
+        beat1a: "Press",
+        beat2: "Talk",
+        beat3a: "Press",
+        beat3b: "and it lands in place",
+        sep: "→",
+        winName: "Messages",
+        whoThem: "Samer",
+        themText: "Did you get the file? I need it today if you can.",
+        ph: "Type a message…",
+        send: "Send",
+        search: "Search",
+        clockTime: "3:42 PM",
+        clockDate: "9/9/2026",
+        foot: "Works anywhere in Windows — chat, email, code editor. Audio stays in memory and is never written to disk.",
+        LINE: "Sure, I'll send you the file tomorrow morning."
+      }
+    };
+
+    var lang = "ar";
+    var LINE = I18N.ar.LINE;
+
+    function setLang(next) {
+      lang = next;
+      var t = I18N[lang];
+      LINE = t.LINE;
+      page.dir = t.dir;
+      page.lang = lang;
+      langBtn.textContent = t.btn;
+      tagline.innerHTML = t.tagline;
+      beat1a.textContent = t.beat1a;
+      document.querySelector("#b2").textContent = t.beat2;
+      beat3a.textContent = t.beat3a;
+      beat3b.textContent = t.beat3b;
+      seps.forEach(function (s) { s.textContent = t.sep; });
+      winName.textContent = t.winName;
+      whoThem.textContent = t.whoThem;
+      themText.textContent = t.themText;
+      ph.textContent = t.ph;
+      send.textContent = t.send;
+      searchLabel.textContent = t.search;
+      clockTime.textContent = t.clockTime;
+      clockDate.textContent = t.clockDate;
+      foot.textContent = t.foot;
+      /* keep the still frame / in-flight text in the new language */
+      if (still || sent.classList.contains("in")) sentText.textContent = LINE;
+    }
+
+    langBtn.addEventListener("click", function () {
+      setLang(lang === "ar" ? "en" : "ar");
+    });
     var still = matchMedia("(prefers-reduced-motion: reduce)").matches;
     var timers = [];
     var tick = null;
