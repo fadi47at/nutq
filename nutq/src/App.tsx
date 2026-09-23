@@ -320,6 +320,7 @@ export default function App() {
             <SettingsView
               settings={settings}
               keys={keys}
+              appVersion={appVersion}
               onSave={saveSettings}
               onPreviewTheme={setThemePreview}
             />

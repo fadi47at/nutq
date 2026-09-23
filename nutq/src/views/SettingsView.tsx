@@ -38,6 +38,8 @@ import PillPreview from "./PillPreview";
 interface Props {
   settings: Settings;
   keys: KeyStatus;
+  /** The bundle's own version, so About can state it precisely. */
+  appVersion: string;
   onSave: (next: Settings) => Promise<void>;
   /** Try a theme on without saving it. Null hands the window back to the
    *  saved setting. */
@@ -71,7 +73,8 @@ type SectionId =
   | "keys"
   | "capture"
   | "overlay"
-  | "appearance";
+  | "appearance"
+  | "about";
 
 /**
  * The section list, in three groups.
@@ -102,6 +105,7 @@ const SECTIONS: { group: string; items: { id: SectionId; name: string; icon: Ico
       { id: "capture", name: "Audio & input", icon: "sliders" },
       { id: "overlay", name: "Recording pill", icon: "wave" },
       { id: "appearance", name: "Appearance", icon: "palette" },
+      { id: "about", name: "About", icon: "info" },
     ],
   },
 ];
@@ -434,7 +438,7 @@ function HotkeyField({
   );
 }
 
-export default function SettingsView({ settings, keys, onSave, onPreviewTheme }: Props) {
+export default function SettingsView({ settings, keys, appVersion, onSave, onPreviewTheme }: Props) {
   const [draft, setDraft] = useState<Settings>(settings);
   const [mics, setMics] = useState<string[]>(["Default"]);
   const [keyInputs, setKeyInputs] = useState<Record<string, string>>({});
@@ -451,6 +455,29 @@ export default function SettingsView({ settings, keys, onSave, onPreviewTheme }:
   /** Which line is expanded, and which one is asking to be deleted. */
   const [openLine, setOpenLine] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  // About: the manual update check. Nothing here is a setting - it reads and
+  // acts at once, the same way an API key does - so it lives beside the draft,
+  // not inside it.
+  const [checking, setChecking] = useState(false);
+  const [checkNote, setCheckNote] = useState<string | null>(null);
+  const [update, setUpdate] = useState<{ version: string; notes: string } | null>(null);
+  const [updateBusy, setUpdateBusy] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+
+  async function checkNow() {
+    setChecking(true);
+    setCheckNote(null);
+    try {
+      const u = await api.checkForUpdate();
+      if (u) setUpdate(u);
+      else setCheckNote(`v${appVersion} is the latest`);
+    } catch {
+      setCheckNote("couldn't reach GitHub - check your connection");
+    } finally {
+      setChecking(false);
+    }
+  }
 
   useEffect(() => setDraft(settings), [settings]);
 
@@ -1521,6 +1548,92 @@ export default function SettingsView({ settings, keys, onSave, onPreviewTheme }:
                 <div className="hint dim">
                   The theme applies the moment you pick it, so you can see it before
                   saving. Discard puts it back.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ------------------------------------------------------- about */}
+          {section === "about" && (
+            <div className="section">
+              <SectionHead
+                title="About"
+                sub="What this install is, and whether anything newer is out. The sidebar says the version too; this page is where the details live."
+              />
+
+              <Field
+                name="Version"
+                hint="nutq · signed builds ship from github.com/fadi47at/nutq/releases"
+                wide
+              >
+                <div className="row" style={{ flexWrap: "nowrap" }}>
+                  <span className="chip">v{appVersion}</span>
+                  <button
+                    className="btn ghost sm"
+                    disabled={checking || updateBusy}
+                    onClick={() => void checkNow()}
+                  >
+                    <Icon name="refresh" size={15} />
+                    {checking ? "Checking…" : "Check for updates"}
+                  </button>
+                </div>
+              </Field>
+
+              {checkNote && (
+                <div className="hint dim" style={{ padding: "4px 0 10px" }}>
+                  {checkNote}
+                </div>
+              )}
+
+              {update && (
+                <>
+                  <div className="hint" style={{ padding: "4px 0 10px" }}>
+                    <b>v{update.version}</b> is out — you have v{appVersion}.
+                    {update.notes && (
+                      <div style={{ marginTop: 6 }}>{update.notes.split("\n")[0]}</div>
+                    )}
+                  </div>
+                  {updateError && (
+                    <div className="diag bad" style={{ marginBottom: 10 }}>
+                      <div className="diag-detail">{updateError}</div>
+                    </div>
+                  )}
+                  <div className="row" style={{ paddingBottom: 12 }}>
+                    <button
+                      className="btn primary"
+                      disabled={updateBusy}
+                      onClick={() => {
+                        setUpdateBusy(true);
+                        setUpdateError(null);
+                        void api
+                          .installUpdate()
+                          .catch((e) => setUpdateError(String(e)))
+                          .finally(() => setUpdateBusy(false));
+                      }}
+                    >
+                      <Icon name="download" size={15} />
+                      {updateBusy ? "Downloading and installing…" : "Update now"}
+                    </button>
+                    <button
+                      className="btn ghost"
+                      disabled={updateBusy}
+                      onClick={() => {
+                        setUpdate(null);
+                        setUpdateError(null);
+                      }}
+                    >
+                      Later
+                    </button>
+                  </div>
+                </>
+              )}
+
+              <div className="section-foot">
+                <div className="hint dim">
+                  A check also runs on its own when the app opens and every four hours
+                  after that; when a release is found, Home shows the offer without you
+                  asking. The sidebar's version line is the quickest answer to "did the
+                  last install take?"
                 </div>
               </div>
             </div>

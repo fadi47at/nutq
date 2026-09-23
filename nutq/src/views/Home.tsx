@@ -69,9 +69,8 @@ export default function Home({
   const [update, setUpdate] = useState<{ version: string; notes: string } | null>(null);
   const [updateBusy, setUpdateBusy] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
-  const [checkBusy, setCheckBusy] = useState(false);
-  /** What the manual check wants said: up to date, or why not. */
-  const [checkNote, setCheckNote] = useState<string | null>(null);
+  /** The manual twin of the automatic check lives in Settings, under About -
+   *  it needed a home that does not cost the page header a button. */
 
   // One check when the page opens and one every four hours after that - enough
   // to catch a release the same day without polling GitHub on every visit.
@@ -94,22 +93,6 @@ export default function Home({
       clearInterval(t);
     };
   }, []);
-
-  // The manual twin of the automatic check, for "a release just went out and I
-  // want it NOW" - no waiting for a restart or the four-hour tick.
-  async function checkNow() {
-    setCheckBusy(true);
-    setCheckNote(null);
-    try {
-      const u = await api.checkForUpdate();
-      if (u) setUpdate(u);
-      else setCheckNote(`v${appVersion} is the latest`);
-    } catch {
-      setCheckNote("couldn't reach GitHub");
-    } finally {
-      setCheckBusy(false);
-    }
-  }
 
   // Pulled on a timer rather than driven by the result event.
   //
@@ -152,19 +135,6 @@ export default function Home({
           lines.length
             ? "Press a line's hotkey in any app, speak, and press it again. The finished text lands where that line sends it."
             : "No dictation lines yet - add one in Settings and it gets a hotkey and a button here."
-        }
-        actions={
-          <>
-            {checkNote && <span className="chip">{checkNote}</span>}
-            <button
-              className="btn ghost"
-              disabled={checkBusy || updateBusy}
-              onClick={() => void checkNow()}
-            >
-              <Icon name="refresh" size={15} />
-              {checkBusy ? "Checking…" : "Check for updates"}
-            </button>
-          </>
         }
       />
 
