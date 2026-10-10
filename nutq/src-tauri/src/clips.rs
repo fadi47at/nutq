@@ -107,7 +107,10 @@ fn encode_mp3(wav: &[u8]) -> Result<Vec<u8>> {
         .with_brate(Bitrate::Kbps64)?
         .build()?;
 
-    let mut out = Vec::with_capacity(samples.len() / 4 + 7200);
+    // LAME writes the whole stream into one buffer and refuses to encode
+    // into anything smaller, so the capacity must follow the crate's own
+    // worst-case formula - a Vec that grows on demand never gets the chance.
+    let mut out = Vec::with_capacity(mp3lame_encoder::max_required_buffer_size(samples.len()));
     encoder.encode_to_vec(MonoPcm(&samples), &mut out)?;
 
     // The flush finishes the last frame; it needs at least 7200 bytes.
@@ -199,5 +202,95 @@ pub fn clear() {
                 let _ = fs::remove_file(f.path());
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A one-second 16 kHz sine, encoded exactly the way a clipboard copy
+    /// encodes a kept clip. If the mp3 path silently breaks, the wav
+    /// fallback makes every paste fail in WhatsApp with no error anywhere -
+    /// this test is what keeps that failure visible.
+    #[test]
+    fn clip_encodes_to_a_playable_mp3() {
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: 16_000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut cursor = std::io::Cursor::new(Vec::new());
+        {
+            let mut w = hound::WavWriter::new(&mut cursor, spec).unwrap();
+            for i in 0..16_000 {
+                let t = i as f32 / 16_000.0;
+                let s = (t * 440.0 * std::f32::consts::TAU).sin() * 0.3;
+                w.write_sample((s * 32767.0) as i16).unwrap();
+            }
+            w.finalize().unwrap();
+        }
+        let mp3 = encode_mp3(&cursor.into_inner()).expect("mp3 encoding must work");
+        assert!(!mp3.is_empty(), "encoder produced nothing");
+        // The stream may open with an ID3v2 tag (0x49 'I' 0x44 'D' 0x33 '3')
+        // or directly with a frame sync - both are playable mp3 files.
+        assert!(
+            mp3.starts_with(b"ID3") || mp3.starts_with(&[0xff]),
+            "not an mp3 stream"
+        );
+        // A second of 64 kbps audio is roughly 8 kB.
+        assert!(mp3.len() > 4_000, "suspiciously small: {} bytes", mp3.len());
+    }
+
+    /// Long input is where the buffer sizing actually bites: a short clip
+    /// sneaks through on the flush headroom, a five-minute one does not.
+    /// Sixty seconds is comfortably past that edge.
+    #[test]
+    fn long_clip_encodes_too() {
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: 16_000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut cursor = std::io::Cursor::new(Vec::new());
+        {
+            let mut w = hound::WavWriter::new(&mut cursor, spec).unwrap();
+            for i in 0..16_000 * 60 {
+                let t = i as f32 / 16_000.0;
+                let s = (t * 220.0 * std::f32::consts::TAU).sin() * 0.2;
+                w.write_sample((s * 32767.0) as i16).unwrap();
+            }
+            w.finalize().unwrap();
+        }
+        let mp3 = encode_mp3(&cursor.into_inner()).expect("long clip must encode");
+        // 60 s at 64 kbps is roughly 480 kB.
+        assert!(mp3.len() > 400_000, "too small for a minute: {}", mp3.len());
+    }
+
+    /// The full export path against the machine's real clips folder: if a
+    /// clip exists, export it exactly the way the clipboard button does and
+    /// verify the temp file actually lands on disk.
+    #[test]
+    fn real_clip_exports_end_to_end() {
+        let clips = dir().expect("clips dir");
+        let Some(clip) = fs::read_dir(&clips)
+            .ok()
+            .and_then(|files| {
+                files
+                    .flatten()
+                    .find(|f| f.path().extension().is_some_and(|e| e == "wav"))
+            })
+        else {
+            return; // no clips on this machine - nothing to verify
+        };
+        let name = clip.file_name().to_string_lossy().to_string();
+        let out = export_for_clipboard(&name, "2026-10-10 21:01", "اختبار التصدير")
+            .expect("export works");
+        assert!(out.exists(), "exported file is missing: {}", out.display());
+        let bytes = fs::read(&out).expect("exported file is readable");
+        assert!(bytes.len() > 1_000, "exported file too small");
+        eprintln!("exported: {} ({} bytes)", out.display(), bytes.len());
     }
 }
