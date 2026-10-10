@@ -43,22 +43,17 @@ pub fn read(name: &str) -> Result<Vec<u8>> {
     fs::read(dir()?.join(name)).map_err(|e| anyhow!("the audio for this entry is gone: {e}"))
 }
 
-/// The clip's full path, for putting the file itself on the clipboard.
-/// Same bare-name rule as `read`.
-pub fn path(name: &str) -> Result<PathBuf> {
-    if name.contains('/') || name.contains('\\') || name.contains("..") {
-        return Err(anyhow!("bad clip name"));
-    }
-    Ok(dir()?.join(name))
-}
-
 /// Copies a clip to `%TEMP%\nutq` under a name a person can read - the date
 /// and the first words of what was said - and returns that path, ready to go
 /// on the clipboard. The pasted file says what it is instead of an internal
-/// id, which is what a chat full of voice notes needs. The original clip is
-/// untouched; exports live for a day and are swept on the next copy.
+/// id, which is what a chat full of voice notes needs.
+///
+/// The copy is an **mp3**: clips are stored as wav, and wav is exactly what
+/// most chats refuse to take. If encoding ever fails, the wav is copied
+/// anyway - a file the user can still convert beats an error. The original
+/// clip is untouched; exports live for a day and are swept on the next copy.
 pub fn export_for_clipboard(name: &str, at: &str, text: &str) -> Result<PathBuf> {
-    let src = path(name)?;
+    let wav = read(name)?;
     let dir = std::env::temp_dir().join("nutq");
     fs::create_dir_all(&dir)?;
 
@@ -75,9 +70,56 @@ pub fn export_for_clipboard(name: &str, at: &str, text: &str) -> Result<PathBuf>
         }
     }
 
-    let dest = dir.join(format!("{}.wav", friendly_stem(at, text)));
-    fs::copy(&src, &dest)?;
-    Ok(dest)
+    let stem = friendly_stem(at, text);
+    match encode_mp3(&wav) {
+        Ok(mp3) => {
+            let dest = dir.join(format!("{stem}.mp3"));
+            fs::write(&dest, mp3)?;
+            Ok(dest)
+        }
+        Err(_) => {
+            let dest = dir.join(format!("{stem}.wav"));
+            fs::write(&dest, &wav)?;
+            Ok(dest)
+        }
+    }
+}
+
+/// One kept clip, re-encoded from its stored wav into an mp3 a chat will
+/// accept. 64 kbps CBR is transparent for 16 kHz speech and keeps a
+/// five-minute dictation around two megabytes.
+fn encode_mp3(wav: &[u8]) -> Result<Vec<u8>> {
+    use mp3lame_encoder::{Bitrate, Builder, FlushNoGap, MonoPcm};
+
+    let mut reader = hound::WavReader::new(std::io::Cursor::new(wav))?;
+    let spec = reader.spec();
+    if spec.channels != 1 || spec.bits_per_sample != 16 {
+        return Err(anyhow!("unexpected clip format"));
+    }
+    let samples: Vec<i16> = reader
+        .samples::<i16>()
+        .collect::<std::result::Result<_, _>>()?;
+
+    let mut encoder = Builder::new()
+        .ok_or_else(|| anyhow!("could not create the mp3 encoder"))?
+        .with_num_channels(1)?
+        .with_sample_rate(spec.sample_rate)?
+        .with_brate(Bitrate::Kbps64)?
+        .build()?;
+
+    let mut out = Vec::with_capacity(samples.len() / 4 + 7200);
+    encoder.encode_to_vec(MonoPcm(&samples), &mut out)?;
+
+    // The flush finishes the last frame; it needs at least 7200 bytes.
+    let mut tail = [std::mem::MaybeUninit::new(0u8); 7200];
+    let written = encoder.flush::<FlushNoGap>(&mut tail)?;
+    unsafe {
+        out.extend_from_slice(std::slice::from_raw_parts(
+            tail.as_ptr() as *const u8,
+            written,
+        ));
+    }
+    Ok(out)
 }
 
 /// "2026-09-24 17:30:00" + "مبارح رحنا على..." -> a stem Windows accepts,
