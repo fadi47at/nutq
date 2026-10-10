@@ -57,6 +57,7 @@ export default function LogsView({
               <button
                 className="icon-btn"
                 title="Copy this message"
+                aria-label="Copy this message"
                 onClick={() => void api.copyText(l.message)}
               >
                 <Icon name="copy" />

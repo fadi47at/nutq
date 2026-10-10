@@ -131,6 +131,7 @@ export default function NotesView() {
                   <button
                     className="icon-btn"
                     title="Copy this note"
+                    aria-label="Copy this note"
                     onClick={async () => {
                       await api.copyText(n.text);
                       setCopied(n.id);
@@ -142,6 +143,7 @@ export default function NotesView() {
                   <button
                     className="icon-btn"
                     title={open ? "Stop editing" : "Edit this note"}
+                    aria-label={open ? "Stop editing" : "Edit this note"}
                     onClick={() => {
                       setEditing(open ? null : n.id);
                       setDraft(n.text);
@@ -172,6 +174,7 @@ export default function NotesView() {
                     <button
                       className="icon-btn danger"
                       title="Delete this note"
+                      aria-label="Delete this note"
                       onClick={() => setConfirmDelete(n.id)}
                     >
                       <Icon name="trash" />

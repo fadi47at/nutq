@@ -88,6 +88,7 @@ export default function TodosView() {
                     <button
                       className="icon-btn danger"
                       title="Delete this list"
+                      aria-label="Delete this list"
                       onClick={() => setConfirmDelete(l.id)}
                     >
                       <Icon name="trash" />
@@ -126,6 +127,7 @@ export default function TodosView() {
                         <button
                           className="icon-btn danger"
                           title="Remove this item"
+                           aria-label="Remove this item"
                           onClick={async () => {
                             await api.removeTodoItem(l.id, i);
                             refresh();

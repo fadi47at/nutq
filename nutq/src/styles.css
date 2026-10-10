@@ -25,7 +25,7 @@
   /* ---- ink --------------------------------------------------------- */
   --text: #111720;
   --text-2: #56616f;
-  --text-3: #8b97a5;
+  --text-3: #6b7683;
 
   /* ---- accent ------------------------------------------------------ */
   --accent: #0d9b73;
@@ -71,6 +71,19 @@
   --fs-2xl: 22px;      /* page title */
   --fs-3xl: 26px;      /* figures */
 
+  /* ---- chart palette ------------------------------------------------ */
+  /* Handed out per model name (HistoryView's hash) — one source for the
+   * usage charts and any gallery that mirrors them. Picked to stay
+   * readable on the dark panels they sit on. */
+  --chart-1: #4f8fe2; /* blue */
+  --chart-2: #e2554f; /* red */
+  --chart-3: #3fa66a; /* green */
+  --chart-4: #e8b13f; /* amber */
+  --chart-5: #9a6de0; /* violet */
+  --chart-6: #e07bb0; /* pink */
+  --chart-7: #3fb5b0; /* teal */
+  --chart-8: #8a93a5; /* grey */
+
   --mono: "Cascadia Mono", "SF Mono", Consolas, ui-monospace, monospace;
 
   /* The content column. Text that runs the full width of a maximised window
@@ -96,7 +109,7 @@
 
   --text: #e9eef5;
   --text-2: #9aa7b8;
-  --text-3: #6d7a8b;
+  --text-3: #8391a3;
 
   --accent: #2fd6a5;
   --accent-hover: #55e2bb;
@@ -135,7 +148,7 @@
   --border-strong: #38434f;
   --text: #e9eef5;
   --text-2: #98a5b6;
-  --text-3: #6d7a8b;
+  --text-3: #8391a3;
   --accent: #2fd6a5;
   --accent-hover: #55e2bb;
   --accent-ink: #06130e;
@@ -272,7 +285,7 @@ textarea:disabled {
  * foreign object on a dark panel; this is the same glyph in our ink. */
 select {
   appearance: none;
-  padding-right: 30px;
+  padding-inline-end: 30px;
   background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
     linear-gradient(135deg, currentColor 50%, transparent 50%);
   background-position: calc(100% - 15px) calc(50% + 1px), calc(100% - 10px) calc(50% + 1px);
@@ -324,6 +337,13 @@ code {
   font-size: var(--fs-xs);
 }
 
+/* One key with its joining "+". */
+.kbd-part {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .kbd.unset kbd {
   color: var(--text-3);
   font-weight: 500;
@@ -342,7 +362,7 @@ code {
   display: flex;
   flex-direction: column;
   padding: 18px 12px 12px;
-  border-right: 1px solid rgba(255, 255, 255, 0.04);
+  border-inline-end: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 [data-theme="dark"] .sidebar {
@@ -434,7 +454,7 @@ code {
 .nav-item.active::before {
   content: "";
   position: absolute;
-  left: -12px;
+  inset-inline-start: -12px;
   top: 50%;
   transform: translateY(-50%);
   width: 3px;
@@ -444,7 +464,7 @@ code {
 }
 
 .nav-count {
-  margin-left: auto;
+  margin-inline-start: auto;
   font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
   color: var(--text-3);
@@ -464,7 +484,7 @@ code {
   display: none;
   position: absolute;
   top: 7px;
-  right: 9px;
+  inset-inline-end: 9px;
   width: 6px;
   height: 6px;
   border-radius: 50%;
@@ -626,7 +646,7 @@ h2 {
 }
 
 .spacer {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 .btn {
@@ -892,13 +912,13 @@ h2 {
   content: "";
   position: absolute;
   top: 2px;
-  left: 2px;
+  inset-inline-start: 2px;
   width: 17px;
   height: 17px;
   border-radius: 50%;
   background: var(--surface);
   box-shadow: var(--shadow-1);
-  transition: transform 0.15s ease;
+  transition: inset-inline-start 0.15s ease;
 }
 
 .switch.on {
@@ -907,7 +927,7 @@ h2 {
 }
 
 .switch.on::after {
-  transform: translateX(17px);
+  inset-inline-start: 19px;
   background: #fff;
 }
 
@@ -1226,7 +1246,7 @@ h2 {
 }
 
 .line-name .dot {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 .line-ico {
@@ -1384,7 +1404,7 @@ h2 {
 .quota-at {
   color: var(--text-3);
   font-size: var(--fs-xs);
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 .quota-items {
@@ -1658,7 +1678,7 @@ h2 {
 }
 
 .snav .warn-dot {
-  margin-left: auto;
+  margin-inline-start: auto;
   width: 6px;
   height: 6px;
   border-radius: 50%;
@@ -1820,7 +1840,7 @@ h2 {
 }
 
 .chev {
-  margin-left: auto;
+  margin-inline-start: auto;
   color: var(--text-3);
   flex: none;
   transition: transform 0.15s ease;
@@ -2112,7 +2132,7 @@ h2 {
   display: flex;
   align-items: center;
   gap: 2px;
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 /* The model chain that produced this entry. */
@@ -2178,8 +2198,7 @@ h2 {
 .hist-text.clipped::after {
   content: "";
   position: absolute;
-  left: 0;
-  right: 0;
+  inset-inline: 0;
   bottom: 0;
   height: 44px;
   background: linear-gradient(to bottom, transparent, var(--surface));
@@ -2378,7 +2397,7 @@ h2 {
   font-style: normal;
   color: var(--text-3);
   font-size: var(--fs-xs);
-  margin-left: 5px;
+  margin-inline-start: 5px;
 }
 
 .ledger-model {
@@ -2445,7 +2464,7 @@ h2 {
 
 .usage-reads li {
   position: relative;
-  padding-left: 18px;
+  padding-inline-start: 18px;
   margin-bottom: 8px;
   font-size: var(--fs-sm);
   color: var(--text-2);
@@ -2454,7 +2473,7 @@ h2 {
 .usage-reads li::before {
   content: "";
   position: absolute;
-  left: 2px;
+  inset-inline-start: 2px;
   top: 0.55em;
   width: 7px;
   height: 7px;
@@ -2863,7 +2882,7 @@ body.overlay-mode {
   position: absolute;
   top: -1px;
   bottom: -1px;
-  left: 0;
+  inset-inline-start: 0;
   width: 2px;
   border-radius: 1px;
   background: rgba(90, 100, 115, 0.85);
@@ -3057,7 +3076,7 @@ body.overlay-mode {
   }
 
   .nav-item.active::before {
-    left: -9px;
+    inset-inline-start: -9px;
   }
 
   .nav-dot {
@@ -3077,5 +3096,21 @@ body.overlay-mode {
     flex-direction: column;
     align-items: stretch;
     gap: 12px;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Reduced motion: every decorative animation stops. The overlay's
+ * liveness does not depend on CSS animation — its heartbeat is the
+ * state poll and rAF tick reported to Rust — so nothing here can
+ * trip the watchdog.
+ * ------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

@@ -321,7 +321,7 @@ export function Kbd({ spec }: { spec: string }) {
   return (
     <span className="kbd">
       {parts.map((p, i) => (
-        <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <span key={i} className="kbd-part">
           {i > 0 && <i>+</i>}
           <kbd>{p}</kbd>
         </span>

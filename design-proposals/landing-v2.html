@@ -1,0 +1,791 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nutq — اضغط، احكِ، والكلام يصير كتابة</title>
+<meta name="description" content="nutq يحوّل صوتك إلى نص جاهز في أي تطبيق على الويندوز: اضغط زرًا، احكِ، والنص يهبط حيث كان مؤشّرك. إملاء، ملاحظات، أفكار، وقوائم مهام — بخط واحد لكلٍّ منها.">
+<meta property="og:title" content="nutq — صوتك يصير كتابة">
+<meta property="og:description" content="اضغط زرًا، احكِ، والنص الجاهز يهبط في مكانه. لكل نوع كلام خطّه الخاص: إملاء، ملاحظة، فكرة، checklist.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* ================================================================
+     nutq landing v2 — is fully token-driven, same vocabulary and
+     philosophy as the app's design system (nutq/src/styles.css):
+     surfaces, ink, accent, radii, and a fixed type scale. Dark-first:
+     the recording pill's world. No scattered hard-coded colors below
+     beyond the token definitions themselves.
+     ================================================================ */
+  :root {
+    /* surfaces */
+    --bg: #0b1016;
+    --surface: #12181f;
+    --surface-2: #1a222c;
+    --surface-3: #232e3a;
+    --border: #212b37;
+    --border-strong: #33404f;
+
+    /* ink */
+    --text: #e9eef5;
+    --text-2: #9aa7b8;
+    --text-3: #8391a3;
+
+    /* accent — the product's teal, the only color allowed to glow */
+    --accent: #2fd6a5;
+    --accent-deep: #0f9d76;
+    --accent-ink: #06130e;
+    --accent-soft: rgba(47, 214, 165, 0.12);
+    --accent-line: rgba(47, 214, 165, 0.32);
+
+    /* states */
+    --rec: #ef6b6b;
+    --warn: #e5b062;
+
+    /* geometry — same ladder as the app */
+    --r-sm: 6px;
+    --r-md: 9px;
+    --r-lg: 12px;
+    --r-xl: 16px;
+    --r-full: 999px;
+
+    /* type — the app's scale, extended upward for the display sizes a
+       landing page needs (the app stops at 26px) */
+    --fs-micro: 10.5px;
+    --fs-xs: 11.5px;
+    --fs-sm: 12.5px;
+    --fs-md: 13.5px;
+    --fs-lg: 15px;
+    --fs-xl: 17px;
+    --fs-2xl: 22px;
+    --fs-3xl: 26px;
+    --fs-display: clamp(30px, 5vw, 44px);
+    --fs-display-2: clamp(22px, 3.4vw, 30px);
+
+    --mono: "Cascadia Mono", "SF Mono", Consolas, ui-monospace, monospace;
+
+    /* motion tokens — the app repeats 0.12s/0.15s inline; here they are named */
+    --dur-fast: 120ms;
+    --dur-med: 180ms;
+    --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+    color-scheme: dark;
+    font-family: "Vazirmatn", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+    font-size: var(--fs-lg);
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--text); overflow-x: hidden; }
+  ::selection { background: rgba(47, 214, 165, 0.28); }
+
+  .ltr { direction: ltr; unicode-bidi: isolate; font-family: var(--mono); }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  h1, h2, h3 { margin: 0; letter-spacing: -0.015em; line-height: 1.3; }
+  p { margin: 0; }
+  a { color: inherit; }
+
+  /* Arabic-safe eyebrow: weight and size instead of letter-spacing,
+     which would tear Arabic letters apart (see report, critical item) */
+  .eyebrow {
+    font-size: var(--fs-md);
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+    padding: 11px 22px;
+    border-radius: var(--r-md);
+    font: inherit; font-size: var(--fs-lg); font-weight: 700;
+    text-decoration: none; cursor: pointer;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text);
+    transition: background var(--dur-fast) ease, border-color var(--dur-fast) ease, transform var(--dur-fast) ease;
+  }
+  .btn:hover { background: var(--surface-2); border-color: var(--text-3); }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary {
+    background: var(--accent); color: var(--accent-ink); border-color: transparent;
+  }
+  .btn.primary:hover { background: #55e2bb; border-color: transparent; }
+  .btn.ghost { background: transparent; border-color: transparent; color: var(--text-2); }
+  .btn.ghost:hover { background: var(--surface-2); color: var(--text); }
+
+  /* ---------------------------------------------------------- header */
+  header.site {
+    position: sticky; top: 0; z-index: 50;
+    background: color-mix(in srgb, var(--bg) 86%, transparent);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+  .site-in {
+    display: flex; align-items: center; gap: 14px;
+    padding: 13px 24px; max-width: 1080px; margin: 0 auto;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+  .brand-mark {
+    width: 32px; height: 32px; border-radius: 9px;
+    background: linear-gradient(145deg, #34e0ac, #0f8a68);
+    display: grid; place-items: center;
+    color: #04120d; font-weight: 800; font-size: var(--fs-xl);
+    box-shadow: 0 2px 10px rgba(47, 214, 165, 0.25);
+  }
+  .brand-name { font-size: var(--fs-xl); font-weight: 700; }
+  .site-links { display: flex; gap: 4px; margin-inline-start: auto; align-items: center; }
+  .site-links a {
+    text-decoration: none; color: var(--text-2);
+    font-size: var(--fs-md); font-weight: 600;
+    padding: 7px 12px; border-radius: var(--r-md);
+    transition: color var(--dur-fast) ease, background var(--dur-fast) ease;
+  }
+  .site-links a:hover { color: var(--text); background: var(--surface); }
+  .site-links .btn { padding: 8px 16px; font-size: var(--fs-md); }
+
+  /* ------------------------------------------------------------- hero */
+  .hero { position: relative; padding: 72px 0 44px; text-align: center; }
+  /* the wave motif — the pill's own bars, oversized, as a background */
+  .hero::before {
+    content: "";
+    position: absolute; inset-inline: 0; top: 0; height: 340px;
+    background:
+      radial-gradient(60% 70% at 50% -10%, rgba(47, 214, 165, 0.09), transparent 70%),
+      radial-gradient(40% 55% at 12% 10%, rgba(72, 112, 205, 0.10), transparent 70%),
+      radial-gradient(45% 60% at 88% 15%, rgba(47, 214, 165, 0.06), transparent 70%);
+    pointer-events: none;
+  }
+  .hero-in { position: relative; max-width: 780px; margin: 0 auto; padding: 0 24px; }
+  .hero h1 { font-size: var(--fs-display); font-weight: 800; }
+  .hero .lede {
+    color: var(--text-2); font-size: var(--fs-xl);
+    max-width: 56ch; margin: 16px auto 0;
+  }
+  .hero .lede b { color: var(--text); font-weight: 700; }
+  .hero-cta { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 28px; }
+  .hero-note {
+    margin-top: 14px; font-size: var(--fs-sm); color: var(--text-3);
+    display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;
+  }
+  .hero-note span { display: inline-flex; align-items: center; gap: 6px; }
+  .hero-note svg { flex: none; }
+
+  /* the live demo — same loop as the original teaser, condensed */
+  .demo {
+    max-width: 720px; margin: 44px auto 0; position: relative;
+    border: 1px solid var(--border); border-radius: var(--r-xl);
+    background:
+      radial-gradient(120% 90% at 80% 4%, rgba(47, 214, 165, 0.10), transparent 58%),
+      var(--surface);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+    overflow: hidden;
+  }
+  .demo-beats {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 14px 20px 0; justify-content: center;
+    font-size: var(--fs-md); color: var(--text-3); font-weight: 600;
+  }
+  .beat { display: inline-flex; align-items: center; gap: 7px; transition: color 0.3s; }
+  .beat::before {
+    content: ""; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--surface-3); transition: background 0.3s, box-shadow 0.3s;
+  }
+  .beat.on { color: var(--text); }
+  .beat.on::before { background: var(--accent); box-shadow: 0 0 10px rgba(47, 214, 165, 0.75); }
+  .demo .sep { color: var(--surface-3); }
+
+  .chatwin {
+    max-width: 480px; margin: 18px auto 0;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    background: #ffffff; color: #18202b;
+    text-align: start;
+  }
+  .chatwin .tb {
+    display: flex; align-items: center; height: 34px; padding: 0 14px;
+    background: #f1f4f8; border-bottom: 1px solid #e0e6ee;
+    font-size: var(--fs-md); color: #667586;
+  }
+  .chatwin .thread { padding: 14px 16px; min-height: 96px; display: flex; flex-direction: column; gap: 8px; }
+  .bubble {
+    max-width: 80%; padding: 8px 12px; border-radius: 13px;
+    font-size: var(--fs-lg); line-height: 1.6; color: #18202b;
+  }
+  .them { align-self: flex-start; background: #f1f4f8; border-start-end-radius: 4px; }
+  .them .who { display: block; font-size: var(--fs-micro); color: #667586; margin-bottom: 2px; }
+  .mine {
+    align-self: flex-end; background: #d9f6ec; border-start-start-radius: 4px;
+    opacity: 0; transform: translateY(8px) scale(0.97);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+  }
+  .mine.in { opacity: 1; transform: none; }
+  .chatwin .composer {
+    display: flex; align-items: center; gap: 9px;
+    padding: 10px 12px; border-top: 1px solid #e0e6ee; background: #f1f4f8;
+  }
+  .chatwin .fieldbox {
+    flex: 1; min-height: 38px; padding: 8px 11px;
+    border: 1px solid #0f9d76; border-radius: var(--r-md); background: #fff;
+    font-size: var(--fs-md); color: #18202b;
+    box-shadow: 0 0 0 3px rgba(47, 214, 165, 0.15);
+    white-space: nowrap; overflow: hidden;
+  }
+  .chatwin .fieldbox .ph { color: #9aa7b6; }
+  .chatwin .sendbtn {
+    height: 38px; padding: 0 14px; border-radius: var(--r-md);
+    border: 1px solid #e0e6ee; background: #fff;
+    font-size: var(--fs-md); color: #97a3b2;
+  }
+
+  /* the pill — drawn with the app's own anatomy */
+  .demo-pill {
+    position: absolute; inset-inline: 0; bottom: 74px; margin: 0 auto;
+    width: fit-content;
+    display: flex; align-items: center; gap: 13px;
+    padding: 8px 16px;
+    border: 1px solid var(--border-strong); border-radius: var(--r-full);
+    background: #171e28;
+    box-shadow: 0 0 0 1px rgba(239, 107, 107, 0.14), 0 16px 40px rgba(0, 0, 0, 0.6);
+    opacity: 0; transform: translateY(14px);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+  .demo-pill.in { opacity: 1; transform: none; }
+  .demo-pill .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--rec); }
+  .demo-pill .bars { display: flex; align-items: center; gap: 3px; height: 20px; }
+  .demo-pill .bars i { width: 3px; height: 6px; border-radius: 2px; background: var(--rec); }
+  .demo-pill.in .bars i { animation: wavepulse 1s ease-in-out infinite; }
+  .demo-pill .bars i:nth-child(2) { animation-delay: 0.1s; }
+  .demo-pill .bars i:nth-child(3) { animation-delay: 0.2s; }
+  .demo-pill .bars i:nth-child(4) { animation-delay: 0.3s; }
+  .demo-pill .bars i:nth-child(5) { animation-delay: 0.4s; }
+  .demo-pill .bars i:nth-child(6) { animation-delay: 0.5s; }
+  .demo-pill .bars i:nth-child(7) { animation-delay: 0.6s; }
+  @keyframes wavepulse { 0%, 100% { height: 6px; opacity: 0.5; } 50% { height: 17px; opacity: 1; } }
+  .demo-pill .tmr {
+    font-family: var(--mono); font-size: var(--fs-md); color: #cbd6e4;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* the taskbar strip anchoring the demo in Windows */
+  .demo-taskbar {
+    height: 44px; display: flex; align-items: center; justify-content: flex-end;
+    gap: 12px; padding: 0 16px;
+    background: rgba(20, 26, 34, 0.92);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .tray-nutq {
+    width: 26px; height: 26px; display: grid; place-items: center;
+    border-radius: 7px; background: rgba(47, 214, 165, 0.14);
+    transition: background 0.25s, box-shadow 0.25s;
+  }
+  .tray-nutq.rec {
+    background: rgba(239, 107, 107, 0.22);
+    box-shadow: 0 0 0 1px rgba(239, 107, 107, 0.45), 0 0 14px rgba(239, 107, 107, 0.35);
+  }
+  .demo-taskbar .clk {
+    font-size: var(--fs-micro); color: #cbd6e4; text-align: end; line-height: 1.4;
+    font-variant-numeric: tabular-nums;
+  }
+  .demo-taskbar .clk span { display: block; color: var(--text-3); }
+
+  .demo-key {
+    display: inline-flex; align-items: center; gap: 6px; margin-top: 16px;
+    font-size: var(--fs-sm); color: var(--text-3);
+  }
+  .keycap {
+    display: inline-block; min-width: 30px; text-align: center;
+    font-family: var(--mono); font-size: var(--fs-sm); font-weight: 600;
+    color: var(--text); background: var(--surface-2);
+    border: 1px solid var(--border-strong); border-bottom-width: 3px;
+    border-radius: var(--r-sm); padding: 3px 9px;
+  }
+  .keycap.hot { color: var(--accent); border-color: var(--accent-deep); }
+  .keycap.down { transform: translateY(2px); border-bottom-width: 1px; }
+
+  /* ---------------------------------------------------------- features */
+  .section { padding: 72px 0; }
+  .section-head { max-width: 620px; margin: 0 auto 36px; text-align: center; }
+  .section-head h2 { font-size: var(--fs-display-2); font-weight: 800; }
+  .section-head p { color: var(--text-2); margin-top: 10px; font-size: var(--fs-lg); }
+
+  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .feature {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r-lg); padding: 20px;
+    transition: border-color var(--dur-fast) ease, transform var(--dur-med) var(--ease);
+  }
+  .feature:hover { border-color: var(--accent-line); transform: translateY(-2px); }
+  .feature .fi {
+    width: 38px; height: 38px; border-radius: var(--r-md);
+    display: grid; place-items: center;
+    background: var(--accent-soft); color: var(--accent);
+    margin-bottom: 14px;
+  }
+  .feature h3 { font-size: var(--fs-xl); font-weight: 700; }
+  .feature p { color: var(--text-2); font-size: var(--fs-md); margin-top: 6px; }
+
+  /* ------------------------------------------------------------- lines */
+  .lines-band { background: var(--surface); border-block: 1px solid var(--border); }
+  .lines { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+  .line {
+    display: flex; align-items: flex-start; gap: 12px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: var(--r-md); padding: 16px;
+  }
+  .line .li { color: var(--accent); flex: none; margin-top: 2px; }
+  .line b { display: block; font-size: var(--fs-lg); font-weight: 700; }
+  .line b .keycap { margin-inline-start: 8px; }
+  .line span { display: block; color: var(--text-2); font-size: var(--fs-md); margin-top: 3px; }
+
+  /* ---------------------------------------------------------- privacy */
+  .privacy-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 40px; align-items: center; }
+  .privacy-copy h2 { font-size: var(--fs-display-2); font-weight: 800; }
+  .privacy-copy p { color: var(--text-2); margin-top: 12px; }
+  .privacy-copy ul { margin: 18px 0 0; padding: 0; list-style: none; }
+  .privacy-copy li {
+    position: relative; padding-inline-start: 24px; margin-bottom: 10px;
+    color: var(--text-2); font-size: var(--fs-md);
+  }
+  .privacy-copy li::before {
+    content: ""; position: absolute; inset-inline-start: 2px; top: 0.5em;
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent); opacity: 0.85;
+  }
+  .privacy-copy li b { color: var(--text); font-weight: 700; }
+  .open-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r-xl); padding: 22px; text-align: center;
+  }
+  .open-card .big { font-size: var(--fs-3xl); font-weight: 800; font-variant-numeric: tabular-nums; }
+  .open-card .sub { color: var(--text-3); font-size: var(--fs-md); margin-top: 4px; }
+  .open-card .gh {
+    display: inline-flex; align-items: center; gap: 8px; margin-top: 14px;
+    color: var(--accent); font-weight: 700; text-decoration: none;
+    font-size: var(--fs-md);
+  }
+  .open-card .gh:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+  /* ---------------------------------------------------------- pricing */
+  .byok {
+    max-width: 640px; margin: 0 auto; text-align: center;
+    background: var(--surface); border: 1px solid var(--accent-line);
+    border-radius: var(--r-xl); padding: 36px 28px;
+  }
+  .byok .tag {
+    display: inline-block; padding: 4px 12px; border-radius: var(--r-full);
+    background: var(--accent-soft); color: var(--accent);
+    font-size: var(--fs-sm); font-weight: 700; margin-bottom: 14px;
+  }
+  .byok h2 { font-size: var(--fs-display-2); font-weight: 800; }
+  .byok p { color: var(--text-2); margin-top: 10px; }
+
+  /* ------------------------------------------------------------- faq */
+  .faq { max-width: 720px; margin: 0 auto; }
+  .faq details {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--r-lg); padding: 16px 20px; margin-bottom: 10px;
+  }
+  .faq summary {
+    cursor: pointer; font-weight: 700; font-size: var(--fs-lg);
+    list-style: none; display: flex; align-items: center; gap: 10px;
+  }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::before {
+    content: "+"; color: var(--accent); font-weight: 800;
+    font-family: var(--mono); flex: none;
+  }
+  .faq details[open] summary::before { content: "−"; }
+  .faq details p { color: var(--text-2); font-size: var(--fs-md); margin-top: 10px; }
+
+  /* ---------------------------------------------------------- cta/foot */
+  .final-cta { text-align: center; padding: 80px 0; }
+  .final-cta h2 { font-size: var(--fs-display); font-weight: 800; }
+  .final-cta p { color: var(--text-2); margin: 12px auto 26px; max-width: 48ch; }
+  .wave-strip {
+    display: flex; align-items: flex-end; justify-content: center; gap: 4px;
+    height: 32px; margin-bottom: 30px; opacity: 0.9;
+  }
+  .wave-strip i {
+    width: 3.5px; border-radius: 2px; background: var(--accent);
+    height: 6px; animation: wavepulse 1.3s ease-in-out infinite;
+  }
+  footer.site {
+    border-top: 1px solid var(--border); padding: 28px 0;
+    color: var(--text-3); font-size: var(--fs-sm);
+  }
+  .foot-in {
+    display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+    max-width: 1080px; margin: 0 auto; padding: 0 24px;
+  }
+  .foot-in a { color: var(--text-2); text-decoration: none; }
+  .foot-in a:hover { color: var(--text); }
+  .foot-in .sep { margin-inline-start: auto; }
+
+  /* ------------------------------------------------------- responsive */
+  @media (max-width: 860px) {
+    .features { grid-template-columns: 1fr 1fr; }
+    .privacy-grid { grid-template-columns: 1fr; gap: 24px; }
+    .site-links a:not(.btn) { display: none; }
+  }
+  @media (max-width: 560px) {
+    .features { grid-template-columns: 1fr; }
+    .hero { padding-top: 52px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .demo-pill .bars i, .wave-strip i { animation: none !important; }
+    .demo-pill .bars i:nth-child(odd) { height: 13px; }
+    .demo-pill, .mine, .feature { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="site-in">
+    <a class="brand" href="#">
+      <span class="brand-mark">ن</span>
+      <span class="brand-name">nutq</span>
+    </a>
+    <nav class="site-links">
+      <a href="#features">الميزات</a>
+      <a href="#lines">الخطوط</a>
+      <a href="#privacy">الخصوصية</a>
+      <a href="#faq">أسئلة</a>
+      <a class="btn primary" href="#download">حمّل لويندوز</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ============================== hero ============================== -->
+<section class="hero">
+  <div class="hero-in">
+    <div class="eyebrow">صوتك، مباشرة إلى مكان الكتابة</div>
+    <h1>اضغط. احكِ.<br>والكلام يصير نصًا جاهزًا.</h1>
+    <p class="lede">
+      nutq برنامج سطح مكتب يحوّل كلامك إلى نص <b>منظّم وجاهز</b> ويضعه حيث كان
+      مؤشّرك — في أي تطبيق. بدون نوافذ، بدون نسخ ولصق، بدون "امسك الميكروفون".
+    </p>
+    <div class="hero-cta">
+      <a class="btn primary" href="#download">
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3.8v8.4M6.4 9l3.6 3.6L13.6 9M4.4 15.6h11.2"/></svg>
+        حمّل لويندوز — مجاني
+      </a>
+      <a class="btn ghost" href="#how">شاهد كيف يعمل ↓</a>
+    </div>
+    <div class="hero-note">
+      <span>
+        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="#2fd6a5" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m4.6 10.4 3.4 3.4 7.4-8"/></svg>
+        مفتوح المصدر
+      </span>
+      <span>
+        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="#2fd6a5" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m4.6 10.4 3.4 3.4 7.4-8"/></svg>
+        بدون اشتراك — اجلب مفتاحك الخاص
+      </span>
+      <span>
+        <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="#2fd6a5" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m4.6 10.4 3.4 3.4 7.4-8"/></svg>
+        الصوت لا يُحفظ على القرص
+      </span>
+    </div>
+  </div>
+
+  <!-- the live loop: key → pill → text, the product in four seconds -->
+  <div class="demo" id="how">
+    <div class="demo-beats">
+      <span class="beat on" id="b1">اضغط <span class="keycap hot" id="keycap">F8</span></span>
+      <span class="sep">←</span>
+      <span class="beat" id="b2">احكِ</span>
+      <span class="sep">←</span>
+      <span class="beat" id="b3">النص بمحلّه</span>
+    </div>
+
+    <div class="chatwin">
+      <div class="tb">الرسائل</div>
+      <div class="thread">
+        <div class="bubble them">
+          <span class="who">سامر</span>
+          وصلك الملف؟ محتاجه اليوم إذا بتقدر.
+        </div>
+        <div class="bubble mine" id="sent">تمام، بكرا الصبح ببعتلك الملف. ✓✓</div>
+      </div>
+      <div class="composer">
+        <div class="fieldbox"><span class="ph" id="ph">اكتب رسالة…</span><span id="typed"></span></div>
+        <span class="sendbtn">إرسال</span>
+      </div>
+    </div>
+
+    <div class="demo-pill" id="pill" aria-hidden="true">
+      <span class="dot"></span>
+      <span class="bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      <span class="tmr" id="tmr">0:00</span>
+    </div>
+
+    <div class="demo-taskbar" aria-hidden="true">
+      <span class="tray-nutq" id="tray">
+        <svg width="13" height="13" viewBox="0 0 20 20" fill="none" stroke="#2fd6a5" stroke-width="1.7" stroke-linecap="round" id="trayGlyph"><rect x="7.3" y="2.4" width="5.4" height="9.2" rx="2.7"/><path d="M4.5 9.4a5.5 5.5 0 0 0 11 0M10 14.9v2.7"/></svg>
+      </span>
+      <div class="clk">3:42 م<span>2026/09/09</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ features ============================ -->
+<section class="section" id="features">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="eyebrow">ليش nutq</div>
+      <h2>كل ما تكتبه… قلّه</h2>
+      <p>صُمّم ليختفي: زر واحد بينك وبين جملة جاهزة، أينما كنت تكتب.</p>
+    </div>
+    <div class="features">
+      <div class="feature">
+        <span class="fi"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="7.6" y="3" width="4.8" height="9" rx="2.4"/><path d="M4.8 9.6a5.2 5.2 0 0 0 10.4 0M10 14.8V17"/></svg></span>
+        <h3>يعمل في كل تطبيق</h3>
+        <p>اختصار عالمي في أي برنامج على الويندوز: شات، إيميل، محرّر كود، مستندات. النص يُلصق حيث كان المؤشّر.</p>
+      </div>
+      <div class="feature">
+        <span class="fi"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.4 10h1.4M7 6.6v6.8M10 4.4v11.2M13 7.4v5.2M15.8 9.2v1.6"/></svg></span>
+        <h3>نص جاهز، لا مفرّغ حرفي</h3>
+        <p>يمرّ الكلام عبر نموذج ذكاء اصطناعي يصحّح وينظّم ويصوغ — فتحصل على نص مفهوم لا على تفريغ يحتاج تدقيقًا.</p>
+      </div>
+      <div class="feature">
+        <span class="fi"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m5 15 7.4-7.4M13.6 6.4l-1.2-1.2M15.2 3.2v2.6M16.5 4.5h-2.6M7.2 4.4l.5 1.3 1.3.5-1.3.5-.5 1.3-.5-1.3-1.3-.5 1.3-.5z"/></svg></span>
+        <h3>خطّك، تعليماتك</h3>
+        <p>لكل خط اختصاره وتعليماته الخاصة: "حوّل كلامي لردّ بريد مهذّب" أو "استخرج المهام" — أنت تحدّد الشكل.</p>
+      </div>
+      <div class="feature">
+        <span class="fi"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4.4 5.8h11.2M4.4 10h8.4M4.4 14.2h5.6"/></svg></span>
+        <h3>سجلّ وبحث</h3>
+        <p>كل نتيجة تُحفظ مع تاريخها وكلفتها والميكروفون الذي سمعها. ابحث في كل ما قلته يومًا ما.</p>
+      </div>
+      <div class="feature">
+        <span class="fi"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.8" cy="9.4" r="3.2"/><path d="M9.6 10.6h6.8v2.6M13.6 10.6v2.2"/></svg></span>
+        <h3>مفاتيحك في مكان آمن</h3>
+        <p>مفاتيح الـ API تُخزَّن في مدير اعتمادات ويندوز — لا تلمس ملفات البرنامج ولا تغادر جهازك.</p>
+      </div>
+      <div class="feature">
+        <span class="fi"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M15.6 8.4A5.8 5.8 0 0 0 5.2 6.6M4.4 11.6a5.8 5.8 0 0 0 10.4 1.8M15.6 4.6v3.8h-3.8M4.4 15.4v-3.8h3.8"/></svg></span>
+        <h3>تحديث تلقائي موقّع</h3>
+        <p>إصدار جديد؟ تنزيل وتثبيت وإعادة تشغيل بنقرة واحدة، بحزمة موقّعة رقميًا. البرنامج يهتم بنفسه.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== lines ============================= -->
+<section class="section lines-band" id="lines">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="eyebrow">سبعة خطوط، سبعة أزرار</div>
+      <h2>لكل نوع كلام… وجهته</h2>
+      <p>الخط يجمع اختصارًا وواحدة وطريقة معالجة ووجهة — نضغط الزر فتظهر حبّة التسجيل بأيقونة هذا الخط نفسها.</p>
+    </div>
+    <div class="lines">
+      <div class="line">
+        <span class="li"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="7.6" y="3" width="4.8" height="9" rx="2.4"/><path d="M4.8 9.6a5.2 5.2 0 0 0 10.4 0M10 14.8V17"/></svg></span>
+        <div><b>إملاء <span class="keycap">F8</span></b><span>نص منظّف يُلصق فورًا في مكان المؤشّر</span></div>
+      </div>
+      <div class="line">
+        <span class="li"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5.4 3.8h7.2l3 3v9.4h-10.2z"/><path d="M12.4 3.8v3.2h3.2M7.6 10h4.8M7.6 12.8h4.8"/></svg></span>
+        <div><b>ملاحظة <span class="keycap">F9</span></b><span>تُحفظ في صفحة الملاحظات داخل البرنامج</span></div>
+      </div>
+      <div class="line">
+        <span class="li"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12.6 11.9c.2-.8.6-1.4 1.2-2 .8-.8 1.2-1.8 1.2-2.9a5 5 0 0 0-10 0c0 1.1.4 2.1 1.2 2.9.6.6 1 1.2 1.2 2"/><path d="M7.6 14.4h4.8M8.7 16.8h2.6"/></svg></span>
+        <div><b>فكرة <span class="keycap">F10</span></b><span>تُصاغ كفكرة واضحة قابلة للتطوير</span></div>
+      </div>
+      <div class="line">
+        <span class="li"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.4" y="4" width="13.2" height="12.6" rx="1.6"/><path d="m6.4 8.2 1.5 1.5 2.5-2.7M6.4 12.6l1.5 1.5 2.5-2.7M12.4 8.9h3.4M12.4 13.3h3.4"/></svg></span>
+        <div><b>قائمة مهام <span class="keycap">F11</span></b><span>تتحوّل إلى مهام قابلة للتأشير في صفحة To-do</span></div>
+      </div>
+      <div class="line">
+        <span class="li"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4.4 5.8h11.2M4.4 10h8.4M4.4 14.2h5.6"/></svg></span>
+        <div><b>تلخيص</b><span>خلاصة مرتّبة من كلام مطوّل</span></div>
+      </div>
+      <div class="line">
+        <span class="li"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7.4 5.6c-1.9.7-3 2.3-3 4.4v4.4h4.4v-4.4H6.2c0-1.4.4-2.3 1.7-2.9zM15.4 5.6c-1.9.7-3 2.3-3 4.4v4.4h4.4v-4.4h-2.6c0-1.4.4-2.3 1.7-2.9z"/></svg></span>
+        <div><b>حرف بحرف</b><span>تفريغ نصّي كما قيل، بلا تدخل</span></div>
+      </div>
+      <div class="line">
+        <span class="li"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m5 15 7.4-7.4M13.6 6.4l-1.2-1.2M15.2 3.2v2.6M16.5 4.5h-2.6M7.2 4.4l.5 1.3 1.3.5-1.3.5-.5 1.3-.5-1.3-1.3-.5 1.3-.5z"/></svg></span>
+        <div><b>تعليماتك الخاصة</b><span>اكتب الوصفة مرة، واستخدمها بخط واحد دائمًا</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ privacy ============================= -->
+<section class="section" id="privacy">
+  <div class="wrap">
+    <div class="privacy-grid">
+      <div class="privacy-copy">
+        <div class="eyebrow">الخصوصية</div>
+        <h2>صوتك لا يُخزَّن. نقطة.</h2>
+        <p>التسجيل يعيش في الذاكرة: يُرسَل للتفريغ ثم يُمحى. لا ملفات صوت على القرص، ولا سحابة لنا نحتفظ فيها بشيء.</p>
+        <ul>
+          <li><b>الصوت في الذاكرة فقط</b> — لا يُكتب على القرص أبدًا.</li>
+          <li><b>مفاتيحك في مدير اعتمادات ويندوز</b> — لا في ملفات إعدادات ولا في المستودع.</li>
+          <li><b>الذكاء الاصطناعي بمفتاحك أنت</b> — نحن لا نرى كلامك ولا نتقاضى عنه شيئًا.</li>
+          <li><b>السجل محلي</b> — على جهازك، ويمكن مسحه متى شئت.</li>
+        </ul>
+      </div>
+      <div class="open-card">
+        <div class="big">100%</div>
+        <div class="sub">مفتوح المصدر — الكود على GitHub للمراجعة والبناء</div>
+        <a class="gh" href="https://github.com/fadi47at/nutq" target="_blank" rel="noopener">
+          <svg width="17" height="17" viewBox="0 0 20 20" fill="currentColor"><path d="M10 1.8a8.2 8.2 0 0 0-2.6 16c.41.07.56-.18.56-.4v-1.4c-2.27.5-2.75-1.1-2.75-1.1-.37-.94-.9-1.2-.9-1.2-.74-.5.05-.5.05-.5.82.06 1.25.84 1.25.84.72 1.24 1.9.88 2.36.68.07-.53.28-.89.51-1.1-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .22.15.48.57.4A8.2 8.2 0 0 0 10 1.8z"/></svg>
+          github.com/fadi47at/nutq
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================= pricing ============================ -->
+<section class="section" id="pricing" style="padding-top:0">
+  <div class="wrap">
+    <div class="byok">
+      <div class="tag">السعر</div>
+      <h2>لا اشتراك. اجلب مفتاحك.</h2>
+      <p>
+        nutq مجاني ومفتوح المصدر بالكامل. التفريغ والتحسين يجريان على حسابك لدى
+        المزوّد الذي تختاره (Gemini، Claude، Groq، ElevenLabs، أو خدمة متوافقة خاصة) —
+        لذا الكلفة تلي كلامك أنت، لا شهريًا لنا.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- =============================== faq ============================== -->
+<section class="section" id="faq" style="padding-top:0">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="eyebrow">أسئلة متكرّرة</div>
+      <h2>تفاصيل تهمّك</h2>
+    </div>
+    <div class="faq">
+      <details>
+        <summary>هل يدعم العربية؟</summary>
+        <p>نعم — التفريغ والتحسين يعملان على العربية والإنجليزية وكل لغة يدعمها النموذج الذي تختاره. واجهة البرنامج حاليًا بالإنجليزية والتعريب في الطريق.</p>
+      </details>
+      <details>
+        <summary>على أي أنظمة يعمل؟</summary>
+        <p>ويندوز (مثبّت NSIS موقّع مع تحديث تلقائي) وmacOS (حزمة dmg شاملة). يعمل فوق أي تطبيق لأنه لا يحتاج تكاملًا معه — فقط مؤشّر كتابة.</p>
+      </details>
+      <details>
+        <summary>ماذا يحدث لو انقطع النت during تسجيل؟</summary>
+        <p>التسجيل يُحفظ مؤقتًا في قائمة انتظار داخل البرنامج، وبعد إصلاح الاتصال تعيد المحاولة بضغطة — مع مزوّد احتياطي تلقائي إن فعّلته.</p>
+      </details>
+      <details>
+        <summary>كم يكلّفني استخدامه؟</summary>
+        <p>يعتمد على مزوّدك: غالبًا أجزاء من السنت لكل دقيقة صوت. صفحة الاستخدام داخل البرنامج تُظهر كلفتك اليومية والشهرية بالتفصيل.</p>
+      </details>
+      <details>
+        <summary>هل يمكنني تعديل مظهر حبّة التسجيل؟</summary>
+        <p>29 ثيمًا منسّقًا وخمسة أشكال موجة وأيقونة لكل خط — كلها مع معاينة حيّة في الإعدادات قبل الحفظ.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ final cta =========================== -->
+<section class="final-cta" id="download">
+  <div class="wrap">
+    <div class="wave-strip" aria-hidden="true">
+      <i style="animation-delay:0s"></i><i style="animation-delay:.1s"></i><i style="animation-delay:.2s"></i>
+      <i style="animation-delay:.3s"></i><i style="animation-delay:.4s"></i><i style="animation-delay:.5s"></i>
+      <i style="animation-delay:.6s"></i><i style="animation-delay:.7s"></i><i style="animation-delay:.8s"></i>
+    </div>
+    <h2>جملتك القادمة جاهزة.<br>فقط قلها.</h2>
+    <p>حمّل nutq، اربط مفتاحك، واضغط أول اختصار — خلال دقيقتين تكون تكتب بصوتك.</p>
+    <a class="btn primary" style="font-size:var(--fs-xl); padding:14px 30px" href="https://github.com/fadi47at/nutq/releases/latest">
+      حمّل لويندوز — مجاني ومفتوح المصدر
+    </a>
+  </div>
+</section>
+
+<footer class="site">
+  <div class="foot-in">
+    <span>nutq — صوتك يصير كتابة</span>
+    <a href="https://github.com/fadi47at/nutq">GitHub</a>
+    <a href="#privacy">الخصوصية</a>
+    <a href="#faq">الأسئلة</a>
+    <span class="sep">صُنع بعناية لمن يتكلّم كثيرًا ويكتب أسرع</span>
+  </div>
+</footer>
+
+<script>
+  // The hero loop — the original teaser's four-second story, condensed.
+  (function () {
+    var key = document.getElementById("keycap");
+    var pill = document.getElementById("pill");
+    var tmr = document.getElementById("tmr");
+    var tray = document.getElementById("tray");
+    var glyph = document.getElementById("trayGlyph");
+    var typed = document.getElementById("typed");
+    var ph = document.getElementById("ph");
+    var sent = document.getElementById("sent");
+    var beats = [document.getElementById("b1"), document.getElementById("b2"), document.getElementById("b3")];
+    var LINE = "تمام، بكرا الصبح ببعتلك الملف.";
+
+    var timers = [], tick = null;
+    function at(ms, fn) { timers.push(setTimeout(fn, ms)); }
+    function lit(i) { beats.forEach(function (b, n) { b.classList.toggle("on", n === i); }); }
+    function press() {
+      key.classList.add("down");
+      at(140, function () { key.classList.remove("down"); });
+    }
+    function clock(on) {
+      clearInterval(tick);
+      if (!on) return;
+      var s = 0; tmr.textContent = "0:00";
+      tick = setInterval(function () {
+        s += 1; tmr.textContent = "0:" + (s < 10 ? "0" : "") + s;
+      }, 1000);
+    }
+    function still() {
+      lit(2); ph.hidden = true; sent.classList.add("in");
+    }
+    function run() {
+      timers.forEach(clearTimeout); timers = [];
+      clock(false);
+      tray.classList.remove("rec");
+      glyph.setAttribute("stroke", "#2fd6a5");
+      pill.classList.remove("in");
+      sent.classList.remove("in");
+      typed.textContent = ""; ph.hidden = false;
+      lit(0);
+      at(700, press);
+      at(950, function () {
+        lit(1); pill.classList.add("in");
+        tray.classList.add("rec");
+        glyph.setAttribute("stroke", "#ef6b6b");
+        clock(true);
+      });
+      at(4200, press);
+      at(4400, function () {
+        pill.classList.remove("in"); tray.classList.remove("rec");
+        glyph.setAttribute("stroke", "#2fd6a5");
+        clock(false); lit(2); ph.hidden = true;
+        var i = 0;
+        (function type() {
+          typed.textContent = LINE.slice(0, ++i);
+          if (i < LINE.length) at(22, type);
+        })();
+      });
+      at(6400, function () {
+        typed.textContent = ""; ph.hidden = false;
+        sent.classList.add("in");
+      });
+      at(9200, run);
+    }
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) still();
+    else run();
+  })();
+</script>
+</body>
+</html>

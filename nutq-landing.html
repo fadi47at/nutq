@@ -1,7 +1,17 @@
-<title>nutq</title>
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nutq — اضغط، احكِ، والنص بمحلّه</title>
+<meta name="description" content="nutq يحوّل صوتك إلى نص جاهز في أي تطبيق على الويندوز: اضغط زرًا، احكِ، والنص يهبط حيث كان مؤشّرك. إملاء، ملاحظات، أفكار، وقوائم مهام — بخط واحد لكل نوع.">
+<meta property="og:title" content="nutq — اضغط، احكِ، والنص بمحلّه">
+<meta property="og:description" content="اضغط زرًا، احكِ، والنص الجاهز يهبط في مكانه. الصوت لا يلمس القرص، والمفاتيح لا تلمس الملفات.">
+<meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=Readex+Pro:wght@500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700&family=Cascadia+Mono:wght@400;500&display=swap">
+</head>
 
 <style>
   /* A Windows screen with a keyboard under it. One loop: the key goes down, the
@@ -25,9 +35,11 @@
     --accent-deep: #0f9d76;
     --rec: #ff6b6b;
 
-    --display: "Readex Pro", "IBM Plex Sans Arabic", system-ui, sans-serif;
-    --body: "IBM Plex Sans Arabic", "Segoe UI", system-ui, sans-serif;
-    --mono: "IBM Plex Mono", ui-monospace, monospace;
+    /* Same families as the app (nutq/src/styles.css) — one identity
+       between the marketing page and the product. */
+    --display: "Vazirmatn", "Segoe UI", system-ui, sans-serif;
+    --body: "Vazirmatn", "Segoe UI", system-ui, sans-serif;
+    --mono: "Cascadia Mono", ui-monospace, monospace;
 
     color-scheme: dark;
   }

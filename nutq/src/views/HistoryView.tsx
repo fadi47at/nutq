@@ -80,18 +80,19 @@ function duration(seconds: number): string {
   return `${sec}s`;
 }
 
-/** Colors handed out per model name. The palette is hand-picked to stay
- *  readable on the dark panels; the hash just picks from it, so a model
- *  keeps the same color across ranges, charts and sessions. */
+/** Colors handed out per model name, defined once as `--chart-*` tokens in
+ *  styles.css (same names for both themes) so the charts and any gallery
+ *  that mirrors them share one palette. The hash just picks from it, so a
+ *  model keeps the same color across ranges, charts and sessions. */
 const MODEL_COLORS = [
-  "#4f8fe2", // blue
-  "#e2554f", // red
-  "#3fa66a", // green
-  "#e8b13f", // amber
-  "#9a6de0", // violet
-  "#e07bb0", // pink
-  "#3fb5b0", // teal
-  "#8a93a5", // grey
+  "var(--chart-1)", // blue
+  "var(--chart-2)", // red
+  "var(--chart-3)", // green
+  "var(--chart-4)", // amber
+  "var(--chart-5)", // violet
+  "var(--chart-6)", // pink
+  "var(--chart-7)", // teal
+  "var(--chart-8)", // grey
 ];
 
 function modelColor(model: string): string {
@@ -246,7 +247,7 @@ function AxisUsageChart({
                           width={bw}
                           height={h}
                           rx={si === segs.length - 1 ? 2.5 : 0}
-                          fill={modelColor(s.model)}
+                          style={{ fill: modelColor(s.model) }}
                         />
                       );
                     })}
@@ -766,6 +767,7 @@ export default function HistoryView() {
                     <button
                       className="icon-btn"
                       title={showRaw[e.id] ? "Show the finished text" : "Show the raw transcript"}
+                      aria-label={showRaw[e.id] ? "Show the finished text" : "Show the raw transcript"}
                       onClick={() => setShowRaw((r) => ({ ...r, [e.id]: !r[e.id] }))}
                     >
                       <Icon name="eye" />
@@ -773,6 +775,7 @@ export default function HistoryView() {
                     <button
                       className="icon-btn"
                       title="Copy this result"
+                      aria-label="Copy this result"
                       onClick={async () => {
                         await api.copyText(e.refined);
                         setCopied(e.id);
@@ -785,6 +788,11 @@ export default function HistoryView() {
                       className="icon-btn"
                       disabled={regenId !== null}
                       title={
+                        e.audio_file
+                          ? "Run this entry through the current providers again, starting from the kept audio"
+                          : "The recording is gone - re-run refinement over the saved transcript"
+                      }
+                      aria-label={
                         e.audio_file
                           ? "Run this entry through the current providers again, starting from the kept audio"
                           : "The recording is gone - re-run refinement over the saved transcript"
@@ -809,6 +817,7 @@ export default function HistoryView() {
                       <button
                         className="icon-btn danger"
                         title="Delete this entry"
+                        aria-label="Delete this entry"
                         onClick={() => setConfirmDelete(e.id)}
                       >
                         <Icon name="trash" />

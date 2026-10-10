@@ -1,0 +1,44 @@
+name: CI (Windows)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: nutq/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: nutq/src-tauri
+
+      - name: npm install
+        working-directory: nutq
+        run: npm ci
+
+      - name: Type-check the frontend
+        working-directory: nutq
+        run: npx tsc --noEmit
+
+      - name: Vite build
+        working-directory: nutq
+        run: npx vite build
+
+      - name: cargo check
+        working-directory: nutq/src-tauri
+        run: cargo check
+
+      - name: cargo test
+        working-directory: nutq/src-tauri
+        run: cargo test

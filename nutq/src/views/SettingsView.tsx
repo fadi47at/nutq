@@ -745,6 +745,7 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                             <button
                               className="icon-btn danger"
                               title="Remove this line"
+                              aria-label="Remove this line"
                               onClick={() => setConfirmDelete(p.id)}
                             >
                               <Icon name="trash" />
@@ -1675,6 +1676,7 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                       <button
                         className="icon-btn danger"
                         title="Remove"
+                        aria-label="Remove"
                         onClick={() =>
                           set("dictionary", draft.dictionary.filter((_, j) => j !== i))
                         }
@@ -1729,6 +1731,7 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                       <button
                         className="icon-btn danger"
                         title="Remove"
+                        aria-label="Remove"
                         onClick={() =>
                           set("snippets", draft.snippets.filter((_, j) => j !== i))
                         }
@@ -1858,7 +1861,7 @@ function KeyField({
             Undo
           </button>
         ) : (
-          <button className="icon-btn danger" title="Forget this key" onClick={onClear}>
+          <button className="icon-btn danger" title="Forget this key" aria-label="Forget this key" onClick={onClear}>
             <Icon name="trash" />
           </button>
         ))}
