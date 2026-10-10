@@ -267,7 +267,9 @@ raw transcript once the audio has aged out. Calls that failed on every
 provider are a different thing: those are parked for retry on the Home page.
 An entry that still has its recording can also put the **audio itself** on
 the clipboard as a file - the way Explorer copies a file - to paste into a
-chat that takes voice notes, an upload box, or a folder.
+chat that takes voice notes, an upload box, or a folder. The file is named
+for what it is - the date and the first words said - so it introduces
+itself in the chat it lands in.
 
 ### Updating
 

@@ -757,19 +757,30 @@ fn get_history_audio(state: State<AppState>, id: String) -> Result<String, Strin
 
 /// Copies one entry's kept recording to the clipboard as a file - the way
 /// Explorer copies a file - so it can be pasted into anything that accepts
-/// one: a chat that takes voice notes, an upload box, a folder. Text copy
-/// is elsewhere; this is for the recording itself.
+/// one: a chat that takes voice notes, an upload box, a folder. The file
+/// carries a readable name (date + the first words) rather than the
+/// internal clip id, so it introduces itself in the chat it lands in.
 #[tauri::command]
 fn copy_history_audio(state: State<AppState>, id: String) -> Result<(), String> {
-    let name = {
+    let (name, at, text) = {
         let h = state.history.lock().unwrap();
-        h.entries
+        let e = h
+            .entries
             .iter()
             .find(|e| e.id == id)
-            .and_then(|e| e.audio_file.clone())
-            .ok_or("this entry has no saved audio")?
+            .ok_or("this entry does not exist")?;
+        let audio = e
+            .audio_file
+            .clone()
+            .ok_or("this entry has no saved audio")?;
+        let text = if e.refined.trim().is_empty() {
+            e.raw.clone()
+        } else {
+            e.refined.clone()
+        };
+        (audio, e.at.clone(), text)
     };
-    let path = clips::path(&name).map_err(|e| format!("{e:#}"))?;
+    let path = clips::export_for_clipboard(&name, &at, &text).map_err(|e| format!("{e:#}"))?;
     inject::copy_file(&path).map_err(|e| format!("{e:#}"))
 }
 

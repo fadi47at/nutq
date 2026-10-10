@@ -52,6 +52,57 @@ pub fn path(name: &str) -> Result<PathBuf> {
     Ok(dir()?.join(name))
 }
 
+/// Copies a clip to `%TEMP%\nutq` under a name a person can read - the date
+/// and the first words of what was said - and returns that path, ready to go
+/// on the clipboard. The pasted file says what it is instead of an internal
+/// id, which is what a chat full of voice notes needs. The original clip is
+/// untouched; exports live for a day and are swept on the next copy.
+pub fn export_for_clipboard(name: &str, at: &str, text: &str) -> Result<PathBuf> {
+    let src = path(name)?;
+    let dir = std::env::temp_dir().join("nutq");
+    fs::create_dir_all(&dir)?;
+
+    // One day is far longer than any paste takes; old exports only pile up.
+    if let Ok(files) = fs::read_dir(&dir) {
+        let day = std::time::SystemTime::now()
+            .checked_sub(std::time::Duration::from_secs(24 * 60 * 60));
+        for f in files.flatten() {
+            if let (Ok(modified), Some(cutoff)) = (f.metadata().and_then(|m| m.modified()), day) {
+                if modified < cutoff {
+                    let _ = fs::remove_file(f.path());
+                }
+            }
+        }
+    }
+
+    let dest = dir.join(format!("{}.wav", friendly_stem(at, text)));
+    fs::copy(&src, &dest)?;
+    Ok(dest)
+}
+
+/// "2026-09-24 17:30:00" + "مبارح رحنا على..." -> a stem Windows accepts,
+/// trimmed so a chat window can show it whole.
+fn friendly_stem(at: &str, text: &str) -> String {
+    let stamp = at.replace(':', ".");
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let mut stem = if words.is_empty() {
+        format!("nutq {stamp}")
+    } else {
+        format!("nutq {stamp} - {}", words.join(" "))
+    };
+    stem = stem
+        .chars()
+        .map(|c| match c {
+            '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '.',
+            _ => c,
+        })
+        .collect();
+    if stem.chars().count() > 60 {
+        stem = stem.chars().take(60).collect();
+    }
+    stem.trim_end_matches('.').to_string()
+}
+
 /// Keeps the newest `MAX_CLIPS` clips and drops the rest, both the files and
 /// the references to them - an entry pointing at a deleted file would offer a
 /// play button that fails. Entries are newest-first, so this is just a count.
