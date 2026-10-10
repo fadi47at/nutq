@@ -393,17 +393,21 @@ export function PageHead({
   title,
   lede,
   actions,
+  hero,
 }: {
   eyebrow: string;
   title: string;
   lede?: ReactNode;
   actions?: ReactNode;
+  /** Home is the product's opening line, so it may speak a size larger
+   *  than every other page's title. Nobody else passes this. */
+  hero?: boolean;
 }) {
   return (
     <div className="page-head">
       <div className="page-head-text">
         <div className="eyebrow">{eyebrow}</div>
-        <h1>{title}</h1>
+        <h1 className={hero ? "hero" : undefined}>{title}</h1>
         {lede && <p className="lede">{lede}</p>}
       </div>
       {actions && <div className="page-head-actions">{actions}</div>}

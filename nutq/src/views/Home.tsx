@@ -129,6 +129,7 @@ export default function Home({
   return (
     <>
       <PageHead
+        hero
         eyebrow="Voice workspace"
         title="Ready when you are."
         lede={
@@ -276,7 +277,15 @@ export default function Home({
           </div>
 
           {lines.length === 0 ? (
-            <div className="card-body">
+            <div className="card-body first-run">
+              <div className="first-run-copy">
+                <div className="first-run-title">Make your first line</div>
+                <div className="hint">
+                  A line is one hotkey plus what it does with your voice -
+                  dictation, a note, a checklist, your own instructions. It
+                  becomes a button here and a key that works in any app.
+                </div>
+              </div>
               <button className="btn primary" onClick={onOpenSettings}>
                 <Icon name="plus" size={15} />
                 Add your first line

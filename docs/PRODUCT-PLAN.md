@@ -67,10 +67,11 @@ custom base URL لكل مرحلة، فتوجيهه إلى `api.nutq.app` لاح�
 ## 3. المراحل
 
 ### المرحلة 0 — ترتيب البيت (أسبوع)
-- [ ] استثناء `nutq/src-tauri/target/` من OneDrive (أو نقل المستودع خارج OneDrive).
-- [ ] إضافة CI وندوز: `tsc` + `cargo check` + `cargo test` على كل push.
-- [ ] تقسيم `lib.rs` إلى موديولات منطقية (commands / hotkeys / tray / pipeline) — بدون تغيير سلوك.
-- [ ] ملف `CONTRIBUTING` مختصر يلخص طقوس الإصدار من AGENTS.md.
+- [ ] استثناء `nutq/src-tauri/target/` من OneDrive (أو نقل المستودع خارج OneDrive). — معلّق على قرار المالك
+- [x] إضافة CI وندوز: `tsc` + `cargo check` + `cargo test` على كل push — `.github/workflows/ci-windows.yml`
+- [~] تقسيم `lib.rs` إلى موديولات — `hotkeys.rs` مستخرج ومتحقق (16/16 اختبار)؛ الباقي (overlay/commands/pipeline) جلسات قادمة
+- [x] ملف `CONTRIBUTING` مختصر يلخص طقوس الإصدار من AGENTS.md
+- [x] تنظيف worktrees القديمة في `.kilo/` (كانت نظيفة ومدموجة)
 
 ### تفصيل تقسيم `lib.rs` (من المرحلة 0)
 

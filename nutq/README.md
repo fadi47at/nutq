@@ -289,8 +289,9 @@ signed build, `latest.json`, push, GitHub Release, in one command.
 | `src-tauri/src/todos.rs` | The to-do lists the Checklist line files |
 | `src-tauri/src/notes.rs` | The notes and ideas the Notes lines file |
 | `src-tauri/src/logs.rs` | The warning/error log, and the overlay's diagnostic trail |
+| `src-tauri/src/hotkeys.rs` | Parsing specs, registering line bindings, the Escape rescue key, the 30s retry |
 | `nutq/scripts/publish-release.ps1` | Signed build + GitHub Release + `latest.json` |
-| `src-tauri/src/lib.rs` | Commands, hotkeys, tray, pipeline |
+| `src-tauri/src/lib.rs` | Commands, tray, the pipeline that drives a dictation |
 | `src/lib/api.ts` | Typed bridge to the Rust commands |
 | `src/lib/ui.tsx` | Shared UI pieces: PageHead, Field, Toggle, Kbd, icons, theme |
 | `src/styles.css` | The design tokens and every component style, light and dark |

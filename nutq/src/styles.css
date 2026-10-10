@@ -70,6 +70,7 @@
   --fs-xl: 17px;       /* card titles */
   --fs-2xl: 22px;      /* page title */
   --fs-3xl: 26px;      /* figures */
+  --fs-display: 30px;  /* the Home page's opening line */
 
   /* ---- chart palette ------------------------------------------------ */
   /* Handed out per model name (HistoryView's hash) — one source for the
@@ -83,6 +84,23 @@
   --chart-6: #e07bb0; /* pink */
   --chart-7: #3fb5b0; /* teal */
   --chart-8: #8a93a5; /* grey */
+
+  /* ---- script-aware type -------------------------------------------- */
+  /* All-caps micro labels (.label, .eyebrow, .nav-label, .stat-label...)
+   * are tracked-out small caps in Latin. Arabic connected script must
+   * have neither: when the chrome becomes Arabic, redefine these once -
+   * --ls-caps: 0; --tt-caps: none; --ls-tight: 0 - and every label
+   * gains weight/size instead. One flip, whole app. */
+  --ls-caps: 0.12em;     /* tracking of all-caps micro labels */
+  --tt-caps: uppercase;  /* their case transform */
+  --ls-tight: -0.01em;   /* tracking of large display headings */
+
+  /* ---- motion ------------------------------------------------------- */
+  /* One scale so nothing in the app moves at a speed it invented. */
+  --dur-fast: 120ms;     /* fades, small feedback */
+  --dur-med: 160ms;      /* toasts, modals, switches */
+  --dur-slow: 260ms;     /* the pill entering its place */
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 
   --mono: "Cascadia Mono", "SF Mono", Consolas, ui-monospace, monospace;
 
@@ -393,7 +411,7 @@ code {
 .brand-name {
   font-size: var(--fs-xl);
   font-weight: 700;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--ls-tight);
   line-height: 1.1;
   color: var(--text);
 }
@@ -401,15 +419,15 @@ code {
 .brand-sub {
   font-size: var(--fs-micro);
   color: var(--text-3);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+  text-transform: var(--tt-caps);
   margin-top: 2px;
 }
 
 .nav-label {
   font-size: var(--fs-micro);
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+  text-transform: var(--tt-caps);
   color: var(--text-3);
   padding: 12px 10px 6px;
   font-weight: 600;
@@ -562,7 +580,7 @@ code {
   padding: 0 12px 2px;
   font-size: var(--fs-micro);
   color: var(--text-3);
-  letter-spacing: 0.07em;
+  letter-spacing: calc(var(--ls-caps) * 0.6);
 }
 
 .foot-version .up {
@@ -607,8 +625,8 @@ code {
 
 .eyebrow {
   font-size: var(--fs-micro);
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+  text-transform: var(--tt-caps);
   color: var(--accent);
   font-weight: 700;
 }
@@ -617,8 +635,15 @@ h1 {
   font-size: var(--fs-2xl);
   font-weight: 700;
   margin: 5px 0 0;
-  letter-spacing: -0.021em;
+  letter-spacing: calc(var(--ls-tight) * 2.1);
   line-height: 1.2;
+}
+
+/* Home speaks one size larger: it is the product's opening line, not a
+ * settings page's label. No other page passes hero. */
+h1.hero {
+  font-size: var(--fs-display);
+  letter-spacing: calc(var(--ls-tight) * 2.5);
 }
 
 .lede {
@@ -633,7 +658,7 @@ h2 {
   font-size: var(--fs-xl);
   font-weight: 650;
   margin: 0;
-  letter-spacing: -0.014em;
+  letter-spacing: calc(var(--ls-tight) * 1.4);
 }
 
 /* ---- primitives ----------------------------------------------------- */
@@ -794,7 +819,7 @@ h2 {
 .chip.mono {
   font-family: var(--mono);
   font-weight: 500;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--ls-tight);
 }
 
 .chip.ok {
@@ -829,8 +854,8 @@ h2 {
 /* An all-caps micro label above a value or a group of fields. */
 .label {
   font-size: var(--fs-micro);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+  text-transform: var(--tt-caps);
   color: var(--text-3);
   font-weight: 700;
 }
@@ -918,7 +943,7 @@ h2 {
   border-radius: 50%;
   background: var(--surface);
   box-shadow: var(--shadow-1);
-  transition: inset-inline-start 0.15s ease;
+  transition: inset-inline-start var(--dur-med) ease;
 }
 
 .switch.on {
@@ -1068,7 +1093,7 @@ h2 {
   line-height: 1.5;
   border: 1px solid var(--border);
   background: var(--surface);
-  animation: toast-in 0.16s ease-out;
+  animation: toast-in var(--dur-med) ease-out;
 }
 
 @keyframes toast-in {
@@ -1089,8 +1114,8 @@ h2 {
 .toast-kind {
   font-size: var(--fs-micro);
   font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+  text-transform: var(--tt-caps);
 }
 
 .toast-text {
@@ -1174,6 +1199,25 @@ h2 {
  * gets one card, not half the window. */
 .launcher {
   overflow: hidden;
+}
+
+/* The no-lines-yet body: say what a line is before asking for one. */
+.first-run {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.first-run-copy {
+  flex: 1;
+  min-width: 240px;
+}
+
+.first-run-title {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  margin-bottom: 3px;
 }
 
 .launcher-head {
@@ -1322,8 +1366,8 @@ h2 {
 
 .stat-label {
   font-size: var(--fs-micro);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+  text-transform: var(--tt-caps);
   color: var(--text-3);
   font-weight: 700;
 }
@@ -1331,7 +1375,7 @@ h2 {
 .stat-value {
   font-size: var(--fs-3xl);
   font-weight: 700;
-  letter-spacing: -0.025em;
+  letter-spacing: calc(var(--ls-tight) * 2.5);
   line-height: 1.25;
   margin-top: 6px;
   font-variant-numeric: tabular-nums;
@@ -1704,7 +1748,7 @@ h2 {
 .section-title {
   font-size: var(--fs-md);
   font-weight: 700;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--ls-tight);
 }
 
 .section-sub {
@@ -1843,7 +1887,7 @@ h2 {
   margin-inline-start: auto;
   color: var(--text-3);
   flex: none;
-  transition: transform 0.15s ease;
+  transition: transform var(--dur-med) ease;
 }
 
 .line-card.open .chev {
@@ -2368,10 +2412,10 @@ h2 {
 }
 
 .ledger-table th {
-  text-align: left;
+  text-align: start;
   font-size: var(--fs-micro);
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
+  text-transform: var(--tt-caps);
+  letter-spacing: var(--ls-caps);
   color: var(--text-3);
   font-weight: 700;
   padding: 0 10px 7px 0;
@@ -2499,7 +2543,7 @@ h2 {
 .note-title {
   font-size: var(--fs-md);
   font-weight: 650;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--ls-tight);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2665,7 +2709,7 @@ h2 {
   display: grid;
   place-items: center;
   z-index: 60;
-  animation: fade-in 0.12s ease-out;
+  animation: fade-in var(--dur-fast) ease-out;
 }
 
 @keyframes fade-in {
@@ -2681,7 +2725,7 @@ h2 {
   padding: 20px 22px;
   width: min(440px, calc(100vw - 70px));
   box-shadow: var(--shadow-3);
-  animation: modal-in 0.16s cubic-bezier(0.2, 0.7, 0.2, 1);
+  animation: modal-in var(--dur-med) var(--ease);
 }
 
 @keyframes modal-in {
@@ -2694,7 +2738,7 @@ h2 {
 .modal-title {
   font-size: var(--fs-xl);
   font-weight: 700;
-  letter-spacing: -0.015em;
+  letter-spacing: calc(var(--ls-tight) * 1.5);
   margin-bottom: 8px;
 }
 
@@ -2756,7 +2800,7 @@ body.overlay-mode {
     border-color 0.18s ease,
     box-shadow 0.18s ease,
     background 0.18s ease;
-  animation: overlay-in 0.26s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation: overlay-in var(--dur-slow) var(--ease) both;
 }
 
 @keyframes overlay-in {
