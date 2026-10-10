@@ -48,6 +48,80 @@ pub fn copy_only(text: &str) -> Result<()> {
         .map_err(|e| anyhow!("could not write to the clipboard: {e}"))
 }
 
+/// Puts one file on the clipboard as a copied file, the way Explorer does,
+/// so it can be pasted into anything that accepts a dropped file - a chat
+/// that takes voice notes, an upload box, a folder. Text and images go
+/// through arboard; a file needs CF_HDROP, which arboard does not carry.
+pub fn copy_file(path: &std::path::Path) -> Result<()> {
+    copy_file_impl(path)
+}
+
+#[cfg(windows)]
+fn copy_file_impl(path: &std::path::Path) -> Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows::Win32::Foundation::{HANDLE, HWND};
+    use windows::Win32::System::DataExchange::{
+        CloseClipboard, EmptyClipboard, OpenClipboard, SetClipboardData,
+    };
+    use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE};
+    use windows::Win32::UI::Shell::DROPFILES;
+
+    // CF_HDROP: one DROPFILES header followed by a list of
+    // double-null-terminated wide paths. We place exactly one path.
+    const CF_HDROP: u32 = 15;
+    let wide: Vec<u16> = path
+        .as_os_str()
+        .encode_wide()
+        .chain([0, 0])
+        .collect();
+    let header = std::mem::size_of::<DROPFILES>();
+    let total = header + wide.len() * std::mem::size_of::<u16>();
+
+    unsafe {
+        // On any failure after the allocation the block is deliberately not
+        // freed: windows 0.58 exposes no GlobalFree, and these paths are rare
+        // errors costing at most a few hundred bytes until the app exits.
+        let hglobal = GlobalAlloc(GMEM_MOVEABLE, total)
+            .map_err(|e| anyhow!("could not allocate clipboard memory: {e}"))?;
+        let base = GlobalLock(hglobal);
+        if base.is_null() {
+            return Err(anyhow!("could not lock clipboard memory"));
+        }
+        let base = base as *mut u8;
+        std::ptr::write(
+            base as *mut DROPFILES,
+            DROPFILES {
+                pFiles: header as u32,
+                pt: Default::default(),
+                fNC: false.into(),
+                fWide: true.into(),
+            },
+        );
+        std::ptr::copy_nonoverlapping(wide.as_ptr() as *const u8, base.add(header), wide.len() * 2);
+        let _ = GlobalUnlock(hglobal);
+
+        // The clipboard owns the memory once SetClipboardData succeeds; on
+        // any failure it would still be ours, but see the note above.
+        let placed = OpenClipboard(HWND(std::ptr::null_mut()))
+            .map_err(|e| anyhow!("could not open the clipboard: {e}"))
+            .and_then(|_| {
+                let _ = EmptyClipboard();
+                SetClipboardData(CF_HDROP, HANDLE(hglobal.0))
+                    .map(|_| ())
+                    .map_err(|e| anyhow!("could not place the file on the clipboard: {e}"))
+            });
+        let _ = CloseClipboard();
+        placed
+    }
+}
+
+#[cfg(not(windows))]
+fn copy_file_impl(_path: &std::path::Path) -> Result<()> {
+    Err(anyhow!(
+        "copying a recording as a file is implemented for Windows so far"
+    ))
+}
+
 #[cfg(windows)]
 fn send_paste() -> Result<()> {
     use windows::Win32::UI::Input::KeyboardAndMouse::{

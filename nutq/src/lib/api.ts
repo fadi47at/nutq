@@ -462,6 +462,9 @@ export const api = {
   getLatest: () => invoke<HistoryEntry | null>("get_latest"),
   /** The kept recording for one entry, base64 wav. Rejects when it is gone. */
   getHistoryAudio: (id: string) => invoke<string>("get_history_audio", { id }),
+  /** Copies the kept recording itself to the clipboard as a file, ready to
+   *  paste into a chat or an upload box. */
+  copyHistoryAudio: (id: string) => invoke<void>("copy_history_audio", { id }),
   clearHistory: () => invoke<void>("clear_history"),
   /** Removes one entry and its recording. */
   deleteHistoryEntry: (id: string) => invoke<void>("delete_history_entry", { id }),

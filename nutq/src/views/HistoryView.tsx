@@ -508,6 +508,8 @@ export default function HistoryView() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   /** The entry whose Copy button just fired, for its tick. */
   const [copied, setCopied] = useState<string | null>(null);
+  /** Same one-at-a-time feedback for the copy-the-recording button. */
+  const [copiedClip, setCopiedClip] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [confirmClear, setConfirmClear] = useState(false);
   /** The id whose Delete button is in its confirm step, if any. */
@@ -784,6 +786,24 @@ export default function HistoryView() {
                     >
                       <Icon name={copied === e.id ? "check" : "copy"} />
                     </button>
+                    {e.audio_file && (
+                      <button
+                        className="icon-btn"
+                        title="Copy the recording as a file"
+                        aria-label="Copy the recording as a file"
+                        onClick={() => {
+                          void api
+                            .copyHistoryAudio(e.id)
+                            .then(() => {
+                              setCopiedClip(e.id);
+                              setTimeout(() => setCopiedClip(null), 1400);
+                            })
+                            .catch(() => setCopiedClip(null));
+                        }}
+                      >
+                        <Icon name={copiedClip === e.id ? "check" : "wave"} />
+                      </button>
+                    )}
                     <button
                       className="icon-btn"
                       disabled={regenId !== null}

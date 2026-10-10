@@ -43,6 +43,15 @@ pub fn read(name: &str) -> Result<Vec<u8>> {
     fs::read(dir()?.join(name)).map_err(|e| anyhow!("the audio for this entry is gone: {e}"))
 }
 
+/// The clip's full path, for putting the file itself on the clipboard.
+/// Same bare-name rule as `read`.
+pub fn path(name: &str) -> Result<PathBuf> {
+    if name.contains('/') || name.contains('\\') || name.contains("..") {
+        return Err(anyhow!("bad clip name"));
+    }
+    Ok(dir()?.join(name))
+}
+
 /// Keeps the newest `MAX_CLIPS` clips and drops the rest, both the files and
 /// the references to them - an entry pointing at a deleted file would offer a
 /// play button that fails. Entries are newest-first, so this is just a count.

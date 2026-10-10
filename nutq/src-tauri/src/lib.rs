@@ -755,6 +755,24 @@ fn get_history_audio(state: State<AppState>, id: String) -> Result<String, Strin
     Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
 }
 
+/// Copies one entry's kept recording to the clipboard as a file - the way
+/// Explorer copies a file - so it can be pasted into anything that accepts
+/// one: a chat that takes voice notes, an upload box, a folder. Text copy
+/// is elsewhere; this is for the recording itself.
+#[tauri::command]
+fn copy_history_audio(state: State<AppState>, id: String) -> Result<(), String> {
+    let name = {
+        let h = state.history.lock().unwrap();
+        h.entries
+            .iter()
+            .find(|e| e.id == id)
+            .and_then(|e| e.audio_file.clone())
+            .ok_or("this entry has no saved audio")?
+    };
+    let path = clips::path(&name).map_err(|e| format!("{e:#}"))?;
+    inject::copy_file(&path).map_err(|e| format!("{e:#}"))
+}
+
 /// What each provider last said about the allowance left on the key.
 ///
 /// Read from the reply headers of calls the app already makes, so it costs no
@@ -1824,6 +1842,7 @@ pub fn run() {
             get_history,
             get_latest,
             get_history_audio,
+            copy_history_audio,
             clear_history,
             delete_history_entry,
             regenerate_history_entry,
