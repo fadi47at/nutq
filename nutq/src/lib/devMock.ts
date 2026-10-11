@@ -311,6 +311,7 @@ const responses: Record<string, unknown> = {
   delete_note: null,
   update_settings: null,
   set_api_key: null,
+  set_update_badge: null,
   clear_history: () => {
     history.length = 0;
     return null;

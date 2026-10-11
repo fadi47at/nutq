@@ -1939,6 +1939,7 @@ pub fn run() {
             overlay_alive,
             overlay_frame,
             overlay_state,
+            set_update_badge,
         ])
         .setup(|app| {
             // macOS: keep the standard Regular policy. Accessory hides the
@@ -1979,6 +1980,12 @@ pub fn run() {
         .expect("error while running nutq");
 }
 
+/// The tray icon carries a green dot while a newer release is waiting on
+/// GitHub; `set_update_badge` swaps it in and out, so both variants come
+/// from this one string and cannot drift apart.
+const TRAY_ID: &str = "main";
+const TRAY_TOOLTIP: &str = "nutq - press your hotkey to dictate";
+
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     use tauri::menu::{Menu, MenuItem};
     use tauri::tray::TrayIconBuilder;
@@ -1987,9 +1994,9 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show, &quit])?;
 
-    TrayIconBuilder::new()
+    TrayIconBuilder::with_id(TRAY_ID)
         .icon(app.default_window_icon().unwrap().clone())
-        .tooltip("nutq - press your hotkey to dictate")
+        .tooltip(TRAY_TOOLTIP)
         .menu(&menu)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show" => {
@@ -2004,5 +2011,68 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         .build(app)?;
 
     Ok(())
+}
+
+/// Swaps the tray icon between the plain one and the "new version" variant
+/// (same icon with a green dot in the bottom-right corner), and appends a
+/// suffix to the tooltip while badged. Presentation only - a failure here
+/// is logged by the caller and never breaks the app.
+#[tauri::command]
+fn set_update_badge(app: AppHandle, active: bool) -> Result<(), String> {
+    let Some(tray) = app.tray_by_id(TRAY_ID) else {
+        return Err("tray icon not found".into());
+    };
+    let base = app
+        .default_window_icon()
+        .ok_or("no default window icon")?
+        .clone();
+    let icon = if active {
+        icon_with_update_badge(&base)
+    } else {
+        base
+    };
+    tray.set_icon(Some(icon)).map_err(|e| e.to_string())?;
+    tray.set_tooltip(if active {
+        Some(format!("{TRAY_TOOLTIP} - new version available"))
+    } else {
+        Some(TRAY_TOOLTIP.to_string())
+    })
+    .map_err(|e| e.to_string())
+}
+
+/// Draws the update badge into a fresh copy of the normal tray icon's pixel
+/// buffer: a filled green circle (about 42% of the icon size) sitting in the
+/// bottom-right corner, ringed in near-black so it reads on light and dark
+/// taskbars alike. Drawing it at runtime from the embedded icon means the
+/// two variants can never drift apart.
+fn icon_with_update_badge(base: &tauri::image::Image<'_>) -> tauri::image::Image<'static> {
+    let (w, h) = (base.width() as i32, base.height() as i32);
+    let size = w.min(h) as f32;
+    let radius = size * 0.21; // ~42% of the icon in diameter
+    let cx = w as f32 - radius - 1.0;
+    let cy = h as f32 - radius - 1.0;
+    let outer = radius + 1.2; // the thin dark ring
+
+    let mut rgba = base.rgba().to_vec();
+    for py in (cy - outer).floor().max(0.0) as i32..=(cy + outer).min(h as f32 - 1.0) as i32 {
+        for px in (cx - outer).floor().max(0.0) as i32..=(cx + outer).min(w as f32 - 1.0) as i32 {
+            let dx = px as f32 + 0.5 - cx;
+            let dy = py as f32 + 0.5 - cy;
+            let dist = (dx * dx + dy * dy).sqrt();
+            let (r, g, b) = if dist <= radius {
+                (34, 197, 94) // green: ready to update
+            } else if dist <= outer {
+                (25, 25, 25) // dark ring for contrast on any taskbar
+            } else {
+                continue;
+            };
+            let i = ((py * w + px) * 4) as usize;
+            rgba[i] = r;
+            rgba[i + 1] = g;
+            rgba[i + 2] = b;
+            rgba[i + 3] = 255;
+        }
+    }
+    tauri::image::Image::new_owned(rgba, base.width(), base.height())
 }
 

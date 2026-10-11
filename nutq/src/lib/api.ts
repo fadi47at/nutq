@@ -549,6 +549,11 @@ export const api = {
     await u.downloadAndInstall();
     await relaunch();
   },
+  /** Swaps the tray icon to its "new version available" variant (the normal
+   *  icon with a green dot, and a tooltip suffix), or back to the plain one
+   *  with active=false. Fire-and-forget on the caller's side - a failed
+   *  badge is logged at most, never shown. */
+  setUpdateBadge: (active: boolean) => invoke<void>("set_update_badge", { active }),
 };
 
 export const events = {

@@ -131,6 +131,14 @@ export default function App() {
       .catch(() => {});
   }, []);
 
+  // The tray icon shows a green dot while an update is on offer and goes
+  // back to plain once it is installed or put off. Fire-and-forget: a tray
+  // that cannot be badged is cosmetic, never a broken app.
+  const hasUpdate = update !== null;
+  useEffect(() => {
+    api.setUpdateBadge(hasUpdate).catch(() => {});
+  }, [hasUpdate]);
+
   useEffect(() => {
     void refresh();
     void refreshLogs();
