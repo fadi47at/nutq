@@ -78,6 +78,33 @@ export default function App() {
    *  the window's appearance means nothing can stomp the preview - which is
    *  exactly what happened when both places painted. */
   const [themePreview, setThemePreview] = useState<Theme | null>(null);
+  /** A newer release on GitHub, when one exists. Owned here so both the Home
+   *  card and the sidebar's notice speak of the same thing. */
+  const [update, setUpdate] = useState<{ version: string; notes: string } | null>(null);
+  /** The version the user put off - its notice stays away until a newer one
+   *  exists. Cleared by "Dismiss all" too. */
+  const [dismissedUpdate, setDismissedUpdate] = useState<string | null>(null);
+
+  // One check on launch and one every ten minutes after that. The check is a
+  // single small request to GitHub, invisible when offline; ten minutes keeps
+  // a fresh release noticeable the same hour without polling anyone hard.
+  useEffect(() => {
+    let alive = true;
+    const check = async () => {
+      try {
+        const u = await api.checkForUpdate();
+        if (alive) setUpdate(u);
+      } catch {
+        /* offline or the endpoint is unreachable - nothing to offer */
+      }
+    };
+    void check();
+    const t = setInterval(() => void check(), 10 * 60 * 1000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, []);
 
   const refresh = useCallback(async () => {
     const [s, k, st, p, hk] = await Promise.all([
@@ -170,7 +197,14 @@ export default function App() {
   const missingKeys = missingStt || missingRefine;
   /** Shared by the sidebar toast and the Logs rail dot: something the user has
    *  not dismissed yet. */
-  const latestLog = logs.find((l) => !dismissed.includes(l.id));
+  const pendingLogs = logs.filter((l) => !dismissed.includes(l.id));
+  const latestLog = pendingLogs[0];
+  /** The update notice is dismissed per version: putting v10 off does not
+   *  hide v11 when it ships. */
+  const updateNotice =
+    update && update.version !== dismissedUpdate ? update : null;
+  /** Everything one press of "Dismiss all" clears. */
+  const pendingNotices = pendingLogs.length + (updateNotice ? 1 : 0);
   const counts: Partial<Record<View, number>> = {
     logs: logs.length || undefined,
   };
@@ -230,6 +264,25 @@ export default function App() {
          * provider problem that was worked around is still something the user
          * asked to see. The full list lives on the Logs page. */}
         <div className="toasts">
+          {/* The update notice rides the same slot as the log toast: one
+           *  place to look, one Dismiss gesture, and Home keeps the card
+           *  that does the actual installing. */}
+          {updateNotice ? (
+            <div className="toast info">
+              <div className="toast-head">
+                <span className="toast-kind">Update</span>
+              </div>
+              <div className="toast-text">
+                A new version is available: v{updateNotice.version}.
+              </div>
+              <div className="toast-actions">
+                <button onClick={() => setView("home")}>Details</button>
+                <button onClick={() => setDismissedUpdate(updateNotice.version)}>
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          ) : null}
           {latestLog ? (
             <div className={`toast ${latestLog.level}`}>
               <div className="toast-head">
@@ -242,6 +295,22 @@ export default function App() {
                 <button onClick={() => setDismissed((d) => [...d, latestLog.id])}>
                   Dismiss
                 </button>
+                {/* A pile of notices is dismissed one at a time otherwise -
+                 *  every Dismiss uncovers the one before it. One press here
+                 *  clears the whole pile, log notices and the update one. */}
+                {pendingNotices > 1 && (
+                  <button
+                    onClick={() => {
+                      setDismissed((d) => [
+                        ...d,
+                        ...pendingLogs.map((l) => l.id).filter((id) => !d.includes(id)),
+                      ]);
+                      if (update) setDismissedUpdate(update.version);
+                    }}
+                  >
+                    Dismiss all
+                  </button>
+                )}
                 <button onClick={() => setView("logs")}>Details</button>
               </div>
             </div>
@@ -311,6 +380,8 @@ export default function App() {
               pending={pending}
               appVersion={appVersion}
               onOpenSettings={() => setView("settings")}
+              update={update}
+              onClearUpdate={() => setUpdate(null)}
             />
           )}
           {view === "todos" && <TodosView />}

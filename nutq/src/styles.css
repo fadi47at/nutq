@@ -1165,6 +1165,16 @@ h2 {
   color: var(--danger);
 }
 
+/* The update notice: good news, so accent rather than a warning colour. */
+.toast.info {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+
+.toast.info .toast-kind {
+  color: var(--accent);
+}
+
 /* ---- empty states ---------------------------------------------------- */
 
 .empty {

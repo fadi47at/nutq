@@ -19,6 +19,10 @@ interface Props {
   pending: PendingEntry[];
   appVersion: string;
   onOpenSettings: () => void;
+  /** A newer release on GitHub, when one exists. Owned by App so the
+   *  sidebar can announce it too; cleared here when the user puts it off. */
+  update: { version: string; notes: string } | null;
+  onClearUpdate: () => void;
 }
 
 /** "1712" -> "28m 32s". Seconds alone stop being readable past a minute. */
@@ -51,6 +55,8 @@ export default function Home({
   pending,
   appVersion,
   onOpenSettings,
+  update,
+  onClearUpdate,
 }: Props) {
   const [usage, setUsage] = useState<Usage>({
     month_cost: 0,
@@ -62,37 +68,12 @@ export default function Home({
   const [quotas, setQuotas] = useState<Quota[]>([]);
   const [latest, setLatest] = useState<HistoryEntry | null>(null);
   const [copied, setCopied] = useState(false);
+  /** Same one-at-a-time feedback, for the copy-the-recording button. */
+  const [copiedClip, setCopiedClip] = useState(false);
   const [retryBusy, setRetryBusy] = useState<string | null>(null);
   const [retryError, setRetryError] = useState<string | null>(null);
-  /** A newer release on GitHub, when one exists. The update card shows only
-   *  then - otherwise the page stays exactly as it was. */
-  const [update, setUpdate] = useState<{ version: string; notes: string } | null>(null);
   const [updateBusy, setUpdateBusy] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
-  /** The manual twin of the automatic check lives in Settings, under About -
-   *  it needed a home that does not cost the page header a button. */
-
-  // One check when the page opens and one every four hours after that - enough
-  // to catch a release the same day without polling GitHub on every visit.
-  // Being offline is not an error worth showing: the card simply stays hidden
-  // and the next tick tries again.
-  useEffect(() => {
-    let alive = true;
-    const check = async () => {
-      try {
-        const u = await api.checkForUpdate();
-        if (alive) setUpdate(u);
-      } catch {
-        /* offline or the endpoint is unreachable - nothing to offer */
-      }
-    };
-    void check();
-    const t = setInterval(() => void check(), 4 * 60 * 60 * 1000);
-    return () => {
-      alive = false;
-      clearInterval(t);
-    };
-  }, []);
 
   // Pulled on a timer rather than driven by the result event.
   //
@@ -177,7 +158,7 @@ export default function Home({
                 <button
                   className="btn ghost"
                   disabled={updateBusy}
-                  onClick={() => setUpdate(null)}
+                  onClick={onClearUpdate}
                 >
                   Later
                 </button>
@@ -473,6 +454,31 @@ export default function Home({
             >
               <Icon name={copied ? "check" : "copy"} size={15} />
               {copied ? "Copied" : "Copy"}
+            </button>
+            {/* The recording itself, same as a history row: the wave button
+             * puts it on the clipboard as a file, ready for a chat. */}
+            <button
+              className="btn sm"
+              disabled={!latest?.audio_file}
+              title={
+                latest?.audio_file
+                  ? "Copy the recording as a file"
+                  : "This entry no longer has its recording"
+              }
+              aria-label="Copy the recording as a file"
+              onClick={() => {
+                if (!latest) return;
+                void api
+                  .copyHistoryAudio(latest.id)
+                  .then(() => {
+                    setCopiedClip(true);
+                    setTimeout(() => setCopiedClip(false), 1500);
+                  })
+                  .catch(() => setCopiedClip(false));
+              }}
+            >
+              <Icon name={copiedClip ? "check" : "wave"} size={15} />
+              {copiedClip ? "Copied" : "Audio"}
             </button>
           </div>
 

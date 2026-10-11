@@ -275,12 +275,16 @@ lands in.
 ### Updating
 
 From v0.3.0 on, the app updates itself. Releases live on GitHub, and on
-open (plus every four hours) the Home page quietly asks GitHub whether a
-newer one exists. When it does, a **New version available** card appears:
-one click downloads the installer, verifies its signature against the public
-key baked into the app, installs it, and relaunches — no browser, no manual
-download. `scripts/publish-release.ps1` is the publishing side of that:
-signed build, `latest.json`, push, GitHub Release, in one command.
+launch (plus every ten minutes) the app quietly asks GitHub whether a newer
+one exists - one small request, invisible offline. When one does, two
+things say so: a **New version available** card on the Home page (one click
+downloads the installer, verifies its signature against the public key
+baked into the app, installs it, and relaunches — no browser, no manual
+download) and a notice in the sidebar's message slot, next to the log
+notices, with its own Dismiss. That slot also carries **Dismiss all** when
+notices pile up, so clearing them is one press, not one per notice.
+`scripts/publish-release.ps1` is the publishing side of that: signed
+build, `latest.json`, push, GitHub Release, in one command.
 
 ## Source map
 
