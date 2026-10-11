@@ -203,8 +203,6 @@ export default function App() {
    *  hide v11 when it ships. */
   const updateNotice =
     update && update.version !== dismissedUpdate ? update : null;
-  /** Everything one press of "Dismiss all" clears. */
-  const pendingNotices = pendingLogs.length + (updateNotice ? 1 : 0);
   const counts: Partial<Record<View, number>> = {
     logs: logs.length || undefined,
   };
@@ -292,25 +290,20 @@ export default function App() {
               <div className="toast-text">{latestLog.message}</div>
               <div className="toast-actions">
                 <button onClick={() => void api.copyText(latestLog.message)}>Copy</button>
-                <button onClick={() => setDismissed((d) => [...d, latestLog.id])}>
+                {/* One Dismiss clears the whole pile. Dismissing only the
+                 *  newest notice used to uncover the one before it, then the
+                 *  one before that - a queue the user never asked to drain
+                 *  by hand. The full history stays on the Logs page. */}
+                <button
+                  onClick={() =>
+                    setDismissed((d) => [
+                      ...d,
+                      ...pendingLogs.map((l) => l.id).filter((id) => !d.includes(id)),
+                    ])
+                  }
+                >
                   Dismiss
                 </button>
-                {/* A pile of notices is dismissed one at a time otherwise -
-                 *  every Dismiss uncovers the one before it. One press here
-                 *  clears the whole pile, log notices and the update one. */}
-                {pendingNotices > 1 && (
-                  <button
-                    onClick={() => {
-                      setDismissed((d) => [
-                        ...d,
-                        ...pendingLogs.map((l) => l.id).filter((id) => !d.includes(id)),
-                      ]);
-                      if (update) setDismissedUpdate(update.version);
-                    }}
-                  >
-                    Dismiss all
-                  </button>
-                )}
                 <button onClick={() => setView("logs")}>Details</button>
               </div>
             </div>

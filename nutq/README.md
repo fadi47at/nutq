@@ -281,8 +281,9 @@ things say so: a **New version available** card on the Home page (one click
 downloads the installer, verifies its signature against the public key
 baked into the app, installs it, and relaunches — no browser, no manual
 download) and a notice in the sidebar's message slot, next to the log
-notices, with its own Dismiss. That slot also carries **Dismiss all** when
-notices pile up, so clearing them is one press, not one per notice.
+notices, with its own Dismiss. There, one Dismiss clears every pending
+notice at once - no queue to drain one press at a time - and the full
+history stays on the Logs page.
 `scripts/publish-release.ps1` is the publishing side of that: signed
 build, `latest.json`, push, GitHub Release, in one command.
 
