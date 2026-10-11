@@ -255,6 +255,12 @@ asks first, so a binding refused at startup — or taken later by another app �
 is retried every 30 seconds rather than leaving the hotkey dead until the next
 launch.
 
+And so does the microphone: a start that Windows refuses with "device in
+use" is retried in the background — four attempts, 1.5 s apart — before the
+error is shown, because a Bluetooth headset finishing a mode switch or
+another app letting go of the mic clears within seconds. Any other failure
+(a vanished mic, a refused format) is reported at once.
+
 ### History
 
 Every result is kept — last 500, this machine only — with both its raw

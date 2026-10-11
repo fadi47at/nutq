@@ -25,6 +25,7 @@ use settings::{
     get_api_key, has_api_key, load_history, load_settings, save_history, save_settings, History,
     HistoryEntry, Mode, Output, Profile, Settings, ALL_PROVIDERS,
 };
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -87,6 +88,9 @@ pub(crate) struct AppState {
     /// Only true while the mic is live; the rest of the time Escape belongs
     /// to whatever app is being dictated into.
     pub(crate) escape_armed: Mutex<bool>,
+    /// True while a microphone start is being attempted (or retried), so a
+    /// second press of the hotkey cannot stack another attempt on top.
+    pub(crate) starting: AtomicBool,
     /// Freshness of the overlay's window, for the supervisor that keeps the
     /// pill able to draw. See `OverlayWatch`.
     overlay_watch: Mutex<OverlayWatch>,
@@ -1096,31 +1100,83 @@ fn park(app: &AppHandle, entry: pending::PendingEntry, wav: Option<&[u8]>) {
     let _ = app.emit("pending-changed", ());
 }
 
+/// Opens the microphone for a new recording, on a thread of its own.
+///
+/// WASAPI's "device in use" (0x8889000A) is usually a moment, not a state:
+/// a Bluetooth headset finishing its switch of modes, or another app
+/// letting go of the mic - both clear within seconds. So a start that hits
+/// exactly that failure is retried, up to four attempts spaced 1.5 s apart,
+/// before the error is the user's to read. Any other failure (a vanished
+/// mic, a refused format) is not transient and is reported at once. The
+/// `starting` flag in AppState keeps a second hotkey press from stacking
+/// another attempt while this one is still working.
+fn start_with_retry(app: &AppHandle, profile_id: &str) {
+    let app = app.clone();
+    let profile_id = profile_id.to_string();
+    std::thread::spawn(move || {
+        let state = app.state::<AppState>();
+
+        // The line's identity is fixed at start; its output and the rest of
+        // the configuration are read from it when the pipeline runs.
+        let mic = {
+            let s = state.settings.lock().unwrap();
+            let p = s.profile(&profile_id);
+            *state.pending_profile.lock().unwrap() = p.id.clone();
+            s.microphone.clone()
+        };
+
+        let mut last_err: Option<anyhow::Error> = None;
+        for attempt in 0..4 {
+            if attempt > 0 {
+                std::thread::sleep(Duration::from_millis(1500));
+                // Something else may have taken over while we waited.
+                if state.status() != Status::Idle {
+                    state.starting.store(false, Ordering::SeqCst);
+                    return;
+                }
+            }
+            match state.recorder.start(Some(mic.clone())) {
+                Ok(()) => {
+                    *state.pending_mic.lock().unwrap() = state.recorder.current_device();
+                    state.set_status(&app, Status::Recording);
+                    arm_escape(&app);
+                    state.starting.store(false, Ordering::SeqCst);
+                    return;
+                }
+                Err(e) => {
+                    let transient = format!("{e:#}").contains("0x8889000A");
+                    eprintln!("[nutq] start failed (attempt {}): {e:#}", attempt + 1);
+                    let retrying = transient && attempt < 3;
+                    if !retrying {
+                        last_err = Some(e);
+                        break;
+                    }
+                    last_err = Some(e);
+                }
+            }
+        }
+
+        *state.pending_profile.lock().unwrap() = String::new();
+        if let Some(e) = last_err {
+            emit_error(&app, audio::friendly_error(&e));
+        }
+        state.starting.store(false, Ordering::SeqCst);
+    });
+}
+
 fn toggle_recording(app: &AppHandle, profile_id: &str) {
     let state = app.state::<AppState>();
 
     match state.status() {
         Status::Idle => {
-            // The line's identity is fixed at start; its output and the rest
-            // of the configuration are read from it when the pipeline runs.
-            let mic = {
-                let s = state.settings.lock().unwrap();
-                let p = s.profile(profile_id);
-                *state.pending_profile.lock().unwrap() = p.id.clone();
-                s.microphone.clone()
-            };
-            match state.recorder.start(Some(mic)) {
-                Ok(()) => {
-                    *state.pending_mic.lock().unwrap() = state.recorder.current_device();
-                    state.set_status(app, Status::Recording);
-                    arm_escape(app);
-                }
-                Err(e) => {
-                    *state.pending_profile.lock().unwrap() = String::new();
-                    eprintln!("[nutq] start failed: {e:#}");
-                    emit_error(app, audio::friendly_error(&e));
-                }
+            // A start that hits "device in use" is retried in the background
+            // (see start_with_retry); a second press while that is running
+            // must not stack another attempt on top of it.
+            if state.starting.load(Ordering::SeqCst) {
+                return;
             }
+            state.starting.store(true, Ordering::SeqCst);
+            start_with_retry(app, profile_id);
         }
         Status::Recording => {
             let app = app.clone();
@@ -1832,6 +1888,7 @@ pub fn run() {
             shortcuts: Mutex::new(Vec::new()),
             hotkey_report: Mutex::new(Vec::new()),
             escape_armed: Mutex::new(false),
+            starting: AtomicBool::new(false),
             // A fresh install is healthy until proven otherwise: the overlay
             // page has not had the chance to beat yet, and a supervisor that
             // judged it in that window would reload it on every cold start.
