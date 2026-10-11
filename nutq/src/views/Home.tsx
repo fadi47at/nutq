@@ -251,8 +251,8 @@ export default function Home({
               <div className="launcher-sub">{state.sub}</div>
             </div>
             <div className={`wave${recording ? " live" : ""}`}>
-              {Array.from({ length: 24 }, (_, i) => (
-                <i key={i} style={{ animationDelay: `${(i % 9) * 0.09}s` }} />
+              {Array.from({ length: 12 }, (_, i) => (
+                <i key={i} style={{ animationDelay: `${(i % 6) * 0.09}s` }} />
               ))}
             </div>
           </div>
@@ -283,7 +283,8 @@ export default function Home({
                     disabled={busy || !ready}
                     title={
                       MODE_LABELS[p.mode].hint +
-                      (p.custom_prompt.trim() ? " · custom instructions" : "")
+                      (p.custom_prompt.trim() ? " · custom instructions" : "") +
+                      ` · ${OUTPUT_LABELS[p.output]}`
                     }
                     onClick={() => {
                       setActiveLine(p.id);
@@ -294,17 +295,11 @@ export default function Home({
                       {/* The same glyph the recording pill will show, so the
                           button you press and the pill that appears are
                           obviously the same thing. */}
-                      <Icon name={lineIcon(p)} size={15} className="line-ico" />
+                      <Icon name={lineIcon(p)} size={14} className="line-ico" />
                       {p.name}
                       {live && <span className="dot rec" />}
                     </span>
                     <Kbd spec={p.hotkey} />
-                    <span className="line-meta">
-                      {p.custom_prompt.trim()
-                        ? "custom instructions"
-                        : MODE_LABELS[p.mode].name}{" "}
-                      · {OUTPUT_LABELS[p.output]}
-                    </span>
                   </button>
                 );
               })}
@@ -312,123 +307,26 @@ export default function Home({
           )}
         </div>
 
-        {/* The four figures, side by side and small. */}
-        <div className="stats">
-          <div className="stat">
-            <div className="stat-label">Lines</div>
-            <div className="stat-value">{lines.length}</div>
-            <div className="stat-note">
-              {lines[0] ? `${lines[0].name} starts the list` : "add one in Settings"}
-            </div>
-          </div>
-
-          <div className="stat">
-            <div className="stat-label">Today</div>
-            <div className="stat-value">{usage.today_count}</div>
-            <div className="stat-note">
-              {formatDuration(usage.today_audio_seconds)} of audio
-            </div>
-          </div>
-
-          <div className="stat">
-            <div className="stat-label">This month</div>
-            <div className="stat-value">${usage.month_cost.toFixed(4)}</div>
-            <div className="stat-note">
-              {usage.month_count} results
-              {!usage.cost_complete && " · some providers untracked"}
-            </div>
-          </div>
-
-          <div className="stat">
-            <div className="stat-label">Pipeline</div>
-            <div className="stat-chain">
-              <span>
-                <em>hear</em>
-                <b title={settings.sttModel}>{settings.sttModel}</b>
-              </span>
-              <span>
-                <em>write</em>
-                <b title={settings.refineEnabled ? settings.refineModel : "raw transcript"}>
-                  {settings.refineEnabled ? settings.refineModel : "raw transcript"}
-                </b>
-              </span>
-            </div>
-          </div>
+        {/* The figures, as one small dim line instead of four cards. Every
+         *  number the stat row carried is still here. */}
+        <div className="home-info">
+          <span>{lines.length} {lines.length === 1 ? "line" : "lines"}</span>
+          <span>
+            {usage.today_count} today ({formatDuration(usage.today_audio_seconds)}{" "}
+            audio)
+          </span>
+          <span>
+            ${usage.month_cost.toFixed(4)} this month · {usage.month_count}{" "}
+            results{!usage.cost_complete && " · some providers untracked"}
+          </span>
+          <span className="home-chain">
+            hear{" "}
+            <b title={settings.sttModel}>{settings.sttModel}</b> → write{" "}
+            <b title={settings.refineEnabled ? settings.refineModel : "raw transcript"}>
+              {settings.refineEnabled ? settings.refineModel : "raw transcript"}
+            </b>
+          </span>
         </div>
-
-        {liveQuotas.length > 0 && (
-          <div className="card">
-            <div className="card-head">
-              <Icon name="bolt" size={16} />
-              <h2>Provider allowance</h2>
-            </div>
-            <div className="card-body">
-              {liveQuotas.map((q) => (
-                <div className="quota-block" key={q.host}>
-                  <div className="quota-head">
-                    <span className="quota-host">{q.host}</span>
-                    {q.at && <span className="quota-at">reported {q.at}</span>}
-                  </div>
-                  {/* Usage against the day's allowance, rather than the
-                      provider's own "remaining".
-
-                      Groq reports what is free to send *this instant*, and it
-                      refills one request every 43 seconds - so dictating any
-                      slower than that made it read 1999/2000 forever, no matter
-                      how much the day had actually consumed. The limit is theirs
-                      and real; the running total is ours. Together they answer
-                      the question the raw header could not. */}
-                  {(() => {
-                    const req = q.items.find((i) => i.kind === "requests");
-                    const limit = Number(req?.limit ?? 0);
-                    const remaining = Number(req?.remaining ?? 0);
-                    const used = usage.today_count;
-                    const pct = limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
-                    // The instantaneous figure only earns space once it is close
-                    // enough to bite; the rest of the time it is noise.
-                    const tight = limit > 0 && remaining < limit * 0.25;
-
-                    return (
-                      <>
-                        <div className="quota-items">
-                          <div>
-                            <div className="quota-kind">Requests today</div>
-                            <div className="quota-nums">
-                              <b>{used}</b>
-                              {limit > 0 && ` / ${limit}`}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="quota-kind">Audio today</div>
-                            <div className="quota-nums">
-                              <b>{formatDuration(usage.today_audio_seconds)}</b>
-                            </div>
-                          </div>
-                        </div>
-
-                        {limit > 0 && (
-                          <div
-                            className={`quota-bar${tight ? " tight" : ""}`}
-                            title={`${pct.toFixed(1)}% of today's allowance`}
-                          >
-                            <span style={{ width: `${Math.max(pct, 0.6)}%` }} />
-                          </div>
-                        )}
-
-                        {tight && (
-                          <div className="quota-tight">
-                            Only {remaining} left to send right now · back to full in{" "}
-                            {req?.reset}
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         <div className="card">
           <div className="card-head">
@@ -507,6 +405,69 @@ export default function Home({
             </div>
           </div>
         </div>
+
+        {/* Provider allowance, as one small dim line per provider at the very
+         *  bottom. Usage against the day's allowance, rather than the
+         *  provider's own "remaining": Groq reports what is free to send *this
+         *  instant* and refills one request every 43 seconds - so dictating
+         *  any slower than that made it read 1999/2000 forever, no matter how
+         *  much the day had actually consumed. The limit is theirs and real;
+         *  the running total is ours. The warning bar only earns its space
+         *  when the instantaneous figure is close enough to bite. */}
+        {liveQuotas.length > 0 && (
+          <div className="quota-strip">
+            {liveQuotas.map((q) => {
+              const req = q.items.find((i) => i.kind === "requests");
+              const limit = Number(req?.limit ?? 0);
+              const remaining = Number(req?.remaining ?? 0);
+              const used = usage.today_count;
+              const pct = limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
+              const tight = limit > 0 && remaining < limit * 0.25;
+
+              return (
+                <div
+                  className={`quota-line${tight ? " tight" : ""}`}
+                  key={q.host}
+                  title={
+                    limit > 0
+                      ? `${pct.toFixed(1)}% of today's allowance · ${remaining} left right now · back to full in ${req?.reset}`
+                      : undefined
+                  }
+                >
+                  <Icon name="bolt" size={12} className="quota-bolt" />
+                  <span className="quota-host">{q.host}</span>
+                  <span className="quota-sep">·</span>
+                  <span>
+                    {used}
+                    {limit > 0 ? ` / ${limit}` : ""} today
+                  </span>
+                  <span className="quota-sep">·</span>
+                  <span>{formatDuration(usage.today_audio_seconds)} audio</span>
+                  {q.at && (
+                    <>
+                      <span className="quota-sep">·</span>
+                      <span>reported {q.at}</span>
+                    </>
+                  )}
+                  {tight && limit > 0 && (
+                    <>
+                      <span
+                        className="quota-bar"
+                        title={`${pct.toFixed(1)}% of today's allowance`}
+                      >
+                        <span style={{ width: `${Math.max(pct, 2)}%` }} />
+                      </span>
+                      <span className="quota-tight">
+                        only {remaining} left to send right now · back to full in{" "}
+                        {req?.reset}
+                      </span>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </>
   );
