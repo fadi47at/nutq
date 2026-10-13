@@ -22,8 +22,9 @@ import HistoryView from "./views/HistoryView";
 import LogsView from "./views/LogsView";
 import TodosView from "./views/TodosView";
 import NotesView from "./views/NotesView";
+import ThreadsView from "./views/ThreadsView";
 
-type View = "home" | "notes" | "todos" | "history" | "settings" | "logs";
+type View = "home" | "threads" | "notes" | "todos" | "history" | "settings" | "logs";
 
 /** The rail, in two groups: what you work in, and what the app keeps about
  *  itself. Icons are shared with the rest of the app (lib/ui). Labels are
@@ -33,6 +34,7 @@ const NAV: { group: string; items: [View, string, IconName][] }[] = [
     group: "Workspace",
     items: [
       ["home", "Home", "home"],
+      ["threads", "Idea threads", "sprout"],
       ["notes", "Notes", "note"],
       ["todos", "To-do", "checklist"],
       ["history", "History", "clock"],
@@ -67,7 +69,7 @@ export default function App() {
   // costs nothing and makes every page reachable from a shortcut.
   const [view, setView] = useState<View>(() => {
     const h = window.location.hash.replace(/^#/, "");
-    return ["history", "settings", "logs", "todos", "notes"].includes(h)
+    return ["history", "settings", "logs", "todos", "notes", "threads"].includes(h)
       ? (h as View)
       : "home";
   });
@@ -422,6 +424,7 @@ export default function App() {
             />
           )}
           {view === "todos" && <TodosView />}
+          {view === "threads" && <ThreadsView lines={settings.profiles} />}
           {view === "notes" && <NotesView />}
           {view === "history" && <HistoryView />}
           {view === "settings" && (

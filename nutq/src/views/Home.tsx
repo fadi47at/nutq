@@ -40,6 +40,7 @@ const OUTPUT_LABELS: Record<Profile["output"], string> = {
   instant: "pastes in place",
   draft: "waits here",
   notes: "files a note",
+  thread: "grows an idea",
 };
 
 const STATE_COPY: Record<Status, { name: string; sub: string }> = {

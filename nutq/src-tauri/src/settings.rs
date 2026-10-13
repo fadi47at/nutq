@@ -108,6 +108,10 @@ pub enum Output {
     /// File the result on the Notes page instead of pasting - the note's
     /// kind follows the line's processing mode.
     Notes,
+    /// Add the result to the idea thread it belongs to and rewrite that
+    /// thread's living document (`threads.rs`). The processing mode still
+    /// runs first: it cleans the thought before it is filed.
+    Thread,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -187,6 +191,11 @@ impl Profile {
     /// Mirrored by `lineKind` in `src/lib/ui.tsx`, which draws the same icon
     /// on the Home tiles and in the Settings list. Keep the two in step.
     pub fn kind(&self) -> &'static str {
+        // Growing an idea is what the line is for, whatever cleans the
+        // thought on the way in - so it outranks custom instructions.
+        if self.output == Output::Thread {
+            return "thread";
+        }
         if !self.custom_prompt.trim().is_empty() {
             return "custom";
         }
@@ -216,7 +225,8 @@ impl Profile {
 }
 
 /// The lines a fresh install starts with. The first four cover the paste
-/// pipeline; the last two file their results on the Notes page instead.
+/// pipeline; the next two file their results on the Notes page instead, and
+/// the last grows idea threads.
 pub fn default_profiles() -> Vec<Profile> {
     vec![
         Profile::new("dictate", "Dictation", "F8", Mode::Natural, Output::Instant),
@@ -225,7 +235,15 @@ pub fn default_profiles() -> Vec<Profile> {
         Profile::new("spec", "Idea → Spec", "CmdOrControl+F10", Mode::Spec, Output::Draft),
         Profile::new("notes", "Notes", "CmdOrControl+F11", Mode::Natural, Output::Notes),
         Profile::new("ideas", "Ideas", "CmdOrControl+F12", Mode::Spec, Output::Notes),
+        thread_line(),
     ]
+}
+
+/// The line that thinks out loud into idea threads. Natural mode: the
+/// thought is cleaned, not restructured - the thread's document is where the
+/// structure lives.
+pub fn thread_line() -> Profile {
+    Profile::new("think", "Think aloud", "CmdOrControl+F7", Mode::Natural, Output::Thread)
 }
 
 /// The two notes-filing lines, matched by id.
@@ -335,6 +353,10 @@ pub struct Settings {
     /// install, so a user who deletes them is not fought at every launch.
     #[serde(default)]
     pub notes_lines_added: bool,
+
+    /// The same, for the Think aloud line that arrived with idea threads.
+    #[serde(default)]
+    pub thread_line_added: bool,
 }
 
 impl Default for Settings {
@@ -382,6 +404,7 @@ impl Default for Settings {
             profiles: default_profiles(),
             custom_prompt: String::new(),
             notes_lines_added: false,
+            thread_line_added: false,
         }
     }
 }
@@ -618,6 +641,14 @@ pub fn load_settings() -> Settings {
             }
         }
         s.notes_lines_added = true;
+        let _ = save_settings(&s);
+    }
+    if !s.thread_line_added {
+        let p = thread_line();
+        if !s.profiles.iter().any(|e| e.id == p.id) {
+            s.profiles.push(p);
+        }
+        s.thread_line_added = true;
         let _ = save_settings(&s);
     }
     s

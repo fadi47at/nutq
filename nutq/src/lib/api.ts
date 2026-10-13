@@ -15,7 +15,7 @@ function listen<T>(event: string, fn: (e: { payload: T }) => void): Promise<Unli
 }
 
 export type Mode = "natural" | "verbatim" | "spec" | "summary" | "checklist";
-export type Output = "instant" | "draft" | "notes";
+export type Output = "instant" | "draft" | "notes" | "thread";
 export type Status = "idle" | "recording" | "transcribing" | "refining";
 /** The wave shape that runs inside the recording pill. */
 export type OverlayStyle = "bars" | "ribbon" | "blobs" | "meter" | "ring";
@@ -513,6 +513,22 @@ export const api = {
   updateNote: (id: string, text: string) => invoke<void>("update_note", { id, text }),
   setNoteKind: (id: string, kind: NoteKind) => invoke<void>("set_note_kind", { id, kind }),
   deleteNote: (id: string) => invoke<void>("delete_note", { id }),
+  /** The idea threads, most recently grown first. */
+  getThreads: () => invoke<Thread[]>("get_threads"),
+  /** A new, empty thread; pinned, every next thought goes into it. */
+  createThread: (title: string, pin: boolean) =>
+    invoke<Thread>("create_thread", { title, pin }),
+  renameThread: (id: string, title: string) => invoke<void>("rename_thread", { id, title }),
+  /** Pins one thread, or with null, none - thoughts are routed again. */
+  pinThread: (id: string | null) => invoke<void>("pin_thread", { id }),
+  deleteThread: (id: string) => invoke<void>("delete_thread", { id }),
+  removeThreadEntry: (threadId: string, entryId: string) =>
+    invoke<void>("remove_thread_entry", { threadId, entryId }),
+  /** Rewrites the document from every thought. Rejects with the reason. */
+  rebuildThread: (id: string) => invoke<void>("rebuild_thread", { id }),
+  /** A typed thought: into `id`, or routed like a spoken one when null. */
+  addThreadThought: (id: string | null, text: string) =>
+    invoke<void>("add_thread_thought", { id, text }),
   /** Diagnostics: reports the overlay webview is alive and what it sees. */
   overlayAlive: (status: string) => invoke<void>("overlay_alive", { status }),
   /** Proof from the overlay page that its window is being composited: sent
@@ -575,6 +591,9 @@ export const events = {
   /** Live mic loudness (RMS 0..1), ~30 Hz while recording. */
   onLevel: (fn: (v: number) => void): Promise<UnlistenFn> =>
     listen<number>("level", (e) => fn(e.payload)),
+  /** A thread gained a thought, grew its document, or started growing. */
+  onThreadsChanged: (fn: () => void): Promise<UnlistenFn> =>
+    listen<null>("threads-changed", () => fn()),
   /** The pending-retry list changed: a job was added, finished, or dropped. */
   onPendingChanged: (fn: () => void): Promise<UnlistenFn> =>
     listen<null>("pending-changed", () => fn()),
@@ -633,4 +652,35 @@ export interface Note {
   title: string;
   text: string;
   profile?: string;
+}
+
+/** One thought in an idea thread, as it was spoken or typed. */
+export interface ThreadEntry {
+  id: string;
+  at: string;
+  text: string;
+  /** The line that heard it; empty for a thought typed on the page. */
+  profile: string;
+}
+
+/** An idea that grows: its thoughts, and the document they add up to. */
+export interface Thread {
+  id: string;
+  title: string;
+  title_locked: boolean;
+  created_at: string;
+  updated_at: string;
+  /** Oldest first. */
+  entries: ThreadEntry[];
+  /** Light Markdown: `## ` headings, `- ` bullets, paragraphs. */
+  doc: string;
+  /** What the latest thought added or changed. */
+  changes: string;
+  changes_at: string;
+  /** Why the document is behind its thoughts, when it is. */
+  doc_error: string;
+  /** Every new thought goes here while set. */
+  pinned: boolean;
+  /** A document rewrite is in flight. */
+  growing: boolean;
 }

@@ -12,7 +12,9 @@ finished text pasted where you were typing. Dictation is organized into
 Home-page button, and its own processing choices (mode or custom prompt,
 destination, optional per-line STT/refine model overrides). The Checklist
 line files its result as tickable items on the To-do page
-(`src-tauri/src/todos.rs`). It is **under active development** — nothing
+(`src-tauri/src/todos.rs`); a line with the destination "thread" (Think
+aloud) files each thought into the idea it belongs to and rewrites that
+idea's living document (`src-tauri/src/threads.rs`, the Idea threads page). It is **under active development** — nothing
 here is frozen, and a change to how something works is a change to the
 documents that describe it, in the same commit.
 
@@ -145,7 +147,7 @@ by rule:
   stroke). Adding a one-off button style or a second icon set is how the app
   stops looking like one program.
 - **One picture per kind of line.** What a line makes - dictation, a note, an
-  idea, a checklist, word-for-word, your own instructions - has one glyph, and
+  idea, a checklist, word-for-word, your own instructions, an idea thread - has one glyph, and
   it shows in all three places that line appears: its Home tile, its row in
   Settings, and the head of the recording pill. The rule lives twice, in
   `Profile::kind` (Rust, for the pill) and `lineKind` (`src/lib/ui.tsx`, for
@@ -172,6 +174,19 @@ by rule:
   (`.hist-models`), the usage chart (`direction="ltr"`), and the recording
   pill, which keeps its layout and only translates its words. The language
   previews from Settings like the theme does, through App.
+
+## Idea threads
+
+- **A thought is saved before any model is asked about it.** Routing and the
+  document rewrite run after `threads::append`, in the background; a failure
+  marks the thread (`doc_error`) and never drops the thought. Keep that order.
+- **One growth at a time** (`threads::grow` holds an async lock): two
+  rewrites of the same document in parallel would each start from the old
+  text, and the second save would erase the first thought from it.
+- **A reply without a `<document>` never blanks a document.** `parse_grown`
+  refuses it and the old document stays.
+- **Rust tests touch the real config dir** (as the notes tests do), so a
+  test never pins a thread - that would move the user's own pin.
 
 ## Build & verify (Windows)
 

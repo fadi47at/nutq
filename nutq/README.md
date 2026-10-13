@@ -158,12 +158,13 @@ straight to a coding agent.
 ### Lines
 
 A dictation "line" is one hotkey plus one set of processing choices. A fresh
-install starts with six — Dictation (`F8`), Proofread (`Ctrl+F8`),
-Checklist (`Ctrl+F9`), Idea → Spec (`Ctrl+F10`), Notes (`Ctrl+F11`), and
-Ideas (`Ctrl+F12`) — and lines can be added, removed, renamed, and re-keyed
-in Settings › Lines. Each line picks its own mode or carries entirely
-custom instructions, its own destination (paste in place, open for review,
-or file on the Notes page), and optionally its own STT and refinement
+install starts with seven — Dictation (`F8`), Proofread (`Ctrl+F8`),
+Checklist (`Ctrl+F9`), Idea → Spec (`Ctrl+F10`), Notes (`Ctrl+F11`),
+Ideas (`Ctrl+F12`), and Think aloud (`Ctrl+F7`) — and lines can be added,
+removed, renamed, and re-keyed in Settings › Lines. Each line picks its own
+mode or carries entirely custom instructions, its own destination (paste in
+place, open for review, file on the Notes page, or grow an idea thread), and
+optionally its own STT and refinement
 models; anything it leaves unset falls through to the shared settings. The
 Checklist line also files its result as tickable items on the To-do page,
 so a list spoken in the morning can be worked from that evening.
@@ -186,6 +187,39 @@ Each line picks its own destination:
 - **Show it here** — brings the window forward with the result to read and
   edit, and puts it on the clipboard.
 - **File a note** — nothing is pasted; the text lands on the Notes page.
+- **Grow an idea** — nothing is pasted; the thought joins an idea thread
+  (below).
+
+### Idea threads
+
+Thinking out loud, kept. A line whose destination is **Grow an idea** (the
+Think aloud line, `Ctrl+F7`, out of the box) files each thought into the
+*idea it belongs to* - a thread - and rewrites that thread's living
+document to take it in: the idea in brief, details, decisions, open
+questions, next steps, in the language you speak. An idea told in pieces
+over a week ends up as one document, with a "what changed" line on top
+saying what the latest thought added.
+
+- **Routing.** When a thread is **pinned**, every thought goes there. When
+  none is, the refinement provider is shown the threads (title and the head
+  of each document) and picks the one the thought continues, or starts a
+  new one - when unsure it starts a new one, because a wrong merge is worse.
+- **Nothing is lost to a provider.** The thought is saved first; the
+  document rewrite comes after, in the background, so the next dictation
+  can start at once. If the rewrite fails, the thread says its document is
+  behind and **Rebuild** redoes it from every thought.
+- **Two more calls per thought** (route, then rewrite), both on the
+  Refinement provider and its backup - a thread line needs that key even
+  with refinement skipped. The line's own processing mode still runs first
+  and cleans the thought. These calls are not History rows, so their cost
+  is not in the month total.
+- The **Idea threads** page lists the ideas, shows the open one's document,
+  takes typed thoughts too (`Ctrl+Enter`), and keeps every thought as the
+  record the document was built from. Renaming a thread stops the model
+  from renaming it; an empty name hands naming back.
+- Settings written before threads existed get the Think aloud line
+  appended once; a deleted one stays deleted. Stored in `threads.json` in
+  the config dir.
 
 ### The window
 
@@ -330,12 +364,14 @@ build, `latest.json`, push, GitHub Release, in one command.
 | `src-tauri/src/settings.rs` | Settings, profiles (lines), history, credential store |
 | `src-tauri/src/todos.rs` | The to-do lists the Checklist line files |
 | `src-tauri/src/notes.rs` | The notes and ideas the Notes lines file |
+| `src-tauri/src/threads.rs` | Idea threads: storage, routing and rewrite prompts, the growth that runs after a thought |
 | `src-tauri/src/logs.rs` | The warning/error log, and the overlay's diagnostic trail |
 | `src-tauri/src/hotkeys.rs` | Parsing specs, registering line bindings, the Escape rescue key, the 30s retry |
 | `nutq/scripts/publish-release.ps1` | Signed build + GitHub Release + `latest.json` |
 | `src-tauri/src/lib.rs` | Commands, tray, the pipeline that drives a dictation |
 | `src/lib/api.ts` | Typed bridge to the Rust commands |
 | `src/lib/ui.tsx` | Shared UI pieces: PageHead, Field, Toggle, Kbd, icons, theme |
+| `src/views/ThreadsView.tsx` | The Idea threads page |
 | `src/lib/i18n.ts` | The interface language: `t()`, Arabic/English, right-to-left |
 | `src/lib/i18n.ar.ts` | The Arabic for every UI string, keyed by its English |
 | `scripts/check-i18n.mjs` | `npm run i18n:check`: strings with no Arabic yet |

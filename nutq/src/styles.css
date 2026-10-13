@@ -2644,6 +2644,191 @@ h2 {
   transition: width 0.25s ease;
 }
 
+/* --------------------------------------------------------- idea threads */
+
+/* Where the next thought lands: one quiet line above the threads. */
+.thread-route {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 9px 12px;
+  border: 1px solid var(--accent-line);
+  border-radius: var(--r-md);
+  background: var(--accent-soft);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
+.thread-route > svg {
+  color: var(--accent);
+  flex: none;
+}
+
+.thread-route-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-inline-start: auto;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* The list of ideas beside the open one - the Settings layout's shape, so
+ * the two two-column pages read as one family. */
+.threads-layout {
+  display: grid;
+  grid-template-columns: 236px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.threads-list {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.thread-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  text-align: start;
+  padding: 9px 11px;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  color: var(--text-2);
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+
+.thread-item:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.thread-item.on {
+  background: var(--surface);
+  border-color: var(--border);
+  box-shadow: var(--shadow-1);
+  color: var(--text);
+}
+
+.thread-item-title {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.thread-item.on .thread-item-meta > svg {
+  color: var(--accent);
+}
+
+.thread-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+/* "What changed": the one sentence that makes coming back tomorrow worth it,
+ * so it sits above the document rather than in a log somewhere. */
+.thread-changes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border-inline-start: 3px solid var(--accent);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+}
+
+.thread-changes .stamp {
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+
+.thread-doc {
+  font-size: var(--fs-lg);
+  line-height: 1.8;
+}
+
+.thread-doc h3 {
+  margin: 18px 0 6px;
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--text);
+}
+
+.thread-doc h3:first-child {
+  margin-top: 0;
+}
+
+.thread-doc p {
+  margin: 0 0 10px;
+}
+
+.thread-doc ul {
+  margin: 0 0 10px;
+  padding-inline-start: 20px;
+}
+
+.thread-doc li {
+  margin-bottom: 3px;
+}
+
+.thread-entries {
+  display: flex;
+  flex-direction: column;
+}
+
+.thread-entry {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.thread-entry:first-child {
+  padding-top: 0;
+}
+
+.thread-entry:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.thread-entry-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}
+
+.thread-entry-text {
+  margin-top: 4px;
+  white-space: pre-wrap;
+  line-height: 1.7;
+}
+
 /* ----------------------------------------------------------------- logs */
 
 .log-row {
@@ -3022,6 +3207,22 @@ body.overlay-mode {
   .settings-layout {
     grid-template-columns: 1fr;
     gap: 12px;
+  }
+
+  .threads-layout {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .threads-list {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .thread-item {
+    flex: none;
+    width: 200px;
   }
 
   .settings-nav {

@@ -11,6 +11,7 @@ mod settings;
 mod stt;
 mod notes;
 mod todos;
+mod threads;
 mod hotkeys;
 
 use hotkeys::{
@@ -939,8 +940,47 @@ async fn run_refine(
     transcript: &str,
     retries: u32,
 ) -> anyhow::Result<refine::Refined> {
+    run_ask(cfg, &modes::system_prompt(cfg), transcript, retries).await
+}
+
+/// The refinement provider with any system prompt - what the idea threads
+/// use for routing a thought and rewriting a document.
+async fn run_ask(
+    cfg: &Settings,
+    system: &str,
+    input: &str,
+    retries: u32,
+) -> anyhow::Result<refine::Refined> {
     let key = get_api_key(cfg.refine_provider.key_slot())?;
-    refine::refine(&key, cfg, &modes::system_prompt(cfg), transcript, retries).await
+    refine::refine(&key, cfg, system, input, retries).await
+}
+
+/// One question to the refinement provider, its backup taking over on
+/// failure exactly as a dictation's refinement does. Returns the answer
+/// text only: the threads' calls are bookkeeping, not dictations, so they
+/// have no history row to carry a cost.
+pub(crate) async fn ask_with_failover(
+    app: &AppHandle,
+    cfg: &Settings,
+    system: &str,
+    input: &str,
+) -> anyhow::Result<String> {
+    match run_ask(cfg, system, input, primary_retries(cfg.refine_backup_enabled)).await {
+        Ok(r) => Ok(r.text),
+        Err(primary) => {
+            if !cfg.refine_backup_enabled {
+                return Err(primary);
+            }
+            emit_warning(
+                app,
+                format!("The idea threads' provider failed, trying the backup: {primary:#}"),
+            );
+            run_ask(&refine_backup_cfg(cfg), system, input, net::MAX_RATE_LIMIT_RETRIES)
+                .await
+                .map(|r| r.text)
+                .map_err(|backup| anyhow::anyhow!("primary: {primary:#} | backup: {backup:#}"))
+        }
+    }
 }
 
 /// How long the primary provider is allowed to keep retrying a rate limit.
@@ -1059,6 +1099,29 @@ fn now_id() -> String {
 
 fn now_str() -> String {
     chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string()
+}
+
+/// Hands a finished dictation to the idea threads, in the background: the
+/// routing and the document rewrite are two more model calls, and the
+/// user should be free to dictate again (into this thread or any other line)
+/// while they run. The thought itself is saved before either call.
+fn file_thread(app: &AppHandle, profile: &Profile, cfg: &Settings, text: &str) {
+    if text.trim().is_empty() {
+        return;
+    }
+    let entry = threads::Entry {
+        id: now_id(),
+        at: now_str(),
+        text: text.to_string(),
+        profile: profile.name.clone(),
+    };
+    let app = app.clone();
+    let cfg = cfg.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Err(e) = threads::file_thought(&app, &cfg, entry).await {
+            emit_error(&app, format!("Could not file that thought in an idea thread: {e:#}"));
+        }
+    });
 }
 
 /// Files a finished dictation on the Notes page and tells the UI. The
@@ -1419,6 +1482,11 @@ async fn process(app: &AppHandle) -> anyhow::Result<()> {
             file_note(app, &profile, cfg.mode, &final_text);
             inject::copy_only(&final_text)?;
         }
+        Output::Thread => {
+            // Same deal as a note: filed, and copied too.
+            file_thread(app, &profile, &cfg, &final_text);
+            inject::copy_only(&final_text)?;
+        }
         Output::Draft => {
             inject::copy_only(&final_text)?;
             if let Some(w) = app.get_webview_window("main") {
@@ -1553,6 +1621,10 @@ async fn retry_pending(app: AppHandle, id: String) -> Result<(), String> {
         Output::Instant => inject::paste(&final_text).map_err(|e| e.to_string())?,
         Output::Notes => {
             file_note(&app, &profile, entry.mode, &final_text);
+            inject::copy_only(&final_text).map_err(|e| e.to_string())?;
+        }
+        Output::Thread => {
+            file_thread(&app, &profile, &cfg, &final_text);
             inject::copy_only(&final_text).map_err(|e| e.to_string())?;
         }
         Output::Draft => {
@@ -1723,6 +1795,92 @@ fn remove_todo_item(id: String, index: usize) -> Result<(), String> {
 #[tauri::command]
 fn delete_todo_list(id: String) -> Result<(), String> {
     todos::remove(&id).map_err(|e| e.to_string())
+}
+
+// ---------------------------------------------------------------- threads
+
+/// The settings the threads page's own calls run under: those of the first
+/// line that grows ideas, so its provider overrides apply here too, or the
+/// globals when no line does.
+fn thread_cfg(state: &State<AppState>) -> Settings {
+    let s = state.settings.lock().unwrap();
+    match s.profiles.iter().find(|p| p.output == Output::Thread) {
+        Some(p) => s.effective(p),
+        None => s.clone(),
+    }
+}
+
+/// The idea threads, most recently grown first.
+#[tauri::command]
+fn get_threads() -> Vec<threads::Thread> {
+    threads::list()
+}
+
+#[tauri::command]
+fn create_thread(app: AppHandle, title: String, pin: bool) -> Result<threads::Thread, String> {
+    let t = threads::create(&format!("t{}", now_id()), &now_str(), &title, pin)
+        .map_err(|e| e.to_string())?;
+    let _ = app.emit("threads-changed", ());
+    Ok(t)
+}
+
+#[tauri::command]
+fn rename_thread(id: String, title: String) -> Result<(), String> {
+    threads::rename(&id, &title).map_err(|e| e.to_string())
+}
+
+/// Pins one thread - every new thought goes there - or, with no id, none.
+#[tauri::command]
+fn pin_thread(id: Option<String>) -> Result<(), String> {
+    threads::pin(id.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_thread(id: String) -> Result<(), String> {
+    threads::delete(&id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn remove_thread_entry(thread_id: String, entry_id: String) -> Result<(), String> {
+    threads::remove_entry(&thread_id, &entry_id).map_err(|e| e.to_string())
+}
+
+/// Rewrites a thread's document from every thought it holds - the way back
+/// from a failed update, or after thoughts were removed.
+#[tauri::command]
+async fn rebuild_thread(app: AppHandle, id: String) -> Result<(), String> {
+    let cfg = thread_cfg(&app.state::<AppState>());
+    threads::grow(&app, &cfg, &id, None).await;
+    match threads::get(&id) {
+        Some(t) if !t.doc_error.is_empty() => Err(t.doc_error),
+        _ => Ok(()),
+    }
+}
+
+/// A thought typed on the page instead of spoken: into the given thread, or
+/// routed like a dictated one when no thread is given.
+#[tauri::command]
+async fn add_thread_thought(app: AppHandle, id: Option<String>, text: String) -> Result<(), String> {
+    if text.trim().is_empty() {
+        return Ok(());
+    }
+    let cfg = thread_cfg(&app.state::<AppState>());
+    let entry = threads::Entry {
+        id: now_id(),
+        at: now_str(),
+        text: text.trim().to_string(),
+        profile: String::new(),
+    };
+    match id {
+        Some(id) => {
+            threads::append(&id, entry.clone()).map_err(|e| e.to_string())?;
+            threads::grow(&app, &cfg, &id, Some(&[entry])).await;
+        }
+        None => {
+            threads::file_thought(&app, &cfg, entry).await.map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
 }
 
 // ------------------------------------------------------------------ notes
@@ -1934,6 +2092,14 @@ pub fn run() {
             add_todo_item,
             remove_todo_item,
             delete_todo_list,
+            get_threads,
+            create_thread,
+            rename_thread,
+            pin_thread,
+            delete_thread,
+            remove_thread_entry,
+            rebuild_thread,
+            add_thread_thought,
             get_notes,
             update_note,
             set_note_kind,

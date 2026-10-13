@@ -560,4 +560,56 @@ export const AR: Record<string, string> = {
   Saved: "تم الحفظ",
   "Everything on this page is saved.": "كل ما في هذه الصفحة محفوظ.",
   "Save changes": "احفظ التغييرات",
+
+  // --------------------------------------------------------- idea threads
+  "Idea threads": "خيوط الأفكار",
+  "Idea thread": "خيط أفكار",
+  "grows an idea": "يُنمّي فكرة",
+  "Grow an idea": "نمِّ فكرة",
+  "joins the idea it belongs to and rewrites its document": "ينضم إلى فكرته ويعيد كتابة مستندها",
+  "The processing above cleans each thought before it joins its idea. The idea's document is written by the Refinement provider, so this line needs its key even when refinement is skipped.":
+    "المعالجة أعلاه تنقّح كل خاطرة قبل أن تنضم إلى فكرتها. أما مستند الفكرة فيكتبه مزوّد التنقيح، لذا يحتاج هذا الخط مفتاحه حتى لو تخطّيت التنقيح.",
+  "Untitled idea": "فكرة بلا عنوان",
+  "Thinking out loud": "التفكير بصوت عالٍ",
+  "Say what is on your mind. Each thought joins the idea it belongs to, and that idea's document is rewritten to take it in - so an idea grows day by day instead of scattering across notes.":
+    "قل ما يدور في بالك. كل خاطرة تنضم إلى الفكرة التي تخصّها، ويُعاد كتابة مستند تلك الفكرة ليستوعبها - فتنمو الفكرة يومًا بعد يوم بدل أن تتبعثر بين الملاحظات.",
+  "New idea": "فكرة جديدة",
+  "Every new thought goes to «{title}» until you unpin it.": "كل خاطرة جديدة تذهب إلى «{title}» حتى تلغي تثبيتها.",
+  "Each new thought goes to the idea it belongs to, or starts a new one.":
+    "كل خاطرة جديدة تذهب إلى الفكرة التي تخصّها، أو تبدأ فكرة جديدة.",
+  "No ideas yet": "لا توجد أفكار بعد",
+  "Press the {line} hotkey and think out loud. Your first thought starts the first idea.":
+    "اضغط اختصار «{line}» وفكّر بصوت عالٍ. أول خاطرة تبدأ أول فكرة.",
+  "Give a line the destination Grow an idea in Settings, then press its hotkey and think out loud.":
+    "اختر لأحد الخطوط الوجهة «نمِّ فكرة» من الإعدادات، ثم اضغط اختصاره وفكّر بصوت عالٍ.",
+  "Or type a thought here": "أو اكتب خاطرة هنا",
+  "Start an idea": "ابدأ فكرة",
+  "{n} thoughts": "الخواطر: {n}",
+  "1 thought": "خاطرة واحدة",
+  "Empty lets the model name it": "اتركه فارغًا ليسمّيها النموذج",
+  Save: "احفظ",
+  Rename: "إعادة تسمية",
+  "Let nutq pick the idea for each thought again": "دع nutq يختار الفكرة لكل خاطرة من جديد",
+  "Send every new thought to this idea": "أرسل كل خاطرة جديدة إلى هذه الفكرة",
+  Pinned: "مثبّتة",
+  Pin: "ثبّت",
+  "Rewrite the document from every thought": "أعد كتابة المستند من كل الخواطر",
+  "Delete this idea": "احذف هذه الفكرة",
+  "Updating the document with the latest thought…": "جارٍ تحديث المستند بآخر خاطرة…",
+  "The document is behind its thoughts": "المستند متأخر عن خواطره",
+  "Rebuild the document": "أعد بناء المستند",
+  "What changed": "ما الذي تغيّر",
+  "The document appears once the first thought has been worked in.":
+    "يظهر المستند بعد أن تُدمج فيه أول خاطرة.",
+  "Nothing here yet. Speak or type the first thought of this idea.":
+    "لا شيء هنا بعد. قل أو اكتب أول خاطرة لهذه الفكرة.",
+  "Add a thought to this idea": "أضف خاطرة إلى هذه الفكرة",
+  "Add the thought": "أضف الخاطرة",
+  "Ctrl+Enter adds it": "Ctrl+Enter للإضافة",
+  Thoughts: "الخواطر",
+  "Removing one does not change the document until it is rebuilt.":
+    "حذف خاطرة لا يغيّر المستند حتى يُعاد بناؤه.",
+  "No thoughts yet.": "لا خواطر بعد.",
+  typed: "مكتوبة",
+  "Remove this thought": "احذف هذه الخاطرة",
 };

@@ -74,6 +74,20 @@ const settings = {
       refine_provider: "anthropic",
       refine_model: "claude-opus-5",
       refine_skip: false,
+    },    {
+      id: "think",
+      name: "Think aloud",
+      hotkey: "CmdOrControl+F7",
+      output: "thread",
+      mode: "natural",
+      custom_prompt: "",
+      stt_override: false,
+      stt_provider: "gemini",
+      stt_model: "gemini-3.5-flash",
+      refine_override: false,
+      refine_provider: "anthropic",
+      refine_model: "claude-opus-5",
+      refine_skip: false,
     },
   ],
   stt_provider: "gemini",
@@ -272,7 +286,7 @@ const responses: Record<string, unknown> = {
     { profile_id: "dictate", name: "Dictation", state: { spec: "F8", bound: true, error: "", reset_from: "" } },
     { profile_id: "verbatim", name: "Proofread", state: { spec: "CmdOrControl+F8", bound: true, error: "", reset_from: "" } },
     { profile_id: "checklist", name: "Checklist", state: { spec: "CmdOrControl+F9", bound: true, error: "", reset_from: "" } },
-    { profile_id: "spec", name: "Idea → Spec", state: { spec: "CmdOrControl+F10", bound: true, error: "", reset_from: "" } },
+    { profile_id: "spec", name: "Idea → Spec", state: { spec: "CmdOrControl+F10", bound: true, error: "", reset_from: "" } },    { profile_id: "think", name: "Think aloud", state: { spec: "CmdOrControl+F7", bound: true, error: "", reset_from: "" } },
   ],
   get_todos: [
     {
@@ -308,6 +322,51 @@ const responses: Record<string, unknown> = {
       profile: "Notes",
     },
   ],
+  get_threads: () => threads.map((t) => ({ ...t })),
+  create_thread: ({ title, pin }: { title: string; pin: boolean }) => {
+    if (pin) threads.forEach((t) => (t.pinned = false));
+    const t = {
+      id: `t${Date.now()}`,
+      title,
+      title_locked: Boolean(title),
+      created_at: "2026-10-13 12:00:00",
+      updated_at: "2026-10-13 12:00:00",
+      entries: [],
+      doc: "",
+      changes: "",
+      changes_at: "",
+      doc_error: "",
+      pinned: pin,
+      growing: false,
+    };
+    threads.unshift(t);
+    return t;
+  },
+  rename_thread: ({ id, title }: { id: string; title: string }) => {
+    const t = threads.find((x) => x.id === id);
+    if (t) t.title = title;
+    return null;
+  },
+  pin_thread: ({ id }: { id: string | null }) => {
+    threads.forEach((t) => (t.pinned = t.id === id));
+    return null;
+  },
+  delete_thread: ({ id }: { id: string }) => {
+    const i = threads.findIndex((t) => t.id === id);
+    if (i >= 0) threads.splice(i, 1);
+    return null;
+  },
+  remove_thread_entry: ({ threadId, entryId }: { threadId: string; entryId: string }) => {
+    const t = threads.find((x) => x.id === threadId);
+    if (t) t.entries = t.entries.filter((e) => e.id !== entryId);
+    return null;
+  },
+  rebuild_thread: null,
+  add_thread_thought: ({ id, text }: { id: string | null; text: string }) => {
+    const t = threads.find((x) => x.id === id) ?? threads[0];
+    t?.entries.push({ id: `${Date.now()}`, at: "2026-10-13 12:05:00", text, profile: "" });
+    return null;
+  },
   update_note: null,
   set_note_kind: null,
   delete_note: null,
@@ -338,6 +397,79 @@ const responses: Record<string, unknown> = {
       "Stage 2 (refinement): the endpoint is reachable but refused the key. This is a credential problem, not a URL problem - fix the \"Refinement endpoint\" key.\n\nIt said: Invalid API key\n\nCalled: https://api.z.ai/api/paas/v4/chat/completions",
   },
 };
+
+/** Idea threads, mutable so the page's buttons visibly do something. */
+const threads: {
+  id: string;
+  title: string;
+  title_locked: boolean;
+  created_at: string;
+  updated_at: string;
+  entries: { id: string; at: string; text: string; profile: string }[];
+  doc: string;
+  changes: string;
+  changes_at: string;
+  doc_error: string;
+  pinned: boolean;
+  growing: boolean;
+}[] = [
+  {
+    id: "t1",
+    title: "تطبيق nutq للموبايل",
+    title_locked: false,
+    created_at: "2026-10-09 21:10:00",
+    updated_at: "2026-10-13 08:42:00",
+    entries: [
+      {
+        id: "e1",
+        at: "2026-10-09 21:10:00",
+        text: "بدي نسخة موبايل من nutq، زر واحد كبير تسجّل فيه أفكارك وأنت ماشي.",
+        profile: "Think aloud",
+      },
+      {
+        id: "e2",
+        at: "2026-10-11 18:25:00",
+        text: "الأفضل نبدأ بأندرويد لأن النشر أسهل وأرخص، والآيفون بعدين.",
+        profile: "Think aloud",
+      },
+      {
+        id: "e3",
+        at: "2026-10-13 08:42:00",
+        text: "لازم الأفكار تتزامن مع الكمبيوتر، يعني محتاجين حسابات قبل الموبايل.",
+        profile: "Think aloud",
+      },
+    ],
+    doc:
+      "## الفكرة باختصار\nتطبيق موبايل لـ nutq بزر تسجيل واحد كبير، لالتقاط الأفكار أثناء الحركة وتنميتها مع الوقت.\n\n## التفاصيل\n- شاشة رئيسية: زر تسجيل كبير وقائمة خيوط الأفكار\n- نفس كود Rust والواجهة عبر Tauri 2\n\n## قرارات\n- البداية بأندرويد: نشر أسهل وأرخص، ثم iOS\n\n## أسئلة مفتوحة\n- كيف تتزامن الأفكار بين الموبايل والكمبيوتر؟\n\n## الخطوات التالية\n- بناء الحسابات والمزامنة قبل تطبيق الموبايل",
+    changes: "أضاف شرط المزامنة مع الكمبيوتر، فصارت الحسابات خطوة تسبق الموبايل.",
+    changes_at: "2026-10-13 08:43:10",
+    doc_error: "",
+    pinned: false,
+    growing: false,
+  },
+  {
+    id: "t2",
+    title: "Weekly review ritual",
+    title_locked: false,
+    created_at: "2026-10-12 19:00:00",
+    updated_at: "2026-10-12 19:00:00",
+    entries: [
+      {
+        id: "e4",
+        at: "2026-10-12 19:00:00",
+        text: "Every Sunday evening, read the week's threads and pick one to push forward.",
+        profile: "Think aloud",
+      },
+    ],
+    doc:
+      "## In brief\nA short Sunday ritual: review the week's idea threads and choose one to move forward.\n\n## Next steps\n- Try it this Sunday",
+    changes: "Started the idea.",
+    changes_at: "2026-10-12 19:00:40",
+    doc_error: "",
+    pinned: false,
+    growing: false,
+  },
+];
 
 export const isTauri = () =>
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;

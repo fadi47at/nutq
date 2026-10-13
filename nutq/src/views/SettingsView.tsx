@@ -120,6 +120,11 @@ const OUTPUTS: { id: Profile["output"]; name: string; hint: string }[] = [
   { id: "instant", name: "Paste it", hint: "straight into whatever field has focus" },
   { id: "draft", name: "Show it here", hint: "opens nutq with the text, nothing is pasted" },
   { id: "notes", name: "File a note", hint: "lands on the Notes page instead" },
+  {
+    id: "thread",
+    name: "Grow an idea",
+    hint: "joins the idea it belongs to and rewrites its document",
+  },
 ];
 
 /** The wave shapes that can run inside the recording pill. */
@@ -872,6 +877,13 @@ export default function SettingsView({
                                 </button>
                               ))}
                             </div>
+                            {p.output === "thread" && (
+                              <div className="field-hint">
+                                {t(
+                                  "The processing above cleans each thought before it joins its idea. The idea's document is written by the Refinement provider, so this line needs its key even when refinement is skipped.",
+                                )}
+                              </div>
+                            )}
                           </div>
 
                           <div className="stack-field">

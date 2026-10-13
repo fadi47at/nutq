@@ -208,6 +208,23 @@ const PATHS: Record<string, ReactNode> = {
   ),
   /* A summary: long line, shorter line, shorter still. */
   list: <path d="M4.4 5.8h11.2M4.4 10h8.4M4.4 14.2h5.6" />,
+  /* A pushpin: "every next thought goes here". */
+  pin: (
+    <>
+      <path d="M7.4 3.6h5.2l-.9 4.6 2.7 2.6H5.6l2.7-2.6z" />
+      <path d="M10 10.8v5.8" />
+    </>
+  ),
+  /* An idea thread: a seedling - an idea that grows a little with every
+   * thought. Stem, then a large and a small leaf, so it still reads as a
+   * plant at 14px. */
+  sprout: (
+    <>
+      <path d="M10 16.6V9.8" />
+      <path d="M10 10.2c0-3.2 2.1-5.2 5.6-5.2 0 3.4-2.1 5.2-5.6 5.2z" />
+      <path d="M10 12.4c0-2.4-1.6-4-4.6-4 0 2.5 1.6 4 4.6 4z" />
+    </>
+  ),
   /* Custom instructions: the wand that turns speech into your own shape. */
   wand: (
     <>
@@ -260,6 +277,7 @@ export function lineKind(p: {
   output: string;
   custom_prompt: string;
 }): string {
+  if (p.output === "thread") return "thread";
   if (p.custom_prompt.trim()) return "custom";
   if (p.output === "notes") return p.mode === "spec" || p.mode === "summary" ? "idea" : "note";
   if (p.mode === "checklist") return "checklist";
@@ -279,6 +297,7 @@ export const KIND_ICON: Record<string, IconName> = {
   summary: "list",
   verbatim: "quote",
   custom: "wand",
+  thread: "sprout",
 };
 
 /** What each kind is called, for tooltips and the pill preview. English
@@ -291,6 +310,7 @@ export const KIND_NAME: Record<string, string> = {
   summary: "Summary",
   verbatim: "Word for word",
   custom: "Your own instructions",
+  thread: "Idea thread",
 };
 
 export function lineIcon(p: {

@@ -1,6 +1,6 @@
 [package]
 name = "nutq"
-version = "0.11.0"
+version = "0.12.0"
 description = "Voice in, finished text out."
 authors = ["Fadi"]
 edition = "2021"
@@ -26,7 +26,7 @@ hound = "3"
 
 # networking
 reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }
 
 base64 = "0.22"
 anyhow = "1"
