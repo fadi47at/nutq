@@ -289,6 +289,12 @@ pub struct Settings {
     /// its own themes and is not affected by this.
     pub theme: String,
 
+    /// The interface language: "system" follows the Windows display
+    /// language, "en" and "ar" pin it. Arabic also turns the window
+    /// right-to-left. Only the app's own words change - what you dictate is
+    /// governed by `language_hint`, not by this.
+    pub ui_language: String,
+
     /// The bottom-of-screen recording pill: which wave runs inside it, an
     /// optional two-part glow, and the theme that coordinates its colors.
     /// The glow's inner part lights the pill's own edges; the outer part
@@ -361,6 +367,7 @@ impl Default for Settings {
             play_sounds: false,
             save_audio: true,
             theme: "system".into(),
+            ui_language: "system".into(),
             // The glow sits between the plain and the charged preview strengths
             // and always breathes with the voice; teal night is the identity
             // the rest of the app already speaks.

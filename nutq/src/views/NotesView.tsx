@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, type Note, type NoteKind } from "../lib/api";
+import { t } from "../lib/i18n";
 import { Empty, Icon, PageHead } from "../lib/ui";
 
 /** The two sections of the page, and what each badge says. */
@@ -54,10 +55,12 @@ export default function NotesView() {
   return (
     <>
       <PageHead
-        eyebrow="From your Notes and Ideas lines"
-        title="Notes"
-        lede="Speak on a notes line and the result lands here instead of being pasted - notes and ideas you can come back to, search, and fix up."
-        actions={<span className="chip">{notes.length} kept</span>}
+        eyebrow={t("From your Notes and Ideas lines")}
+        title={t("Notes")}
+        lede={t(
+          "Speak on a notes line and the result lands here instead of being pasted - notes and ideas you can come back to, search, and fix up.",
+        )}
+        actions={<span className="chip">{t("{n} kept", { n: notes.length })}</span>}
       />
 
       {notes.length > 0 && (
@@ -75,12 +78,12 @@ export default function NotesView() {
                 className={section === id ? "on" : ""}
                 onClick={() => setSection(id)}
               >
-                {label}
+                {t(label)}
               </button>
             ))}
           </div>
           <input
-            placeholder="Search notes"
+            placeholder={t("Search notes")}
             dir="auto"
             value={query}
             style={{ flex: 1, minWidth: 180 }}
@@ -92,11 +95,11 @@ export default function NotesView() {
       {shown.length === 0 ? (
         <Empty
           icon="note"
-          title={notes.length === 0 ? "No notes yet" : "Nothing matches"}
+          title={notes.length === 0 ? t("No notes yet") : t("Nothing matches")}
           sub={
             notes.length === 0
-              ? "Press a notes-line hotkey, speak, and the note appears here."
-              : "Try a different word, or switch the filter back to All."
+              ? t("Press a notes-line hotkey, speak, and the note appears here.")
+              : t("Try a different word, or switch the filter back to All.")
           }
         />
       ) : (
@@ -113,7 +116,7 @@ export default function NotesView() {
                   <select
                     className="pill-select"
                     value={n.kind}
-                    title={meta.hint}
+                    title={t(meta.hint)}
                     onChange={async (e) => {
                       await api.setNoteKind(n.id, e.target.value as NoteKind);
                       refresh();
@@ -121,17 +124,19 @@ export default function NotesView() {
                   >
                     {(Object.keys(KIND_LABELS) as NoteKind[]).map((k) => (
                       <option key={k} value={k}>
-                        {KIND_LABELS[k].name}
+                        {t(KIND_LABELS[k].name)}
                       </option>
                     ))}
                   </select>
-                  {n.profile && <span className="chip">via {n.profile}</span>}
-                  <span className="chip">{n.at}</span>
+                  {n.profile && (
+                    <span className="chip">{t("via {line}", { line: n.profile })}</span>
+                  )}
+                  <span className="chip stamp">{n.at}</span>
                   <div className="spacer" />
                   <button
                     className="icon-btn"
-                    title="Copy this note"
-                    aria-label="Copy this note"
+                    title={t("Copy this note")}
+                    aria-label={t("Copy this note")}
                     onClick={async () => {
                       await api.copyText(n.text);
                       setCopied(n.id);
@@ -142,8 +147,8 @@ export default function NotesView() {
                   </button>
                   <button
                     className="icon-btn"
-                    title={open ? "Stop editing" : "Edit this note"}
-                    aria-label={open ? "Stop editing" : "Edit this note"}
+                    title={open ? t("Stop editing") : t("Edit this note")}
+                    aria-label={open ? t("Stop editing") : t("Edit this note")}
                     onClick={() => {
                       setEditing(open ? null : n.id);
                       setDraft(n.text);
@@ -161,20 +166,20 @@ export default function NotesView() {
                           refresh();
                         }}
                       >
-                        Delete
+                        {t("Delete")}
                       </button>
                       <button
                         className="btn ghost sm"
                         onClick={() => setConfirmDelete(null)}
                       >
-                        Cancel
+                        {t("Cancel")}
                       </button>
                     </>
                   ) : (
                     <button
                       className="icon-btn danger"
-                      title="Delete this note"
-                      aria-label="Delete this note"
+                      title={t("Delete this note")}
+                      aria-label={t("Delete this note")}
                       onClick={() => setConfirmDelete(n.id)}
                     >
                       <Icon name="trash" />
@@ -200,10 +205,10 @@ export default function NotesView() {
                             refresh();
                           }}
                         >
-                          Save note
+                          {t("Save note")}
                         </button>
                         <button className="btn ghost" onClick={() => setEditing(null)}>
-                          Cancel
+                          {t("Cancel")}
                         </button>
                       </div>
                     </>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type TodoList } from "../lib/api";
+import { t } from "../lib/i18n";
 import { Empty, Icon, PageHead } from "../lib/ui";
 
 /**
@@ -32,12 +33,16 @@ export default function TodosView() {
   return (
     <>
       <PageHead
-        eyebrow="From your Checklist line"
-        title="To-do"
-        lede="Speak your tasks on the Checklist line and they land here, ready to tick off. Items can also be typed in by hand."
+        eyebrow={t("From your Checklist line")}
+        title={t("To-do")}
+        lede={t(
+          "Speak your tasks on the Checklist line and they land here, ready to tick off. Items can also be typed in by hand.",
+        )}
         actions={
           lists.length > 0 ? (
-            <span className="chip">{openTotal === 0 ? "all done" : `${openTotal} open`}</span>
+            <span className="chip">
+              {openTotal === 0 ? t("all done") : t("{n} open", { n: openTotal })}
+            </span>
           ) : null
         }
       />
@@ -45,8 +50,10 @@ export default function TodosView() {
       {lists.length === 0 ? (
         <Empty
           icon="checklist"
-          title="No lists yet"
-          sub="Press the Checklist hotkey, talk through what needs doing, and the list appears here."
+          title={t("No lists yet")}
+          sub={t(
+            "Press the Checklist hotkey, talk through what needs doing, and the list appears here.",
+          )}
         />
       ) : (
         <div className="stack">
@@ -60,9 +67,9 @@ export default function TodosView() {
                   <h2 dir="auto" className="note-title">
                     {l.title || l.at}
                   </h2>
-                  <span className="chip">{l.at}</span>
+                  <span className="chip stamp">{l.at}</span>
                   <span className={`chip${open === 0 ? " ok" : ""}`}>
-                    {open === 0 ? "all done" : `${open} open`}
+                    {open === 0 ? t("all done") : t("{n} open", { n: open })}
                   </span>
                   <div className="spacer" />
                   {confirmDelete === l.id ? (
@@ -75,20 +82,20 @@ export default function TodosView() {
                           refresh();
                         }}
                       >
-                        Delete list
+                        {t("Delete list")}
                       </button>
                       <button
                         className="btn ghost sm"
                         onClick={() => setConfirmDelete(null)}
                       >
-                        Cancel
+                        {t("Cancel")}
                       </button>
                     </>
                   ) : (
                     <button
                       className="icon-btn danger"
-                      title="Delete this list"
-                      aria-label="Delete this list"
+                      title={t("Delete this list")}
+                      aria-label={t("Delete this list")}
                       onClick={() => setConfirmDelete(l.id)}
                     >
                       <Icon name="trash" />
@@ -98,7 +105,7 @@ export default function TodosView() {
 
                 <div className="card-body">
                   {l.items.length > 0 && (
-                    <div className="todo-progress" title={`${done} of ${l.items.length} done`}>
+                    <div className="todo-progress" title={t("{done} of {total} done", { done, total: l.items.length })}>
                       <span style={{ width: `${pct}%` }} />
                     </div>
                   )}
@@ -115,7 +122,7 @@ export default function TodosView() {
                       >
                         <button
                           className={`todo-check${item.done ? " on" : ""}`}
-                          title={item.done ? "Mark as open" : "Mark as done"}
+                          title={item.done ? t("Mark as open") : t("Mark as done")}
                           onClick={async () => {
                             await api.toggleTodo(l.id, i);
                             refresh();
@@ -126,8 +133,8 @@ export default function TodosView() {
                         <span className="todo-text">{item.text}</span>
                         <button
                           className="icon-btn danger"
-                          title="Remove this item"
-                           aria-label="Remove this item"
+                          title={t("Remove this item")}
+                          aria-label={t("Remove this item")}
                           onClick={async () => {
                             await api.removeTodoItem(l.id, i);
                             refresh();
@@ -141,7 +148,7 @@ export default function TodosView() {
 
                   <div className="row" style={{ flexWrap: "nowrap", marginTop: 12 }}>
                     <input
-                      placeholder="add a task by hand"
+                      placeholder={t("add a task by hand")}
                       dir="auto"
                       style={{ flex: 1, minWidth: 0 }}
                       value={draft[l.id] ?? ""}
@@ -164,7 +171,7 @@ export default function TodosView() {
                       }}
                     >
                       <Icon name="plus" size={15} />
-                      Add
+                      {t("Add")}
                     </button>
                   </div>
                 </div>

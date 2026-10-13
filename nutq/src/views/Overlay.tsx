@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type OverlayIndicator, type OverlayStyle, type Status } from "../lib/api";
+import { setLanguage, t, type UiLanguage } from "../lib/i18n";
 import { Icon, KIND_ICON } from "../lib/ui";
 
 const BARS = 16;
@@ -133,7 +134,12 @@ export default function Overlay() {
           }
           return s.status;
         });
-        setShowLabel(s.status === "transcribing" ? "Transcribing…" : s.status === "refining" ? "Refining…" : "");
+        // The pill keeps its own left-to-right layout in every language; only
+        // its words follow the interface language.
+        setLanguage(s.ui_language as UiLanguage);
+        setShowLabel(
+          s.status === "transcribing" ? t("Transcribing…") : s.status === "refining" ? t("Refining…") : "",
+        );
         const look =
           `${s.style}|${s.glow_inner}|${s.glow_outer}|${s.aura_color}|${s.bg}|` +
           `${s.label}|${s.kind}|${s.indicator}|${s.show_name}`;
@@ -159,20 +165,20 @@ export default function Overlay() {
         /* the window is shutting down; stop caring */
       }
     };
-    const t = setInterval(() => void poll(), 40);
+    const timer = setInterval(() => void poll(), 40);
     return () => {
       cancelled = true;
-      clearInterval(t);
+      clearInterval(timer);
     };
   }, []);
 
   // Separate 1s tick: the timer itself advances even in pure silence.
   useEffect(() => {
-    const t = setInterval(() => {
+    const timer = setInterval(() => {
       setSecs((s) => s + 1);
       setTick((x) => x + 1);
     }, 1000);
-    return () => clearInterval(t);
+    return () => clearInterval(timer);
   }, []);
 
   /** One sensitivity read: decibel floor plus auto-gain, so a whisper and a

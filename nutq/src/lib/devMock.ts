@@ -89,6 +89,7 @@ const settings = {
   play_sounds: false,
   save_audio: true,
   theme: "system",
+  ui_language: "system",
   overlay_glow_inner: true,
   overlay_glow_outer: true,
   overlay_theme: "teal_night",
@@ -264,6 +265,7 @@ const responses: Record<string, unknown> = {
       kind: "mic",
       indicator: settings.overlay_indicator,
       show_name: settings.overlay_show_name,
+      ui_language: settings.ui_language,
     };
   },
   hotkey_status: [

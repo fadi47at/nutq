@@ -1795,6 +1795,9 @@ struct OverlayState {
     indicator: String,
     /// Whether the line's name is written next to the timer.
     show_name: bool,
+    /// The interface language setting, so the pill's own words
+    /// ("Transcribing…") follow the main window's.
+    ui_language: String,
 }
 
 /// One poll = everything the indicator needs. Event delivery to a hidden,
@@ -1829,6 +1832,7 @@ fn overlay_state(state: State<AppState>) -> OverlayState {
         kind: profile.kind().to_string(),
         indicator: s.overlay_indicator.clone(),
         show_name: s.overlay_show_name,
+        ui_language: s.ui_language.clone(),
     }
 }
 

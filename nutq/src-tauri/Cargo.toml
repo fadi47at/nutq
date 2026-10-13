@@ -1,6 +1,6 @@
 [package]
 name = "nutq"
-version = "0.10.5"
+version = "0.11.0"
 description = "Voice in, finished text out."
 authors = ["Fadi"]
 edition = "2021"

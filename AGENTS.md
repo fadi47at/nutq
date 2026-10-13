@@ -158,6 +158,20 @@ by rule:
 - **The theme is a setting** (`theme`: system/light/dark), applied by
   `applyTheme` in `lib/ui.tsx`. The recording pill keeps its own themes and is
   deliberately unaffected by it.
+- **Every visible word goes through `t()`** (`nutq/src/lib/i18n.ts`). The
+  English at the call site is the source text and the lookup key; its Arabic
+  lives in `nutq/src/lib/i18n.ar.ts`. A new string without Arabic is a bug:
+  `npm run i18n:check` lists it, and Windows CI fails on it. Write whole
+  sentences with `{placeholders}` (`t("{n} open", { n })`), never English
+  glued around a number - Arabic word order is not English word order.
+- **Arabic is right-to-left, so direction is logical.** The language
+  (`ui_language`: system/en/ar) writes `lang` and `dir` on `<html>`. Use
+  `margin-inline-*`, `inset-inline-*`, `text-align: start` - never
+  left/right. What must read left-to-right in both languages says so
+  explicitly: hotkeys (`Kbd`), timestamps (`.stamp`), the model chain
+  (`.hist-models`), the usage chart (`direction="ltr"`), and the recording
+  pill, which keeps its layout and only translates its words. The language
+  previews from Settings like the theme does, through App.
 
 ## Build & verify (Windows)
 

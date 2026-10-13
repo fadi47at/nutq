@@ -31,6 +31,10 @@ jobs:
         working-directory: nutq
         run: npx tsc --noEmit
 
+      - name: Every UI string has its Arabic
+        working-directory: nutq
+        run: npm run i18n:check
+
       - name: Vite build
         working-directory: nutq
         run: npx vite build

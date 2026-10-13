@@ -11,6 +11,7 @@ import type { ReactNode } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Theme } from "./api";
 import { prettyHotkey } from "./hotkeys";
+import { t } from "./i18n";
 
 /**
  * Paint the window in the chosen theme.
@@ -280,7 +281,8 @@ export const KIND_ICON: Record<string, IconName> = {
   custom: "wand",
 };
 
-/** What each kind is called, for tooltips and the pill preview. */
+/** What each kind is called, for tooltips and the pill preview. English
+ *  source text: pass it through `t()` where it is shown. */
 export const KIND_NAME: Record<string, string> = {
   mic: "Dictation",
   note: "Note",
@@ -313,7 +315,7 @@ export function Kbd({ spec }: { spec: string }) {
   if (!spec.trim()) {
     return (
       <span className="kbd unset">
-        <kbd>not set</kbd>
+        <kbd>{t("not set")}</kbd>
       </span>
     );
   }

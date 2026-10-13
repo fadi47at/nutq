@@ -22,6 +22,7 @@ import {
   type Theme,
 } from "../lib/api";
 import { specFromEvent } from "../lib/hotkeys";
+import { t, type UiLanguage } from "../lib/i18n";
 import {
   Field,
   Icon,
@@ -44,9 +45,13 @@ interface Props {
   /** Try a theme on without saving it. Null hands the window back to the
    *  saved setting. */
   onPreviewTheme: (theme: Theme | null) => void;
+  /** The same, for the interface language. */
+  onPreviewLanguage: (language: UiLanguage | null) => void;
 }
 
-/** Label under each key field, so slots are named the same way everywhere. */
+/** Label under each key field, so slots are named the same way everywhere.
+ *  Every name, hint and label in the tables below is English source text,
+ *  passed through `t()` where it is drawn. */
 const KEY_FIELDS: { slot: string; name: string; where: string; placeholder: string }[] = [
   { slot: "gemini", name: "Gemini", where: "aistudio.google.com", placeholder: "AIza..." },
   { slot: "anthropic", name: "Claude", where: "console.anthropic.com", placeholder: "sk-ant-..." },
@@ -192,12 +197,20 @@ const THEMES: { id: Theme; name: string; hint: string; icon: IconName }[] = [
   { id: "dark", name: "Dark", hint: "Always the dark palette", icon: "moon" },
 ];
 
+/** Each language is named in itself, the way every language picker does it:
+ *  someone who cannot read the current one must still find their own. */
+const LANGUAGES: { id: UiLanguage; name: string; hint: string }[] = [
+  { id: "system", name: "Match Windows", hint: "Follows the Windows display language" },
+  { id: "en", name: "English", hint: "Left to right" },
+  { id: "ar", name: "العربية", hint: "من اليمين إلى اليسار" },
+];
+
 /** A section's heading: what this group is, and what it decides. */
 function SectionHead({ title, sub }: { title: string; sub?: string }) {
   return (
     <div className="section-head">
-      <div className="section-title">{title}</div>
-      {sub && <div className="section-sub">{sub}</div>}
+      <div className="section-title">{t(title)}</div>
+      {sub && <div className="section-sub">{t(sub)}</div>}
     </div>
   );
 }
@@ -246,7 +259,7 @@ function ModelField({
           list={listId}
           value={value}
           disabled={disabled}
-          placeholder="model name"
+          placeholder={t("model name")}
           style={{ flex: 1, minWidth: 0 }}
           onChange={(e) => onChange(e.target.value)}
         />
@@ -256,8 +269,8 @@ function ModelField({
           disabled={busy || disabled || unsavedChanges}
           title={
             unsavedChanges
-              ? "Save your changes first - this reads the saved key and endpoint"
-              : "Ask the provider which models this key can use"
+              ? t("Save your changes first - this reads the saved key and endpoint")
+              : t("Ask the provider which models this key can use")
           }
           onClick={async () => {
             setBusy(true);
@@ -272,7 +285,7 @@ function ModelField({
           }}
         >
           <Icon name="search" size={15} />
-          {busy ? "Loading…" : "Load list"}
+          {busy ? t("Loading…") : t("Load list")}
         </button>
       </div>
 
@@ -284,7 +297,9 @@ function ModelField({
 
       {live && (
         <div className="field-hint">
-          {live.length} models available to this key. Click the field to pick one.
+          {t("{n} models available to this key. Click the field to pick one.", {
+            n: live.length,
+          })}
         </div>
       )}
       {error && (
@@ -305,7 +320,7 @@ function Diagnostic({ result }: { result: TestResult }) {
     <div className={`diag ${result.ok ? "ok" : "bad"}`}>
       <div className="diag-title">
         <Icon name={result.ok ? "check" : "alert"} size={15} />
-        {result.ok ? "Working" : "Not working"}
+        {result.ok ? t("Working") : t("Not working")}
       </div>
       <div className="diag-detail">{result.message}</div>
     </div>
@@ -336,7 +351,7 @@ function TestButton({
         <button
           className="btn"
           disabled={busy || disabled || unsavedChanges}
-          title={unsavedChanges ? "Save your changes first" : undefined}
+          title={unsavedChanges ? t("Save your changes first") : undefined}
           onClick={async () => {
             setBusy(true);
             setResult(null);
@@ -350,10 +365,10 @@ function TestButton({
           }}
         >
           <Icon name="bolt" size={15} />
-          {busy ? "Testing…" : "Test this stage"}
+          {busy ? t("Testing…") : t("Test this stage")}
         </button>
         <span className="hint dim" style={{ flex: 1, minWidth: 200 }}>
-          {unsavedChanges ? "Save your changes first - the test runs on what is stored." : hint}
+          {unsavedChanges ? t("Save your changes first - the test runs on what is stored.") : t(hint)}
         </span>
       </div>
     </div>
@@ -416,29 +431,38 @@ function HotkeyField({
             .catch((err) => setRejected(String(err)));
         }}
       >
-        {capturing ? "Press a key…" : <Kbd spec={value} />}
+        {capturing ? t("Press a key…") : <Kbd spec={value} />}
       </button>
 
       <div className="hotkey-note">
         {capturing ? (
-          <span>Press the combination you want · Esc to cancel</span>
+          <span>{t("Press the combination you want · Esc to cancel")}</span>
         ) : rejected ? (
           <span className="hotkey-bad">{rejected}</span>
         ) : status?.reset_from ? (
           <span className="hotkey-bad">
-            Your saved key “{status.reset_from}” could not be bound, so this was reset.
+            {t("Your saved key “{key}” could not be bound, so this was reset.", {
+              key: status.reset_from,
+            })}
           </span>
         ) : status && !status.bound ? (
-          <span className="hotkey-bad">{status.error || "Not bound."}</span>
+          <span className="hotkey-bad">{status.error || t("Not bound.")}</span>
         ) : (
-          <span>Click, then press the keys · works in every app</span>
+          <span>{t("Click, then press the keys · works in every app")}</span>
         )}
       </div>
     </div>
   );
 }
 
-export default function SettingsView({ settings, keys, appVersion, onSave, onPreviewTheme }: Props) {
+export default function SettingsView({
+  settings,
+  keys,
+  appVersion,
+  onSave,
+  onPreviewTheme,
+  onPreviewLanguage,
+}: Props) {
   const [draft, setDraft] = useState<Settings>(settings);
   const [mics, setMics] = useState<string[]>(["Default"]);
   const [keyInputs, setKeyInputs] = useState<Record<string, string>>({});
@@ -471,9 +495,9 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
     try {
       const u = await api.checkForUpdate();
       if (u) setUpdate(u);
-      else setCheckNote(`v${appVersion} is the latest`);
+      else setCheckNote(t("v{v} is the latest", { v: appVersion }));
     } catch {
-      setCheckNote("couldn't reach GitHub - check your connection");
+      setCheckNote(t("couldn't reach GitHub - check your connection"));
     } finally {
       setChecking(false);
     }
@@ -488,6 +512,12 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
     onPreviewTheme(draft.theme === settings.theme ? null : draft.theme);
     return () => onPreviewTheme(null);
   }, [draft.theme, settings.theme, onPreviewTheme]);
+  // The language previews the same way: the whole window turns Arabic (and
+  // right-to-left) the moment it is picked, and Discard turns it back.
+  useEffect(() => {
+    onPreviewLanguage(draft.uiLanguage === settings.uiLanguage ? null : draft.uiLanguage);
+    return () => onPreviewLanguage(null);
+  }, [draft.uiLanguage, settings.uiLanguage, onPreviewLanguage]);
   useEffect(() => {
     void api.listMicrophones().then(setMics);
     void api.hotkeyStatus().then(setHotkeys);
@@ -547,27 +577,31 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
    *  says which section to look in. */
   function validate(): { section: SectionId; message: string } | null {
     if (!draft.sttModel.trim())
-      return { section: "stt", message: "Transcription needs a model name." };
+      return { section: "stt", message: t("Transcription needs a model name.") };
     if (sttMeta.custom && !draft.sttBaseUrl.trim())
-      return { section: "stt", message: "Transcription needs an endpoint base URL." };
+      return { section: "stt", message: t("Transcription needs an endpoint base URL.") };
     if (draft.refineEnabled) {
       if (!draft.refineModel.trim())
-        return { section: "refine", message: "Refinement needs a model name." };
+        return { section: "refine", message: t("Refinement needs a model name.") };
       if (refineMeta.custom && !draft.refineBaseUrl.trim())
-        return { section: "refine", message: "Refinement needs an endpoint base URL." };
+        return { section: "refine", message: t("Refinement needs an endpoint base URL.") };
     }
     for (const [i, p] of draft.profiles.entries()) {
       if (!p.name.trim())
-        return { section: "lines", message: `Line ${i + 1} needs a name.` };
+        return { section: "lines", message: t("Line {n} needs a name.", { n: i + 1 }) };
       if (p.stt_override && !p.stt_model.trim())
         return {
           section: "lines",
-          message: `Line "${p.name}" overrides transcription but names no model.`,
+          message: t('Line "{name}" overrides transcription but names no model.', {
+            name: p.name,
+          }),
         };
       if (p.refine_override && !p.refine_model.trim())
         return {
           section: "lines",
-          message: `Line "${p.name}" overrides refinement but names no model.`,
+          message: t('Line "{name}" overrides refinement but names no model.', {
+            name: p.name,
+          }),
         };
     }
     return null;
@@ -629,16 +663,18 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
   return (
     <>
       <PageHead
-        eyebrow="Configuration"
-        title="Settings"
-        lede="Changes are a draft until you save them. API keys never touch the settings file - they go to the Windows Credential Manager."
+        eyebrow={t("Configuration")}
+        title={t("Settings")}
+        lede={t(
+          "Changes are a draft until you save them. API keys never touch the settings file - they go to the Windows Credential Manager.",
+        )}
       />
 
       <div className="settings-layout">
         <div className="settings-nav">
           {SECTIONS.map((g) => (
             <div key={g.group}>
-              <div className="label">{g.group}</div>
+              <div className="label">{t(g.group)}</div>
               {g.items.map((s) => (
                 <button
                   key={s.id}
@@ -646,8 +682,10 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                   onClick={() => setSection(s.id)}
                 >
                   <Icon name={s.icon} size={16} />
-                  {s.name}
-                  {warnings[s.id] && <span className="warn-dot" title="Needs attention" />}
+                  {t(s.name)}
+                  {warnings[s.id] && (
+                    <span className="warn-dot" title={t("Needs attention")} />
+                  )}
                 </button>
               ))}
             </div>
@@ -673,14 +711,14 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                       <div className="line-card-head">
                         <div className="line-card-grip">
                           <button
-                            title="Move up"
+                            title={t("Move up")}
                             disabled={i === 0}
                             onClick={() => moveProfile(i, -1)}
                           >
                             <Icon name="up" size={13} />
                           </button>
                           <button
-                            title="Move down"
+                            title={t("Move down")}
                             disabled={i === draft.profiles.length - 1}
                             onClick={() => moveProfile(i, 1)}
                           >
@@ -698,23 +736,23 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                             className="line-card-icon"
                           />
                           <span className="line-card-title">
-                            {p.name || `Line ${i + 1}`}
+                            {p.name || t("Line {n}", { n: i + 1 })}
                           </span>
                           <span className="line-card-chips">
                             <Kbd spec={p.hotkey} />
                             <span className="chip">
                               {p.custom_prompt.trim()
-                                ? "custom instructions"
-                                : MODE_LABELS[p.mode].name}
+                                ? t("custom instructions")
+                                : t(MODE_LABELS[p.mode].name)}
                             </span>
                             <span className="chip">
-                              {OUTPUTS.find((o) => o.id === p.output)?.name}
+                              {t(OUTPUTS.find((o) => o.id === p.output)?.name ?? "")}
                             </span>
-                            {p.refine_skip && <span className="chip">raw</span>}
+                            {p.refine_skip && <span className="chip">{t("raw")}</span>}
                             {(p.stt_override || p.refine_override) && (
-                              <span className="chip">own model</span>
+                              <span className="chip">{t("own model")}</span>
                             )}
-                            {bad && <span className="chip bad">not bound</span>}
+                            {bad && <span className="chip bad">{t("not bound")}</span>}
                           </span>
                           <Icon name="chevron" size={16} className="chev" />
                         </button>
@@ -732,20 +770,20 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                                   setConfirmDelete(null);
                                 }}
                               >
-                                Remove
+                                {t("Remove")}
                               </button>
                               <button
                                 className="btn ghost sm"
                                 onClick={() => setConfirmDelete(null)}
                               >
-                                Cancel
+                                {t("Cancel")}
                               </button>
                             </span>
                           ) : (
                             <button
                               className="icon-btn danger"
-                              title="Remove this line"
-                              aria-label="Remove this line"
+                              title={t("Remove this line")}
+                              aria-label={t("Remove this line")}
                               onClick={() => setConfirmDelete(p.id)}
                             >
                               <Icon name="trash" />
@@ -757,9 +795,9 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                         <div className="line-card-body">
                           <div className="pair">
                             <div>
-                              <div className="field-name">Name</div>
+                              <div className="field-name">{t("Name")}</div>
                               <div className="field-hint">
-                                What the button and the recording pill call it.
+                                {t("What the button and the recording pill call it.")}
                               </div>
                               <input
                                 style={{ width: "100%", marginTop: 6 }}
@@ -768,9 +806,9 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                               />
                             </div>
                             <div>
-                              <div className="field-name">Hotkey</div>
+                              <div className="field-name">{t("Hotkey")}</div>
                               <div className="field-hint">
-                                Press it anywhere to start, again to finish.
+                                {t("Press it anywhere to start, again to finish.")}
                               </div>
                               <div style={{ marginTop: 6 }}>
                                 <HotkeyField
@@ -784,15 +822,16 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
 
                           <div className="stack-field">
                             <div className="field-name">
-                              Processing
+                              {t("Processing")}
                               <span className="chip">
                                 <Icon name={lineIcon(p)} size={13} />
-                                {KIND_NAME[lineKind(p)]}
+                                {t(KIND_NAME[lineKind(p)])}
                               </span>
                             </div>
                             <div className="field-hint">
-                              How the transcript is turned into the finished text - and
-                              which icon this line shows on the recording pill.
+                              {t(
+                                "How the transcript is turned into the finished text - and which icon this line shows on the recording pill.",
+                              )}
                             </div>
                             <select
                               disabled={Boolean(p.custom_prompt.trim())}
@@ -804,20 +843,20 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                               {(Object.keys(MODE_LABELS) as (keyof typeof MODE_LABELS)[]).map(
                                 (m) => (
                                   <option key={m} value={m}>
-                                    {MODE_LABELS[m].name} — {MODE_LABELS[m].hint}
+                                    {t(MODE_LABELS[m].name)} — {t(MODE_LABELS[m].hint)}
                                   </option>
                                 ),
                               )}
                             </select>
                             {p.custom_prompt.trim() && (
                               <div className="field-hint">
-                                Your own instructions are set below, so the mode is not used.
+                                {t("Your own instructions are set below, so the mode is not used.")}
                               </div>
                             )}
                           </div>
 
                           <div className="stack-field">
-                            <div className="field-name">Destination</div>
+                            <div className="field-name">{t("Destination")}</div>
                             <div className="choices">
                               {OUTPUTS.map((o) => (
                                 <button
@@ -826,26 +865,29 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                                   onClick={() => setProfile(i, { output: o.id })}
                                 >
                                   <span className="choice-name">
-                                    {o.name}
+                                    {t(o.name)}
                                     {p.output === o.id && <Icon name="check" size={14} />}
                                   </span>
-                                  <span className="choice-hint">{o.hint}</span>
+                                  <span className="choice-hint">{t(o.hint)}</span>
                                 </button>
                               ))}
                             </div>
                           </div>
 
                           <div className="stack-field">
-                            <div className="field-name">Custom instructions</div>
+                            <div className="field-name">{t("Custom instructions")}</div>
                             <div className="field-hint">
-                              Filled in, these replace the processing mode entirely - your own
-                              filter, your own format. Left empty, the mode above decides.
+                              {t(
+                                "Filled in, these replace the processing mode entirely - your own filter, your own format. Left empty, the mode above decides.",
+                              )}
                             </div>
                             <textarea
                               rows={3}
                               dir="auto"
                               value={p.custom_prompt}
-                              placeholder="e.g. Turn anything I say into a short polite email reply"
+                              placeholder={t(
+                                "e.g. Turn anything I say into a short polite email reply",
+                              )}
                               onChange={(e) =>
                                 setProfile(i, { custom_prompt: e.target.value })
                               }
@@ -853,8 +895,10 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                           </div>
 
                           <Field
-                            name="Skip refinement"
-                            hint="Paste the raw transcript and skip the second API call, however this line is otherwise set up."
+                            name={t("Skip refinement")}
+                            hint={t(
+                              "Paste the raw transcript and skip the second API call, however this line is otherwise set up.",
+                            )}
                           >
                             <Toggle
                               on={p.refine_skip}
@@ -863,8 +907,8 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                           </Field>
 
                           <Field
-                            name="Own transcription model"
-                            hint="Off: this line uses the shared Transcription settings."
+                            name={t("Own transcription model")}
+                            hint={t("Off: this line uses the shared Transcription settings.")}
                           >
                             <Toggle
                               on={p.stt_override}
@@ -873,7 +917,7 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                           </Field>
                           {p.stt_override && (
                             <div className="subgroup">
-                              <Field name="Provider">
+                              <Field name={t("Provider")}>
                                 <select
                                   value={p.stt_provider}
                                   onChange={(e) => {
@@ -887,15 +931,15 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                                 >
                                   {STT_PROVIDERS.map((x) => (
                                     <option key={x.id} value={x.id}>
-                                      {x.name}
+                                      {t(x.name)}
                                     </option>
                                   ))}
                                 </select>
                               </Field>
-                              <Field name="Model">
+                              <Field name={t("Model")}>
                                 <input
                                   value={p.stt_model}
-                                  placeholder="model name"
+                                  placeholder={t("model name")}
                                   onChange={(e) =>
                                     setProfile(i, { stt_model: e.target.value })
                                   }
@@ -905,8 +949,8 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                           )}
 
                           <Field
-                            name="Own refinement model"
-                            hint="Off: this line uses the shared Refinement settings."
+                            name={t("Own refinement model")}
+                            hint={t("Off: this line uses the shared Refinement settings.")}
                           >
                             <Toggle
                               on={p.refine_override}
@@ -918,7 +962,7 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                           </Field>
                           {p.refine_override && !p.refine_skip && (
                             <div className="subgroup">
-                              <Field name="Provider">
+                              <Field name={t("Provider")}>
                                 <select
                                   value={p.refine_provider}
                                   onChange={(e) => {
@@ -932,15 +976,15 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                                 >
                                   {REFINE_PROVIDERS.map((x) => (
                                     <option key={x.id} value={x.id}>
-                                      {x.name}
+                                      {t(x.name)}
                                     </option>
                                   ))}
                                 </select>
                               </Field>
-                              <Field name="Model">
+                              <Field name={t("Model")}>
                                 <input
                                   value={p.refine_model}
-                                  placeholder="model name"
+                                  placeholder={t("model name")}
                                   onChange={(e) =>
                                     setProfile(i, { refine_model: e.target.value })
                                   }
@@ -965,10 +1009,12 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                   }}
                 >
                   <Icon name="plus" size={15} />
-                  Add a line
+                  {t("Add a line")}
                 </button>
                 <span className="hint dim">
-                  {draft.profiles.length} lines · they appear on the Home page in this order
+                  {t("{n} lines · they appear on the Home page in this order", {
+                    n: draft.profiles.length,
+                  })}
                 </span>
               </div>
             </div>
@@ -982,7 +1028,7 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                 sub="Stage 1: your voice to a raw transcript. Every line uses this unless it carries its own model."
               />
 
-              <Field name="Provider" hint={sttMeta.hint}>
+              <Field name={t("Provider")} hint={t(sttMeta.hint)}>
                 <select
                   value={draft.sttProvider}
                   onChange={(e) => {
@@ -997,7 +1043,7 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                 >
                   {STT_PROVIDERS.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name}
+                      {t(p.name)}
                     </option>
                   ))}
                 </select>
@@ -1005,10 +1051,10 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
 
               {sttMeta.custom && (
                 <Field
-                  name="Endpoint base URL"
+                  name={t("Endpoint base URL")}
                   hint={
                     <>
-                      Include the version segment, no trailing slash. Sends to{" "}
+                      {t("Include the version segment, no trailing slash. Sends to")}{" "}
                       <code>/audio/transcriptions</code>.
                     </>
                   }
@@ -1022,9 +1068,11 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
               )}
 
               <Field
-                name="Model"
+                name={t("Model")}
                 wide
-                hint="Type it, or load the list to see exactly what this key can reach. Providers retire model names without warning, so the loaded list is the only reliable answer."
+                hint={t(
+                  "Type it, or load the list to see exactly what this key can reach. Providers retire model names without warning, so the loaded list is the only reliable answer.",
+                )}
               >
                 <ModelField
                   stage="stt"
@@ -1036,8 +1084,10 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
               </Field>
 
               <Field
-                name="Backup provider"
-                hint="If the main provider fails, this one retries the same audio with its own key. When both fail, the recording is parked on the Home page for a manual retry."
+                name={t("Backup provider")}
+                hint={t(
+                  "If the main provider fails, this one retries the same audio with its own key. When both fail, the recording is parked on the Home page for a manual retry.",
+                )}
               >
                 <Toggle
                   on={draft.sttBackupEnabled}
@@ -1047,7 +1097,7 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
 
               {draft.sttBackupEnabled && (
                 <div className="subgroup">
-                  <Field name="Backup provider">
+                  <Field name={t("Backup provider")}>
                     <select
                       value={draft.sttBackupProvider}
                       onChange={(e) => {
@@ -1062,15 +1112,15 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                     >
                       {STT_PROVIDERS.map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.name}
+                          {t(p.name)}
                         </option>
                       ))}
                     </select>
                   </Field>
-                  <Field name="Backup model">
+                  <Field name={t("Backup model")}>
                     <input
                       value={draft.sttBackupModel}
-                      placeholder="model name"
+                      placeholder={t("model name")}
                       onChange={(e) => set("sttBackupModel", e.target.value)}
                     />
                   </Field>
@@ -1094,28 +1144,28 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
               />
 
               <Field
-                name="Second stage"
-                hint="Transcript only is faster and skips the second API call entirely."
+                name={t("Second stage")}
+                hint={t("Transcript only is faster and skips the second API call entirely.")}
               >
                 <div className="segmented">
                   <button
                     className={!draft.refineEnabled ? "on" : ""}
                     onClick={() => set("refineEnabled", false)}
                   >
-                    Transcript only
+                    {t("Transcript only")}
                   </button>
                   <button
                     className={draft.refineEnabled ? "on" : ""}
                     onClick={() => set("refineEnabled", true)}
                   >
-                    Refine it
+                    {t("Refine it")}
                   </button>
                 </div>
               </Field>
 
               {draft.refineEnabled && (
                 <>
-                  <Field name="Provider" hint={refineMeta.hint}>
+                  <Field name={t("Provider")} hint={t(refineMeta.hint)}>
                     <select
                       value={draft.refineProvider}
                       onChange={(e) => {
@@ -1130,7 +1180,7 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                     >
                       {REFINE_PROVIDERS.map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.name}
+                          {t(p.name)}
                         </option>
                       ))}
                     </select>
@@ -1138,12 +1188,12 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
 
                   {draft.refineProvider === "anthropic" && (
                     <Field
-                      name="Anthropic-compatible base URL"
+                      name={t("Anthropic-compatible base URL")}
                       wide
                       hint={
                         <>
-                          Leave empty for the official api.anthropic.com. Sends to{" "}
-                          <code>/v1/messages</code>. Known bases:{" "}
+                          {t("Leave empty for the official api.anthropic.com. Sends to")}{" "}
+                          <code>/v1/messages</code>. {t("Known bases:")}{" "}
                           {ANTHROPIC_BASE_EXAMPLES.map((x, i) => (
                             <span key={x.url}>
                               {i > 0 && " · "}
@@ -1161,7 +1211,7 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                     >
                       <input
                         value={draft.refineAnthropicBaseUrl}
-                        placeholder="empty = https://api.anthropic.com"
+                        placeholder={t("empty = https://api.anthropic.com")}
                         onChange={(e) => set("refineAnthropicBaseUrl", e.target.value)}
                       />
                     </Field>
@@ -1169,11 +1219,11 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
 
                   {refineMeta.custom && (
                     <Field
-                      name="Endpoint base URL"
+                      name={t("Endpoint base URL")}
                       wide
                       hint={
                         <>
-                          Sends to <code>/chat/completions</code>. Known bases:{" "}
+                          {t("Sends to")} <code>/chat/completions</code>. {t("Known bases:")}{" "}
                           {ENDPOINT_EXAMPLES.map((x, i) => (
                             <span key={x.url}>
                               {i > 0 && " · "}
@@ -1198,9 +1248,11 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                   )}
 
                   <Field
-                    name="Model"
+                    name={t("Model")}
                     wide
-                    hint="Type it, or load the list from the provider. Nothing here validates the name against a fixed list, so a model released today works today."
+                    hint={t(
+                      "Type it, or load the list from the provider. Nothing here validates the name against a fixed list, so a model released today works today.",
+                    )}
                   >
                     <ModelField
                       stage="refine"
@@ -1214,8 +1266,10 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
               )}
 
               <Field
-                name="Backup provider"
-                hint="If the main provider fails, this one retries the same text with its own key. When both fail, the job is parked on the Home page for a manual retry."
+                name={t("Backup provider")}
+                hint={t(
+                  "If the main provider fails, this one retries the same text with its own key. When both fail, the job is parked on the Home page for a manual retry.",
+                )}
               >
                 <Toggle
                   on={draft.refineBackupEnabled}
@@ -1225,7 +1279,7 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
 
               {draft.refineBackupEnabled && (
                 <div className="subgroup">
-                  <Field name="Backup provider">
+                  <Field name={t("Backup provider")}>
                     <select
                       value={draft.refineBackupProvider}
                       onChange={(e) => {
@@ -1240,15 +1294,15 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                     >
                       {REFINE_PROVIDERS.map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.name}
+                          {t(p.name)}
                         </option>
                       ))}
                     </select>
                   </Field>
-                  <Field name="Backup model">
+                  <Field name={t("Backup model")}>
                     <input
                       value={draft.refineBackupModel}
-                      placeholder="model name"
+                      placeholder={t("model name")}
                       onChange={(e) => set("refineBackupModel", e.target.value)}
                     />
                   </Field>
@@ -1319,23 +1373,27 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
               />
 
               <Field
-                name="Microphone"
-                hint="Default follows whatever Windows is set to. Pick a device to pin it."
+                name={t("Microphone")}
+                hint={t("Default follows whatever Windows is set to. Pick a device to pin it.")}
               >
                 <select
                   value={draft.microphone}
                   onChange={(e) => set("microphone", e.target.value)}
                 >
                   {mics.map((m) => (
-                    <option key={m}>{m}</option>
+                    <option key={m} value={m}>
+                      {m === "Default" ? t("Default") : m}
+                    </option>
                   ))}
                 </select>
               </Field>
 
               <Field
-                name="Language hint"
+                name={t("Language hint")}
                 wide
-                hint="Passed to both stages. Naming the dialect matters far more than naming the language."
+                hint={t(
+                  "Passed to both stages. Naming the dialect matters far more than naming the language.",
+                )}
               >
                 <input
                   value={draft.languageHint}
@@ -1345,19 +1403,21 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
               </Field>
 
               <Field
-                name="Keep recordings"
-                hint="Saves each recording next to its History entry so it can be played back - the only way to settle what was actually said when a transcript reads oddly. The newest 100 are kept. Off means nothing but text is ever written to disk."
+                name={t("Keep recordings")}
+                hint={t(
+                  "Saves each recording next to its History entry so it can be played back - the only way to settle what was actually said when a transcript reads oddly. The newest 100 are kept. Off means nothing but text is ever written to disk.",
+                )}
               >
                 <Toggle on={draft.saveAudio} onClick={() => set("saveAudio", !draft.saveAudio)} />
               </Field>
 
               <div className="section-foot">
                 <div className="hint dim">
-                  Hotkeys belong to the lines that use them - set them under{" "}
+                  {t("Hotkeys belong to the lines that use them - set them under")}{" "}
                   <button className="link" onClick={() => setSection("lines")}>
-                    Lines
+                    {t("Lines")}
                   </button>
-                  . Every binding works in every app.
+                  {t(". Every binding works in every app.")}
                 </div>
                 <div style={{ marginTop: 10 }}>
                   {(hotkeys ?? []).map((s) => (
@@ -1365,11 +1425,11 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                       <span style={{ minWidth: 150, fontWeight: 600 }}>{s.name}</span>
                       <Kbd spec={s.state.spec} />
                       {s.state.reset_from ? (
-                        <span className="chip bad">was reset</span>
+                        <span className="chip bad">{t("was reset")}</span>
                       ) : s.state.bound ? (
-                        <span className="chip ok">active</span>
+                        <span className="chip ok">{t("active")}</span>
                       ) : (
-                        <span className="chip bad">{s.state.error || "not bound"}</span>
+                        <span className="chip bad">{s.state.error || t("not bound")}</span>
                       )}
                     </div>
                   ))}
@@ -1401,9 +1461,11 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
               </div>
 
               <Field
-                name="Head of the pill"
+                name={t("Head of the pill")}
                 wide
-                hint="The icon is the point: it says a note is being taken, or an idea is being turned into a spec, without writing the line's name across the screen."
+                hint={t(
+                  "The icon is the point: it says a note is being taken, or an idea is being turned into a spec, without writing the line's name across the screen.",
+                )}
               >
                 <div className="choices">
                   {INDICATORS.map((o) => (
@@ -1414,18 +1476,20 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                     >
                       <span className="choice-name">
                         <Icon name={o.icon} size={15} />
-                        {o.name}
+                        {t(o.name)}
                         {draft.overlayIndicator === o.id && <Icon name="check" size={14} />}
                       </span>
-                      <span className="choice-hint">{o.hint}</span>
+                      <span className="choice-hint">{t(o.hint)}</span>
                     </button>
                   ))}
                 </div>
               </Field>
 
               <Field
-                name="Write the line's name too"
-                hint="Off, the icon carries it and the pill stays short. On, the name is spelled out before the timer."
+                name={t("Write the line's name too")}
+                hint={t(
+                  "Off, the icon carries it and the pill stays short. On, the name is spelled out before the timer.",
+                )}
               >
                 <Toggle
                   on={draft.overlayShowName}
@@ -1433,60 +1497,62 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                 />
               </Field>
 
-              <Field name="Wave shape" hint="What runs inside the pill while you speak.">
+              <Field name={t("Wave shape")} hint={t("What runs inside the pill while you speak.")}>
                 <select
                   value={draft.overlayStyle}
                   onChange={(e) => set("overlayStyle", e.target.value as OverlayStyle)}
                 >
                   {OVERLAY_STYLES.map((o) => (
                     <option key={o.id} value={o.id}>
-                      {o.name} — {o.hint}
+                      {t(o.name)} — {t(o.hint)}
                     </option>
                   ))}
                 </select>
               </Field>
 
               <Field
-                name="Theme"
+                name={t("Theme")}
                 wide
-                hint="One pick sets the glow, the wave and the background together, so the colours always match. Each swatch is the pill itself."
+                hint={t(
+                  "One pick sets the glow, the wave and the background together, so the colours always match. Each swatch is the pill itself.",
+                )}
               >
                 <div className="theme-groups">
                   {OVERLAY_THEMES.map((g) => (
                     <div key={g.group}>
-                      <div className="label">{g.group}</div>
+                      <div className="label">{t(g.group)}</div>
                       <div className="theme-grid">
-                        {g.items.map((t) => {
-                          const on = draft.overlayTheme === t.id;
+                        {g.items.map((th) => {
+                          const on = draft.overlayTheme === th.id;
                           return (
                             <button
-                              key={t.id}
+                              key={th.id}
                               className={`theme-chip${on ? " on" : ""}`}
-                              title={`${t.name} · ${t.aura} on ${t.bg}`}
+                              title={`${th.name} · ${th.aura} / ${th.bg}`}
                               onClick={() =>
                                 setDraft((d) => ({
                                   ...d,
-                                  overlayTheme: t.id,
-                                  overlayAuraColor: t.aura,
-                                  overlayBg: t.bg,
+                                  overlayTheme: th.id,
+                                  overlayAuraColor: th.aura,
+                                  overlayBg: th.bg,
                                 }))
                               }
                             >
                               <span
                                 className="theme-swatch"
                                 style={{
-                                  background: t.bg,
-                                  borderColor: `${t.aura}55`,
-                                  boxShadow: on ? `0 0 10px ${t.aura}66` : undefined,
+                                  background: th.bg,
+                                  borderColor: `${th.aura}55`,
+                                  boxShadow: on ? `0 0 10px ${th.aura}66` : undefined,
                                 }}
                               >
-                                <i style={{ background: t.aura, height: 5 }} />
-                                <i style={{ background: t.aura, height: 10 }} />
-                                <i style={{ background: t.aura, height: 7 }} />
-                                <i style={{ background: t.aura, height: 12 }} />
-                                <i style={{ background: t.aura, height: 6 }} />
+                                <i style={{ background: th.aura, height: 5 }} />
+                                <i style={{ background: th.aura, height: 10 }} />
+                                <i style={{ background: th.aura, height: 7 }} />
+                                <i style={{ background: th.aura, height: 12 }} />
+                                <i style={{ background: th.aura, height: 6 }} />
                               </span>
-                              {t.name}
+                              {t(th.name)}
                             </button>
                           );
                         })}
@@ -1497,8 +1563,8 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
               </Field>
 
               <Field
-                name="Glow — inner"
-                hint="Light on the pill's own edges, brightening with your voice."
+                name={t("Glow — inner")}
+                hint={t("Light on the pill's own edges, brightening with your voice.")}
               >
                 <Toggle
                   on={draft.overlayGlowInner}
@@ -1507,8 +1573,8 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
               </Field>
 
               <Field
-                name="Glow — outer"
-                hint="Light cast around the pill onto the screen behind it."
+                name={t("Glow — outer")}
+                hint={t("Light cast around the pill onto the screen behind it.")}
               >
                 <Toggle
                   on={draft.overlayGlowOuter}
@@ -1526,20 +1592,46 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                 sub="How this window paints itself. The recording pill has its own themes, under Recording pill."
               />
 
-              <Field name="Theme" wide>
+              <Field name={t("Theme")} wide>
                 <div className="choices">
-                  {THEMES.map((t) => (
+                  {THEMES.map((th) => (
                     <button
-                      key={t.id}
-                      className={`choice${draft.theme === t.id ? " on" : ""}`}
-                      onClick={() => set("theme", t.id)}
+                      key={th.id}
+                      className={`choice${draft.theme === th.id ? " on" : ""}`}
+                      onClick={() => set("theme", th.id)}
                     >
                       <span className="choice-name">
-                        <Icon name={t.icon} size={15} />
-                        {t.name}
-                        {draft.theme === t.id && <Icon name="check" size={14} />}
+                        <Icon name={th.icon} size={15} />
+                        {t(th.name)}
+                        {draft.theme === th.id && <Icon name="check" size={14} />}
                       </span>
-                      <span className="choice-hint">{t.hint}</span>
+                      <span className="choice-hint">{t(th.hint)}</span>
+                    </button>
+                  ))}
+                </div>
+              </Field>
+
+              <Field
+                name={t("Language")}
+                wide
+                hint={t(
+                  "The app's own words. What you dictate is untouched - that is the Language hint, under Audio & input.",
+                )}
+              >
+                <div className="choices">
+                  {LANGUAGES.map((l) => (
+                    <button
+                      key={l.id}
+                      className={`choice${draft.uiLanguage === l.id ? " on" : ""}`}
+                      onClick={() => set("uiLanguage", l.id)}
+                    >
+                      <span className="choice-name">
+                        {l.id === "system" ? t(l.name) : l.name}
+                        {draft.uiLanguage === l.id && <Icon name="check" size={14} />}
+                      </span>
+                      <span className="choice-hint">
+                        {l.id === "system" ? t(l.hint) : l.hint}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -1547,8 +1639,9 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
 
               <div className="section-foot">
                 <div className="hint dim">
-                  The theme applies the moment you pick it, so you can see it before
-                  saving. Discard puts it back.
+                  {t(
+                    "The theme and the language apply the moment you pick them, so you can see them before saving. Discard puts them back.",
+                  )}
                 </div>
               </div>
             </div>
@@ -1563,8 +1656,8 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
               />
 
               <Field
-                name="Version"
-                hint="nutq · signed builds ship from github.com/fadi47at/nutq/releases"
+                name={t("Version")}
+                hint={t("nutq · signed builds ship from github.com/fadi47at/nutq/releases")}
                 wide
               >
                 <div className="row" style={{ flexWrap: "nowrap" }}>
@@ -1575,7 +1668,7 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                     onClick={() => void checkNow()}
                   >
                     <Icon name="refresh" size={15} />
-                    {checking ? "Checking…" : "Check for updates"}
+                    {checking ? t("Checking…") : t("Check for updates")}
                   </button>
                 </div>
               </Field>
@@ -1589,7 +1682,7 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
               {update && (
                 <>
                   <div className="hint" style={{ padding: "4px 0 10px" }}>
-                    <b>v{update.version}</b> is out — you have v{appVersion}.
+                    {t("v{new} is out — you have v{v}.", { new: update.version, v: appVersion })}
                     {update.notes && (
                       <div style={{ marginTop: 6, whiteSpace: "pre-line" }}>
                         {update.notes}
@@ -1615,7 +1708,7 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                       }}
                     >
                       <Icon name="download" size={15} />
-                      {updateBusy ? "Downloading and installing…" : "Update now"}
+                      {updateBusy ? t("Downloading and installing…") : t("Update now")}
                     </button>
                     <button
                       className="btn ghost"
@@ -1625,7 +1718,7 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                         setUpdateError(null);
                       }}
                     >
-                      Later
+                      {t("Later")}
                     </button>
                   </div>
                 </>
@@ -1633,10 +1726,9 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
 
               <div className="section-foot">
                 <div className="hint dim">
-                  A check also runs on its own when the app opens and every four hours
-                  after that; when a release is found, Home shows the offer without you
-                  asking. The sidebar's version line is the quickest answer to "did the
-                  last install take?"
+                  {t(
+                    "A check also runs on its own when the app opens and every ten minutes after that; when a release is found, Home shows the offer without you asking. The sidebar's version line is the quickest answer to \"did the last install take?\"",
+                  )}
                 </div>
               </div>
             </div>
@@ -1654,7 +1746,7 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                   {draft.dictionary.map((d, i) => (
                     <div className="list-row" key={i}>
                       <input
-                        placeholder="heard as"
+                        placeholder={t("heard as")}
                         dir="auto"
                         value={d.from}
                         onChange={(e) => {
@@ -1664,7 +1756,7 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                         }}
                       />
                       <input
-                        placeholder="should be"
+                        placeholder={t("should be")}
                         dir="auto"
                         value={d.to}
                         onChange={(e) => {
@@ -1687,7 +1779,7 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                   ))}
                   {draft.dictionary.length === 0 && (
                     <div className="hint dim" style={{ marginBottom: 10 }}>
-                      Nothing yet. Add the words this app keeps getting wrong.
+                      {t("Nothing yet. Add the words this app keeps getting wrong.")}
                     </div>
                   )}
                   <button
@@ -1695,7 +1787,7 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                     onClick={() => set("dictionary", [...draft.dictionary, { from: "", to: "" }])}
                   >
                     <Icon name="plus" size={15} />
-                    Add a correction
+                    {t("Add a correction")}
                   </button>
                 </div>
               </div>
@@ -1709,7 +1801,7 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                   {draft.snippets.map((s, i) => (
                     <div className="list-row" key={i}>
                       <input
-                        placeholder="when I say"
+                        placeholder={t("when I say")}
                         dir="auto"
                         value={s.trigger}
                         onChange={(e) => {
@@ -1719,7 +1811,7 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                         }}
                       />
                       <input
-                        placeholder="write this"
+                        placeholder={t("write this")}
                         dir="auto"
                         value={s.text}
                         onChange={(e) => {
@@ -1742,7 +1834,7 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                   ))}
                   {draft.snippets.length === 0 && (
                     <div className="hint dim" style={{ marginBottom: 10 }}>
-                      Nothing yet. A snippet turns one spoken word into a whole phrase.
+                      {t("Nothing yet. A snippet turns one spoken word into a whole phrase.")}
                     </div>
                   )}
                   <button
@@ -1752,7 +1844,7 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
                     }
                   >
                     <Icon name="plus" size={15} />
-                    Add a snippet
+                    {t("Add a snippet")}
                   </button>
                 </div>
               </div>
@@ -1765,7 +1857,7 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
               <div className="banner-text">{problem}</div>
               <div className="banner-actions">
                 <button className="btn sm" onClick={() => setProblem(null)}>
-                  Dismiss
+                  {t("Dismiss")}
                 </button>
               </div>
             </div>
@@ -1778,24 +1870,24 @@ export default function SettingsView({ settings, keys, appVersion, onSave, onPre
               {unsaved ? (
                 <>
                   <span className="dot busy" />
-                  <b>Unsaved changes</b>
-                  <span>· Ctrl+S saves</span>
+                  <b>{t("Unsaved changes")}</b>
+                  <span>· {t("Ctrl+S saves")}</span>
                 </>
               ) : saved ? (
                 <>
                   <Icon name="check" size={15} />
-                  <b>Saved</b>
+                  <b>{t("Saved")}</b>
                 </>
               ) : (
-                <span>Everything on this page is saved.</span>
+                <span>{t("Everything on this page is saved.")}</span>
               )}
             </div>
             <div className="spacer" />
             <button className="btn ghost" disabled={!unsaved} onClick={discard}>
-              Discard
+              {t("Discard")}
             </button>
             <button className="btn primary" disabled={!unsaved} onClick={() => void save()}>
-              Save changes
+              {t("Save changes")}
             </button>
           </div>
         </div>
@@ -1831,37 +1923,42 @@ function KeyField({
 }) {
   return (
     <Field
-      name={field.name}
+      name={t(field.name)}
       badge={
         cleared ? (
-          <span className="chip warn">forgotten on save</span>
+          <span className="chip warn">{t("forgotten on save")}</span>
         ) : present ? (
-          <span className="chip ok">saved</span>
+          <span className="chip ok">{t("saved")}</span>
         ) : required ? (
-          <span className="chip warn">needed</span>
+          <span className="chip warn">{t("needed")}</span>
         ) : (
-          <span className="chip">empty</span>
+          <span className="chip">{t("empty")}</span>
         )
       }
-      hint={`From ${field.where}`}
+      hint={t("From {where}", { where: t(field.where) })}
     >
       <input
         type="password"
         autoComplete="off"
         spellCheck={false}
         placeholder={
-          saved && !cleared ? "•••••••• (leave blank to keep)" : field.placeholder
+          saved && !cleared ? t("•••••••• (leave blank to keep)") : t(field.placeholder)
         }
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
       {saved &&
         (cleared ? (
-          <button className="btn sm" title="Keep this key after all" onClick={onRestore}>
-            Undo
+          <button className="btn sm" title={t("Keep this key after all")} onClick={onRestore}>
+            {t("Undo")}
           </button>
         ) : (
-          <button className="icon-btn danger" title="Forget this key" aria-label="Forget this key" onClick={onClear}>
+          <button
+            className="icon-btn danger"
+            title={t("Forget this key")}
+            aria-label={t("Forget this key")}
+            onClick={onClear}
+          >
             <Icon name="trash" />
           </button>
         ))}

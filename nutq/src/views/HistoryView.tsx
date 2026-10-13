@@ -7,6 +7,7 @@ import {
   type UsageBucket,
   type UsageRange,
 } from "../lib/api";
+import { lang, t } from "../lib/i18n";
 import { Empty, Icon, PageHead } from "../lib/ui";
 
 /** Entries per page. The whole list is fetched once - it is text and capped at
@@ -61,11 +62,20 @@ function ClipPlayer({ id }: { id: string }) {
         }}
       >
         <Icon name="play" size={14} />
-        {loading ? "Loading…" : "Play the recording"}
+        {loading ? t("Loading…") : t("Play the recording")}
       </button>
       {error && <span className="hist-audio-error">{error}</span>}
     </>
   );
+}
+
+/** Wraps text in a right-to-left isolate when the window speaks Arabic.
+ *  The chart's SVG runs left to right on purpose (see AxisUsageChart), and
+ *  inside it an Arabic "4 د 54 ث" would otherwise be torn apart by the bidi
+ *  algorithm into "د 54 ث 4". The isolate keeps it one phrase, read right to
+ *  left, while the text-anchors keep their left-to-right meaning. */
+function iso(text: string): string {
+  return lang() === "ar" ? `\u2067${text}\u2069` : text;
 }
 
 /** An exact duration: every second is accounted for, never rounded away -
@@ -75,9 +85,9 @@ function duration(seconds: number): string {
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
-  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
-  if (m > 0) return sec > 0 ? `${m}m ${sec}s` : `${m}m`;
-  return `${sec}s`;
+  if (h > 0) return m > 0 ? t("{h}h {m}m", { h, m }) : t("{h}h", { h });
+  if (m > 0) return sec > 0 ? t("{m}m {s}s", { m, s: sec }) : t("{m}m", { m });
+  return t("{s}s", { s: sec });
 }
 
 /** Colors handed out per model name, defined once as `--chart-*` tokens in
@@ -153,7 +163,7 @@ function AxisUsageChart({
   const band = (W - padL - padR) / n;
   const H = top + panelH * 2 + gap + padB;
   const labelStep = Math.max(1, Math.ceil(n / 9));
-  const suffix = per === "per hour" ? "/h" : "/d";
+  const suffix = per === "per hour" ? t("/h") : t("/d");
 
   const panels = [
     {
@@ -163,7 +173,6 @@ function AxisUsageChart({
       avgFmt: duration,
       step: axisStep(Math.max(...stats.map((b) => b.seconds), 1), SEC_STEPS),
       avg: stats.reduce((a, b) => a + b.seconds, 0) / n,
-      unitX: padL + 42,
     },
     {
       title: "Requests",
@@ -172,7 +181,6 @@ function AxisUsageChart({
       avgFmt: (v: number) => v.toFixed(1),
       step: axisStep(Math.max(...stats.map((b) => b.count), 1), COUNT_STEPS),
       avg: stats.reduce((a, b) => a + b.count, 0) / n,
-      unitX: padL + 70,
     },
   ];
 
@@ -180,9 +188,12 @@ function AxisUsageChart({
     <>
       <svg
         className="usage-chart-svg"
+        // The time axis runs left to right in every language; without this an
+        // Arabic window's rtl would flip every text-anchor in the chart.
+        direction="ltr"
         viewBox={`0 0 ${W} ${H}`}
         role="img"
-        aria-label={`Audio and requests, ${per}`}
+        aria-label={t("Audio and requests, {per}", { per: t(per) })}
       >
         {hover !== null && (
           <rect
@@ -202,23 +213,25 @@ function AxisUsageChart({
           const peak = Math.max(...totals);
           return (
             <g key={p.title}>
+              {/* One text element, so a translated title of any width keeps its
+                  unit right beside it and bidi orders the two as one phrase. */}
               <text x={padL} y={y0 - panelH - 8} fontSize={12} fontWeight={600} fill="var(--text-2)">
-                {p.title}
+                {t(p.title)}
+                <tspan fontSize={10.5} fontWeight={400} fill="var(--text-3)">
+                  {" "}· {t(per)}
+                </tspan>
               </text>
-              <text x={p.unitX} y={y0 - panelH - 8} fontSize={10.5} fill="var(--text-3)">
-                · {per}
-              </text>
-              {[0, 1, 2, 3].map((t) => (
-                <g key={t}>
+              {[0, 1, 2, 3].map((tick) => (
+                <g key={tick}>
                   <line
                     x1={padL}
                     x2={W - padR}
-                    y1={yv(t * p.step)}
-                    y2={yv(t * p.step)}
-                    stroke={t === 0 ? "var(--border-strong)" : "var(--border)"}
+                    y1={yv(tick * p.step)}
+                    y2={yv(tick * p.step)}
+                    stroke={tick === 0 ? "var(--border-strong)" : "var(--border)"}
                   />
-                  <text x={padL - 8} y={yv(t * p.step) + 4} textAnchor="end" fontSize={10} fill="var(--text-3)">
-                    {p.fmt(t * p.step)}
+                  <text x={padL - 8} y={yv(tick * p.step) + 4} textAnchor="end" fontSize={10} fill="var(--text-3)">
+                    {iso(p.fmt(tick * p.step))}
                   </text>
                 </g>
               ))}
@@ -260,7 +273,7 @@ function AxisUsageChart({
                         fontWeight={total === peak ? 700 : 400}
                         fill={total === peak ? "var(--text)" : "var(--text-3)"}
                       >
-                        {p.fmt(total)}
+                        {iso(p.fmt(total))}
                       </text>
                     )}
                   </g>
@@ -278,8 +291,7 @@ function AxisUsageChart({
               {/* Left-anchored: the right edge is where the newest, usually
                   tallest bar lives, so an average tag there always collides. */}
               <text x={padL + 8} y={yv(p.avg) - 5} fontSize={9.5} fill="var(--text-3)">
-                avg {p.avgFmt(p.avg)}
-                {suffix}
+                {iso(t("avg {v}", { v: p.avgFmt(p.avg) + suffix }))}
               </text>
             </g>
           );
@@ -393,14 +405,14 @@ function UsageLedger({
     winStart + winLen < n ? shortLabel(stats[winStart + winLen].label) : shortLabel(stats[n - 1].label);
   const peakIdx = stats.reduce((best, b, i) => (b.seconds > stats[best].seconds ? i : best), 0);
   const idle = stats.filter((b) => b.count === 0).length;
-  const unit = isDay ? "hours" : "days";
+  const unit = isDay ? t("hours") : t("days");
 
   return (
     <div>
       <div className="ledger-label">
-        Audio <span>· {per}</span>
+        {t("Audio")} <span>· {t(per)}</span>
       </div>
-      <div className="ledger-strip" style={{ gridTemplateColumns: `repeat(${n}, 1fr)` }}>
+      <div className="ledger-strip" dir="ltr" style={{ gridTemplateColumns: `repeat(${n}, 1fr)` }}>
         {stats.map((b, i) => (
           <div
             key={b.label}
@@ -412,9 +424,9 @@ function UsageLedger({
         ))}
       </div>
       <div className="ledger-label">
-        Requests <span>· {per}</span>
+        {t("Requests")} <span>· {t(per)}</span>
       </div>
-      <div className="ledger-strip" style={{ gridTemplateColumns: `repeat(${n}, 1fr)` }}>
+      <div className="ledger-strip" dir="ltr" style={{ gridTemplateColumns: `repeat(${n}, 1fr)` }}>
         {stats.map((b, i) => (
           <div
             key={b.label}
@@ -425,7 +437,7 @@ function UsageLedger({
           />
         ))}
       </div>
-      <div className="ledger-hours" style={{ gridTemplateColumns: `repeat(${n}, 1fr)` }}>
+      <div className="ledger-hours" dir="ltr" style={{ gridTemplateColumns: `repeat(${n}, 1fr)` }}>
         {stats.map((b, i) => (
           <span key={b.label}>{i % labelStep === 0 ? shortLabel(b.label) : ""}</span>
         ))}
@@ -435,10 +447,10 @@ function UsageLedger({
         <table className="ledger-table">
           <thead>
             <tr>
-              <th>Model</th>
-              <th>Requests</th>
-              <th>Audio</th>
-              <th>Share of audio</th>
+              <th>{t("Model")}</th>
+              <th>{t("Requests")}</th>
+              <th>{t("Audio")}</th>
+              <th>{t("Share of audio")}</th>
             </tr>
           </thead>
           <tbody>
@@ -469,31 +481,36 @@ function UsageLedger({
 
       <ul className="usage-reads">
         <li>
-          Peak <b>{stats[peakIdx].label}</b>: {duration(stats[peakIdx].seconds)} of audio across{" "}
-          <b>{stats[peakIdx].count} requests</b>.
+          {t("Peak {label}: {d} of audio across {n} requests.", {
+            label: stats[peakIdx].label,
+            d: duration(stats[peakIdx].seconds),
+            n: stats[peakIdx].count,
+          })}
         </li>
         <li>
-          <b>{duration(winSum)}</b> {winLen === 1 ? `at ${winA}` : `between ${winA} and ${winEnd}`},{" "}
-          {pct(winSum, totalSeconds)} of everything.
+          <b>{duration(winSum)}</b>{" "}
+          {winLen === 1
+            ? t("at {a}", { a: winA })
+            : t("between {a} and {b}", { a: winA, b: winEnd })}
+          {t(", {pct} of everything.", { pct: pct(winSum, totalSeconds) })}
         </li>
         {rows.length > 0 && (
           <li>
-            <b>{rows[0].model}</b> carried {pct(rows[0].count, totalCount)} of requests
+            <b>{rows[0].model}</b>{" "}
+            {t("carried {pct} of requests", { pct: pct(rows[0].count, totalCount) })}
             {/* "The remaining" is only true with two models; three or more
                 make it a lie about the third's share. */}
             {rows.length === 2 && rows[1].count > 0 ? (
               <>
-                ; <b>{rows[1].model}</b> the remaining {pct(rows[1].count, totalCount)}
+                {t(";")} <b>{rows[1].model}</b>{" "}
+                {t("the remaining {pct}", { pct: pct(rows[1].count, totalCount) })}
               </>
             ) : null}
-            .
+            {t(".")}
           </li>
         )}
         <li>
-          <b>
-            {idle} of {n} {unit}
-          </b>{" "}
-          had no activity.
+          <b>{t("{idle} of {n} {unit}", { idle, n, unit })}</b> {t("had no activity.")}
         </li>
       </ul>
     </div>
@@ -542,11 +559,11 @@ export default function HistoryView() {
       setStats(s);
     };
     void pull();
-    const t = setInterval(() => void pull(), 2000);
+    const timer = setInterval(() => void pull(), 2000);
     const unlisten = events.onResult(() => void pull());
     return () => {
       alive = false;
-      clearInterval(t);
+      clearInterval(timer);
       void unlisten.then((un) => un());
     };
   }, [range]);
@@ -636,14 +653,16 @@ export default function HistoryView() {
   return (
     <>
       <PageHead
-        eyebrow="Archive"
-        title="History"
-        lede="The last 500 results, kept on this machine only, ten per page. Recordings are kept for the most recent 100, so older entries keep their text but lose their audio."
+        eyebrow={t("Archive")}
+        title={t("History")}
+        lede={t(
+          "The last 500 results, kept on this machine only, ten per page. Recordings are kept for the most recent 100, so older entries keep their text but lose their audio.",
+        )}
         actions={
           entries.length > 0 ? (
             <button className="btn" onClick={() => setConfirmClear(true)}>
               <Icon name="trash" size={15} />
-              Clear history
+              {t("Clear history")}
             </button>
           ) : null
         }
@@ -655,7 +674,7 @@ export default function HistoryView() {
           <div className="banner-text">{regenError}</div>
           <div className="banner-actions">
             <button className="btn sm" onClick={() => setRegenError(null)}>
-              Dismiss
+              {t("Dismiss")}
             </button>
           </div>
         </div>
@@ -665,24 +684,24 @@ export default function HistoryView() {
         <div className="usage-card" ref={cardRef}>
           <div className="usage-head">
             <div>
-              <h2>Usage</h2>
+              <h2>{t("Usage")}</h2>
               <div className="usage-totals">
-                {duration(totalSeconds)} of audio · {totalCount} requests
+                {t("{d} of audio · {n} requests", { d: duration(totalSeconds), n: totalCount })}
               </div>
             </div>
             <div className="usage-controls">
               <div className="segmented small">
                 <button className={view === "charts" ? "on" : ""} onClick={() => setView("charts")}>
-                  Charts
+                  {t("Charts")}
                 </button>
                 <button className={view === "analysis" ? "on" : ""} onClick={() => setView("analysis")}>
-                  Analysis
+                  {t("Analysis")}
                 </button>
               </div>
               <div className="segmented small">
                 {RANGES.map((r) => (
                   <button key={r.id} className={range === r ? "on" : ""} onClick={() => setRange(r)}>
-                    {r.label}
+                    {t(r.label)}
                   </button>
                 ))}
               </div>
@@ -712,7 +731,10 @@ export default function HistoryView() {
             <div className="usage-tip" style={{ left: tip.x, top: tip.y }}>
               <b>{stats[tip.i].label}</b>
               <span className="tip-total">
-                {duration(stats[tip.i].seconds)} of audio · {stats[tip.i].count} requests
+                {t("{d} of audio · {n} requests", {
+                  d: duration(stats[tip.i].seconds),
+                  n: stats[tip.i].count,
+                })}
               </span>
               {modelOrder
                 .filter((m) => {
@@ -724,7 +746,7 @@ export default function HistoryView() {
                   return (
                     <span className="tip-row" key={m}>
                       <i style={{ background: modelColor(m) }} />
-                      {m} · {duration(s.seconds)} · {s.count} req
+                      {m} · {duration(s.seconds)} · {t("{n} req", { n: s.count })}
                     </span>
                   );
                 })}
@@ -738,8 +760,10 @@ export default function HistoryView() {
       {entries.length === 0 ? (
         <Empty
           icon="clock"
-          title="Nothing here yet"
-          sub="Press a line's hotkey, say something, and every result is kept here with what it cost and which models produced it."
+          title={t("Nothing here yet")}
+          sub={t(
+            "Press a line's hotkey, say something, and every result is kept here with what it cost and which models produced it.",
+          )}
         />
       ) : (
         <>
@@ -750,34 +774,36 @@ export default function HistoryView() {
             return (
               <div className="hist" key={e.id}>
                 <div className="hist-meta">
-                  <span className="chip">{MODE_LABELS[e.mode].name}</span>
-                  <span className="nums">{e.at}</span>
-                  <span className="nums">· {e.seconds.toFixed(1)}s</span>
+                  <span className="chip">{t(MODE_LABELS[e.mode].name)}</span>
+                  <span className="nums stamp">{e.at}</span>
+                  <span className="nums">· {t("{s}s", { s: e.seconds.toFixed(1) })}</span>
                   <span className="nums">· ${e.cost_usd.toFixed(5)}</span>
                   {e.profile && <span className="chip">{e.profile}</span>}
                   {e.stt_model && (
                     <span className="hist-models">
                       {e.stt_model}
-                      {e.stt_via_backup ? " · backup" : ""}
+                      {e.stt_via_backup ? ` · ${t("backup")}` : ""}
                       {e.refine_model
-                        ? ` → ${e.refine_model}${e.refine_via_backup ? " · backup" : ""}`
-                        : " → raw"}
+                        ? ` → ${e.refine_model}${e.refine_via_backup ? ` · ${t("backup")}` : ""}`
+                        : ` → ${t("raw")}`}
                     </span>
                   )}
 
                   <div className="hist-actions">
                     <button
                       className="icon-btn"
-                      title={showRaw[e.id] ? "Show the finished text" : "Show the raw transcript"}
-                      aria-label={showRaw[e.id] ? "Show the finished text" : "Show the raw transcript"}
+                      title={showRaw[e.id] ? t("Show the finished text") : t("Show the raw transcript")}
+                      aria-label={
+                        showRaw[e.id] ? t("Show the finished text") : t("Show the raw transcript")
+                      }
                       onClick={() => setShowRaw((r) => ({ ...r, [e.id]: !r[e.id] }))}
                     >
                       <Icon name="eye" />
                     </button>
                     <button
                       className="icon-btn"
-                      title="Copy this result"
-                      aria-label="Copy this result"
+                      title={t("Copy this result")}
+                      aria-label={t("Copy this result")}
                       onClick={async () => {
                         await api.copyText(e.refined);
                         setCopied(e.id);
@@ -789,8 +815,8 @@ export default function HistoryView() {
                     {e.audio_file && (
                       <button
                         className="icon-btn"
-                        title="Copy the recording as a file"
-                        aria-label="Copy the recording as a file"
+                        title={t("Copy the recording as a file")}
+                        aria-label={t("Copy the recording as a file")}
                         onClick={() => {
                           void api
                             .copyHistoryAudio(e.id)
@@ -809,13 +835,17 @@ export default function HistoryView() {
                       disabled={regenId !== null}
                       title={
                         e.audio_file
-                          ? "Run this entry through the current providers again, starting from the kept audio"
-                          : "The recording is gone - re-run refinement over the saved transcript"
+                          ? t(
+                              "Run this entry through the current providers again, starting from the kept audio",
+                            )
+                          : t("The recording is gone - re-run refinement over the saved transcript")
                       }
                       aria-label={
                         e.audio_file
-                          ? "Run this entry through the current providers again, starting from the kept audio"
-                          : "The recording is gone - re-run refinement over the saved transcript"
+                          ? t(
+                              "Run this entry through the current providers again, starting from the kept audio",
+                            )
+                          : t("The recording is gone - re-run refinement over the saved transcript")
                       }
                       onClick={() => void regenerate(e.id)}
                     >
@@ -824,20 +854,20 @@ export default function HistoryView() {
                     {confirmDelete === e.id ? (
                       <>
                         <button className="btn danger sm" onClick={() => void deleteEntry(e.id)}>
-                          Delete
+                          {t("Delete")}
                         </button>
                         <button
                           className="btn ghost sm"
                           onClick={() => setConfirmDelete(null)}
                         >
-                          Cancel
+                          {t("Cancel")}
                         </button>
                       </>
                     ) : (
                       <button
                         className="icon-btn danger"
-                        title="Delete this entry"
-                        aria-label="Delete this entry"
+                        title={t("Delete this entry")}
+                        aria-label={t("Delete this entry")}
                         onClick={() => setConfirmDelete(e.id)}
                       >
                         <Icon name="trash" />
@@ -851,7 +881,7 @@ export default function HistoryView() {
                 {(e.microphone || e.audio_file) && (
                   <div className="hist-source">
                     {e.microphone && (
-                      <span className="hist-mic" title={`Recorded from ${e.microphone}`}>
+                      <span className="hist-mic" title={t("Recorded from {mic}", { mic: e.microphone })}>
                         🎙 {e.microphone}
                       </span>
                     )}
@@ -863,7 +893,7 @@ export default function HistoryView() {
                   className={`hist-text${open ? " open" : long ? " clipped" : ""}`}
                   dir="auto"
                 >
-                  {regenId === e.id ? "Regenerating…" : text}
+                  {regenId === e.id ? t("Regenerating…") : text}
                 </div>
 
                 {long && (
@@ -872,7 +902,7 @@ export default function HistoryView() {
                       className="btn ghost sm"
                       onClick={() => setExpanded((x) => ({ ...x, [e.id]: !x[e.id] }))}
                     >
-                      {open ? "Show less" : "Show the whole thing"}
+                      {open ? t("Show less") : t("Show the whole thing")}
                     </button>
                   </div>
                 )}
@@ -886,17 +916,21 @@ export default function HistoryView() {
               disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
             >
-              ‹ Newer
+              ‹ {t("Newer")}
             </button>
             <span className="pager-info">
-              Page {page} of {pageCount} · {entries.length} entries
+              {t("Page {page} of {count} · {n} entries", {
+                page,
+                count: pageCount,
+                n: entries.length,
+              })}
             </span>
             <button
               className="btn ghost"
               disabled={page >= pageCount}
               onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
             >
-              Older ›
+              {t("Older")} ›
             </button>
           </div>
         </>
@@ -912,18 +946,19 @@ export default function HistoryView() {
             aria-modal="true"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="modal-title">Clear all history?</div>
+            <div className="modal-title">{t("Clear all history?")}</div>
             <p className="modal-text">
-              All {entries.length} entries and their recordings will be deleted
-              permanently, along with the usage chart's data for those days.
-              This cannot be undone.
+              {t(
+                "All {n} entries and their recordings will be deleted permanently, along with the usage chart's data for those days. This cannot be undone.",
+                { n: entries.length },
+              )}
             </p>
             <div className="modal-actions">
               <button className="btn ghost" onClick={() => setConfirmClear(false)}>
-                Cancel
+                {t("Cancel")}
               </button>
               <button className="btn danger" onClick={() => void clearAll()}>
-                Delete everything
+                {t("Delete everything")}
               </button>
             </div>
           </div>

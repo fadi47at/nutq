@@ -13,6 +13,7 @@ import {
   type Status,
   type Theme,
 } from "./lib/api";
+import { applyDirection, setLanguage, t, type UiLanguage } from "./lib/i18n";
 import { prettyHotkey } from "./lib/hotkeys";
 import { applyTheme, Icon, type IconName } from "./lib/ui";
 import Home from "./views/Home";
@@ -25,7 +26,8 @@ import NotesView from "./views/NotesView";
 type View = "home" | "notes" | "todos" | "history" | "settings" | "logs";
 
 /** The rail, in two groups: what you work in, and what the app keeps about
- *  itself. Icons are shared with the rest of the app (lib/ui). */
+ *  itself. Icons are shared with the rest of the app (lib/ui). Labels are
+ *  English source text, translated where they are drawn. */
 const NAV: { group: string; items: [View, string, IconName][] }[] = [
   {
     group: "Workspace",
@@ -44,6 +46,13 @@ const NAV: { group: string; items: [View, string, IconName][] }[] = [
     ],
   },
 ];
+
+const STATUS_NAME: Record<Status, string> = {
+  idle: "idle",
+  recording: "recording",
+  transcribing: "transcribing",
+  refining: "refining",
+};
 
 const STATUS_SUB: Record<Status, string> = {
   idle: "waiting for your hotkey",
@@ -78,6 +87,9 @@ export default function App() {
    *  the window's appearance means nothing can stomp the preview - which is
    *  exactly what happened when both places painted. */
   const [themePreview, setThemePreview] = useState<Theme | null>(null);
+  /** The same arrangement for the interface language: Settings tries it on,
+   *  App owns what the window actually speaks. */
+  const [languagePreview, setLanguagePreview] = useState<UiLanguage | null>(null);
   /** A newer release on GitHub, when one exists. Owned here so both the Home
    *  card and the sidebar's notice speak of the same thing. */
   const [update, setUpdate] = useState<{ version: string; notes: string } | null>(null);
@@ -99,10 +111,10 @@ export default function App() {
       }
     };
     void check();
-    const t = setInterval(() => void check(), 10 * 60 * 1000);
+    const timer = setInterval(() => void check(), 10 * 60 * 1000);
     return () => {
       alive = false;
-      clearInterval(t);
+      clearInterval(timer);
     };
   }, []);
 
@@ -156,6 +168,15 @@ export default function App() {
     return () => media.removeEventListener("change", apply);
   }, [theme]);
 
+  // The language is set during render, not after it, so this very render -
+  // and every page under it - already speaks the new one. The DOM half
+  // (lang, dir) follows in an effect.
+  const uiLanguage = languagePreview ?? settings?.uiLanguage ?? "system";
+  setLanguage(uiLanguage);
+  useEffect(() => {
+    applyDirection();
+  }, [uiLanguage]);
+
   useEffect(() => {
     const unlisteners = [
       events.onStatus(setStatus),
@@ -198,9 +219,14 @@ export default function App() {
     .filter((s) => s.state.reset_from || !s.state.bound)
     .map((s) =>
       s.state.reset_from
-        ? `Your "${s.name}" hotkey "${s.state.reset_from}" was not a key this app could bind, so ` +
-          `it was reset to ${prettyHotkey(s.state.spec)}. Set the one you want in Settings.`
-        : `The "${s.name}" hotkey ${prettyHotkey(s.state.spec)} is not active. ${s.state.error}`,
+        ? t(
+            'Your "{name}" hotkey "{from}" was not a key this app could bind, so it was reset to {to}. Set the one you want in Settings.',
+            { name: s.name, from: s.state.reset_from, to: prettyHotkey(s.state.spec) },
+          )
+        : t('The "{name}" hotkey {key} is not active.', {
+            name: s.name,
+            key: prettyHotkey(s.state.spec),
+          }) + ` ${s.state.error}`,
     );
   const missingKeys = missingStt || missingRefine;
   /** Shared by the sidebar toast and the Logs rail dot: something the user has
@@ -222,23 +248,23 @@ export default function App() {
           <div className="brand-mark">N</div>
           <div className="brand-text">
             <div className="brand-name">nutq</div>
-            <div className="brand-sub">voice to text</div>
+            <div className="brand-sub">{t("voice to text")}</div>
           </div>
         </div>
 
         <nav>
           {NAV.map((g) => (
             <div key={g.group}>
-              <div className="nav-label">{g.group}</div>
+              <div className="nav-label">{t(g.group)}</div>
               {g.items.map(([id, label, icon]) => (
                 <button
                   key={id}
                   className={`nav-item${view === id ? " active" : ""}`}
                   onClick={() => setView(id)}
-                  title={label}
+                  title={t(label)}
                 >
                   <Icon name={icon} size={17} className="nav-ico" />
-                  <span className="nav-txt">{label}</span>
+                  <span className="nav-txt">{t(label)}</span>
                   {counts[id] !== undefined && (
                     <span className="nav-count nums">{counts[id]}</span>
                   )}
@@ -276,15 +302,17 @@ export default function App() {
           {updateNotice ? (
             <div className="toast info">
               <div className="toast-head">
-                <span className="toast-kind">Update</span>
+                <span className="toast-kind">{t("Update")}</span>
               </div>
               <div className="toast-text">
-                A new version is available: v{updateNotice.version}.
+                {t("A new version is available: v{version}.", {
+                  version: updateNotice.version,
+                })}
               </div>
               <div className="toast-actions">
-                <button onClick={() => setView("home")}>Details</button>
+                <button onClick={() => setView("home")}>{t("Details")}</button>
                 <button onClick={() => setDismissedUpdate(updateNotice.version)}>
-                  Dismiss
+                  {t("Dismiss")}
                 </button>
               </div>
             </div>
@@ -292,12 +320,16 @@ export default function App() {
           {latestLog ? (
             <div className={`toast ${latestLog.level}`}>
               <div className="toast-head">
-                <span className="toast-kind">{latestLog.level}</span>
+                <span className="toast-kind">{t(latestLog.level)}</span>
                 <span className="log-time">{latestLog.at}</span>
               </div>
-              <div className="toast-text">{latestLog.message}</div>
+              <div className="toast-text" dir="auto">
+                {latestLog.message}
+              </div>
               <div className="toast-actions">
-                <button onClick={() => void api.copyText(latestLog.message)}>Copy</button>
+                <button onClick={() => void api.copyText(latestLog.message)}>
+                  {t("Copy")}
+                </button>
                 {/* One Dismiss clears the whole pile. Dismissing only the
                  *  newest notice used to uncover the one before it, then the
                  *  one before that - a queue the user never asked to drain
@@ -310,9 +342,9 @@ export default function App() {
                     ])
                   }
                 >
-                  Dismiss
+                  {t("Dismiss")}
                 </button>
-                <button onClick={() => setView("logs")}>Details</button>
+                <button onClick={() => setView("logs")}>{t("Details")}</button>
               </div>
             </div>
           ) : null}
@@ -332,11 +364,13 @@ export default function App() {
               }
             />
             <div className="status-txt">
-              <div className="status-name">{status}</div>
-              <div className="status-sub">{STATUS_SUB[status]}</div>
+              <div className="status-name">{t(STATUS_NAME[status])}</div>
+              <div className="status-sub">{t(STATUS_SUB[status])}</div>
             </div>
           </div>
-          {appVersion && <div className="foot-version">version {appVersion}</div>}
+          {appVersion && (
+            <div className="foot-version">{t("version {v}", { v: appVersion })}</div>
+          )}
         </div>
       </aside>
 
@@ -352,7 +386,7 @@ export default function App() {
               <div className="banner-text">{hotkeyProblems[0]}</div>
               <div className="banner-actions">
                 <button className="btn sm" onClick={() => setView("settings")}>
-                  Open settings
+                  {t("Open settings")}
                 </button>
               </div>
             </div>
@@ -362,12 +396,14 @@ export default function App() {
               <Icon name="key" size={18} className="banner-ico" />
               <div className="banner-text">
                 {missingStt
-                  ? "No API key saved for the transcription provider you selected. Nothing can be transcribed until one is."
-                  : "Refinement is on but no API key is saved for its provider."}
+                  ? t(
+                      "No API key saved for the transcription provider you selected. Nothing can be transcribed until one is.",
+                    )
+                  : t("Refinement is on but no API key is saved for its provider.")}
               </div>
               <div className="banner-actions">
                 <button className="btn sm" onClick={() => setView("settings")}>
-                  Add the key
+                  {t("Add the key")}
                 </button>
               </div>
             </div>
@@ -395,6 +431,7 @@ export default function App() {
               appVersion={appVersion}
               onSave={saveSettings}
               onPreviewTheme={setThemePreview}
+              onPreviewLanguage={setLanguagePreview}
             />
           )}
           {view === "logs" && (

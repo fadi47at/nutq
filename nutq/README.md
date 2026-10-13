@@ -210,6 +210,31 @@ carries Save and Discard, with `Ctrl+S` as the shortcut. A blank that would
 have become a 404 from a provider is caught there, and the page jumps to the
 section holding it.
 
+### Arabic and English
+
+The window speaks English or Arabic - **Settings › Appearance › Language**, or
+"Match Windows", which follows the Windows display language. Like the theme,
+the pick applies the moment it is made and Discard takes it back. Arabic turns
+the whole window right-to-left: the sidebar moves to the right, rows and grids
+mirror, and the all-caps tracked labels drop their tracking (it pulls Arabic
+letters apart). A few things stay left-to-right on purpose in both languages:
+hotkey keycaps, timestamps, the model chain, the usage chart's time axis, and
+the recording pill itself - only its words change.
+
+This is the interface only. What you *dictate* is governed by the Language
+hint under Audio & input, not by this setting.
+
+How it works: every visible string is written in English at its call site and
+passed through `t()` (`src/lib/i18n.ts`); the Arabic for it lives in
+`src/lib/i18n.ar.ts`, keyed by that English. A missing translation falls back
+to English rather than to a blank. `npm run i18n:check` lists any string that
+has no Arabic yet (and any Arabic nothing uses); it also runs in Windows CI and
+fails the build on a gap. To add a language, add a table next to the Arabic one
+and a branch in `i18n.ts`.
+
+Not yet translated: messages that come from the Rust side (provider errors,
+the warning log, the tray menu), which arrive as finished English text.
+
 ### What the pill says
 
 The pill is the only part of nutq you see while you are speaking, so it says
@@ -311,6 +336,9 @@ build, `latest.json`, push, GitHub Release, in one command.
 | `src-tauri/src/lib.rs` | Commands, tray, the pipeline that drives a dictation |
 | `src/lib/api.ts` | Typed bridge to the Rust commands |
 | `src/lib/ui.tsx` | Shared UI pieces: PageHead, Field, Toggle, Kbd, icons, theme |
+| `src/lib/i18n.ts` | The interface language: `t()`, Arabic/English, right-to-left |
+| `src/lib/i18n.ar.ts` | The Arabic for every UI string, keyed by its English |
+| `scripts/check-i18n.mjs` | `npm run i18n:check`: strings with no Arabic yet |
 | `src/styles.css` | The design tokens and every component style, light and dark |
 
 ## Notes

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { OverlayIndicator, OverlayStyle } from "../lib/api";
+import { t } from "../lib/i18n";
 import { Icon, KIND_ICON, KIND_NAME } from "../lib/ui";
 
 /**
@@ -71,8 +72,8 @@ export default function PillPreview({
 
   useEffect(() => {
     if (count < 2) return;
-    const t = setInterval(() => setSlot((i) => (i + 1) % count), 2600);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setSlot((i) => (i + 1) % count), 2600);
+    return () => clearInterval(timer);
   }, [count]);
 
   useEffect(() => {
@@ -214,9 +215,13 @@ export default function PillPreview({
 
   return (
     <div className="pill-preview">
+      {/* ltr like the real pill, which keeps its layout in every language -
+          a preview mirrored by an Arabic window would show a pill that never
+          appears. */}
       <div
         className={`overlay-pill${isLightBg(bg) ? " light" : ""}`}
         ref={pill}
+        dir="ltr"
         style={{ background: bg }}
       >
         {head !== "none" &&
@@ -263,7 +268,7 @@ export default function PillPreview({
           {kinds.map((k, i) => (
             <span key={`${k}-${i}`} className={i === slot % count ? "on" : ""}>
               <Icon name={KIND_ICON[k] ?? "mic"} size={13} />
-              {names[i] || KIND_NAME[k] || k}
+              {names[i] || (KIND_NAME[k] ? t(KIND_NAME[k]) : k)}
             </span>
           ))}
         </div>

@@ -3,6 +3,7 @@ import { listen as tauriListen, type UnlistenFn } from "@tauri-apps/api/event";
 import { check as pluginCheck } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { mockInvoke, useMock } from "./devMock";
+import { t, type UiLanguage } from "./i18n";
 
 /** Real Tauri command, or the dev mock when running in a plain browser. */
 function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -85,6 +86,8 @@ export interface Settings {
   saveAudio: boolean;
   /** Light, dark, or whatever Windows is set to. */
   theme: Theme;
+  /** English, Arabic, or whatever Windows displays in. */
+  uiLanguage: UiLanguage;
   /** The recording pill: which wave runs inside it, the two-part glow, and
    *  the coordinated theme behind its colors. */
   overlayGlowInner: boolean;
@@ -126,6 +129,7 @@ interface RawSettings {
   play_sounds: boolean;
   save_audio: boolean;
   theme: Theme;
+  ui_language: UiLanguage;
   overlay_glow_inner: boolean;
   overlay_glow_outer: boolean;
   overlay_theme: string;
@@ -163,6 +167,7 @@ const toUi = (r: RawSettings): Settings => ({
   playSounds: r.play_sounds,
   saveAudio: r.save_audio,
   theme: r.theme ?? "system",
+  uiLanguage: r.ui_language ?? "system",
   overlayGlowInner: r.overlay_glow_inner,
   overlayGlowOuter: r.overlay_glow_outer,
   overlayTheme: r.overlay_theme,
@@ -200,6 +205,7 @@ const toRust = (s: Settings): RawSettings => ({
   play_sounds: s.playSounds,
   save_audio: s.saveAudio,
   theme: s.theme,
+  ui_language: s.uiLanguage,
   overlay_glow_inner: s.overlayGlowInner,
   overlay_glow_outer: s.overlayGlowOuter,
   overlay_theme: s.overlayTheme,
@@ -531,6 +537,7 @@ export const api = {
       kind: string;
       indicator: OverlayIndicator;
       show_name: boolean;
+      ui_language: string;
     }>("overlay_state"),
   /** Asks GitHub (via the updater plugin) whether a newer release exists.
    *  Null when this is the latest. Rejects when offline - callers treat
@@ -545,7 +552,7 @@ export const api = {
    *  fails, leaving the current install untouched. */
   async installUpdate(): Promise<void> {
     const u = await pluginCheck();
-    if (!u) throw new Error("the update is gone - check again");
+    if (!u) throw new Error(t("the update is gone - check again"));
     await u.downloadAndInstall();
     await relaunch();
   },

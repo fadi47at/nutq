@@ -10,6 +10,7 @@ import {
   type Quota,
   type HistoryEntry,
 } from "../lib/api";
+import { t } from "../lib/i18n";
 import { Icon, Kbd, lineIcon, PageHead } from "../lib/ui";
 
 interface Props {
@@ -28,10 +29,10 @@ interface Props {
 /** "1712" -> "28m 32s". Seconds alone stop being readable past a minute. */
 function formatDuration(total: number) {
   const s = Math.round(total);
-  if (s < 60) return `${s}s`;
+  if (s < 60) return t("{s}s", { s });
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ${s % 60}s`;
-  return `${Math.floor(m / 60)}h ${m % 60}m`;
+  if (m < 60) return t("{m}m {s}s", { m, s: s % 60 });
+  return t("{h}h {m}m", { h: Math.floor(m / 60), m: m % 60 });
 }
 
 /** Where a line's finished text goes, in three words. */
@@ -89,8 +90,8 @@ export default function Home({
       void api.getLatest().then(setLatest);
     };
     pull();
-    const t = setInterval(pull, 2000);
-    return () => clearInterval(t);
+    const timer = setInterval(pull, 2000);
+    return () => clearInterval(timer);
   }, []);
 
   const busy = status === "transcribing" || status === "refining";
@@ -111,12 +112,16 @@ export default function Home({
     <>
       <PageHead
         hero
-        eyebrow="Voice workspace"
-        title="Ready when you are."
+        eyebrow={t("Voice workspace")}
+        title={t("Ready when you are.")}
         lede={
           lines.length
-            ? "Press a line's hotkey in any app, speak, and press it again. The finished text lands where that line sends it."
-            : "No dictation lines yet - add one in Settings and it gets a hotkey and a button here."
+            ? t(
+                "Press a line's hotkey in any app, speak, and press it again. The finished text lands where that line sends it.",
+              )
+            : t(
+                "No dictation lines yet - add one in Settings and it gets a hotkey and a button here.",
+              )
         }
       />
 
@@ -125,15 +130,15 @@ export default function Home({
           <div className="card">
             <div className="card-head">
               <Icon name="download" size={17} />
-              <h2>A newer version is out</h2>
+              <h2>{t("A newer version is out")}</h2>
               <span className="chip accent">v{update.version}</span>
-              <span className="chip plain">you have v{appVersion}</span>
+              <span className="chip plain">{t("you have v{v}", { v: appVersion })}</span>
             </div>
             <div className="card-body">
               <div className="hint" style={{ marginBottom: 12, whiteSpace: "pre-line" }}>
                 {update.notes
                   ? update.notes
-                  : "Download, install, restart - all in one click."}
+                  : t("Download, install, restart - all in one click.")}
               </div>
               {updateError && (
                 <div className="diag bad">
@@ -153,14 +158,14 @@ export default function Home({
                       .finally(() => setUpdateBusy(false));
                   }}
                 >
-                  {updateBusy ? "Downloading and installing…" : "Update now"}
+                  {updateBusy ? t("Downloading and installing…") : t("Update now")}
                 </button>
                 <button
                   className="btn ghost"
                   disabled={updateBusy}
                   onClick={onClearUpdate}
                 >
-                  Later
+                  {t("Later")}
                 </button>
               </div>
             </div>
@@ -171,14 +176,14 @@ export default function Home({
           <div className="card">
             <div className="card-head">
               <Icon name="alert" size={17} />
-              <h2>Waiting to be retried</h2>
+              <h2>{t("Waiting to be retried")}</h2>
               <span className="chip warn">{pending.length}</span>
             </div>
             <div className="card-body">
               <div className="hint dim" style={{ marginBottom: 10 }}>
-                Calls that failed on every provider. Retrying uses the providers
-                selected in Settings right now - fix anything there first, then
-                retry.
+                {t(
+                  "Calls that failed on every provider. Retrying uses the providers selected in Settings right now - fix anything there first, then retry.",
+                )}
               </div>
               {retryError && (
                 <div className="diag bad">
@@ -189,8 +194,8 @@ export default function Home({
                 <div className="pending-row" key={p.id}>
                   <div style={{ minWidth: 0 }}>
                     <div className="pending-title">
-                      {p.stage === "transcription" ? "Recording" : "Transcript"} ·{" "}
-                      {p.created_at} · {p.seconds.toFixed(1)}s
+                      {p.stage === "transcription" ? t("Recording") : t("Transcript")} ·{" "}
+                      <span className="stamp">{p.created_at}</span> · {t("{s}s", { s: p.seconds.toFixed(1) })}
                     </div>
                     <div className="pending-err" title={p.error}>
                       {p.error.split("\n")[0]}
@@ -212,14 +217,14 @@ export default function Home({
                         }
                       }}
                     >
-                      {retryBusy === p.id ? "Retrying…" : "Retry"}
+                      {retryBusy === p.id ? t("Retrying…") : t("Retry")}
                     </button>
                     <button
                       className="btn ghost sm"
                       disabled={retryBusy === p.id}
                       onClick={() => void api.discardPending(p.id)}
                     >
-                      Discard
+                      {t("Discard")}
                     </button>
                   </div>
                 </div>
@@ -246,9 +251,9 @@ export default function Home({
                     (recording ? " rec" : status === "idle" ? "" : " busy")
                   }
                 />
-                {state.name}
+                {t(state.name)}
               </div>
-              <div className="launcher-sub">{state.sub}</div>
+              <div className="launcher-sub">{t(state.sub)}</div>
             </div>
             <div className={`wave${recording ? " live" : ""}`}>
               {Array.from({ length: 12 }, (_, i) => (
@@ -260,16 +265,16 @@ export default function Home({
           {lines.length === 0 ? (
             <div className="card-body first-run">
               <div className="first-run-copy">
-                <div className="first-run-title">Make your first line</div>
+                <div className="first-run-title">{t("Make your first line")}</div>
                 <div className="hint">
-                  A line is one hotkey plus what it does with your voice -
-                  dictation, a note, a checklist, your own instructions. It
-                  becomes a button here and a key that works in any app.
+                  {t(
+                    "A line is one hotkey plus what it does with your voice - dictation, a note, a checklist, your own instructions. It becomes a button here and a key that works in any app.",
+                  )}
                 </div>
               </div>
               <button className="btn primary" onClick={onOpenSettings}>
                 <Icon name="plus" size={15} />
-                Add your first line
+                {t("Add your first line")}
               </button>
             </div>
           ) : (
@@ -282,9 +287,9 @@ export default function Home({
                     className={`line-btn${live ? " live" : ""}`}
                     disabled={busy || !ready}
                     title={
-                      MODE_LABELS[p.mode].hint +
-                      (p.custom_prompt.trim() ? " · custom instructions" : "") +
-                      ` · ${OUTPUT_LABELS[p.output]}`
+                      t(MODE_LABELS[p.mode].hint) +
+                      (p.custom_prompt.trim() ? ` · ${t("custom instructions")}` : "") +
+                      ` · ${t(OUTPUT_LABELS[p.output])}`
                     }
                     onClick={() => {
                       setActiveLine(p.id);
@@ -310,20 +315,27 @@ export default function Home({
         {/* The figures, as one small dim line instead of four cards. Every
          *  number the stat row carried is still here. */}
         <div className="home-info">
-          <span>{lines.length} {lines.length === 1 ? "line" : "lines"}</span>
           <span>
-            {usage.today_count} today ({formatDuration(usage.today_audio_seconds)}{" "}
-            audio)
+            {lines.length === 1 ? t("1 line") : t("{n} lines", { n: lines.length })}
           </span>
           <span>
-            ${usage.month_cost.toFixed(4)} this month · {usage.month_count}{" "}
-            results{!usage.cost_complete && " · some providers untracked"}
+            {t("{n} today ({d} audio)", {
+              n: usage.today_count,
+              d: formatDuration(usage.today_audio_seconds),
+            })}
+          </span>
+          <span>
+            {t("${cost} this month · {n} results", {
+              cost: usage.month_cost.toFixed(4),
+              n: usage.month_count,
+            })}
+            {!usage.cost_complete && ` · ${t("some providers untracked")}`}
           </span>
           <span className="home-chain">
-            hear{" "}
-            <b title={settings.sttModel}>{settings.sttModel}</b> → write{" "}
-            <b title={settings.refineEnabled ? settings.refineModel : "raw transcript"}>
-              {settings.refineEnabled ? settings.refineModel : "raw transcript"}
+            {t("hear")} <b title={settings.sttModel}>{settings.sttModel}</b> {t("→")}{" "}
+            {t("write")}{" "}
+            <b title={settings.refineEnabled ? settings.refineModel : t("raw transcript")}>
+              {settings.refineEnabled ? settings.refineModel : t("raw transcript")}
             </b>
           </span>
         </div>
@@ -331,11 +343,11 @@ export default function Home({
         <div className="card">
           <div className="card-head">
             <Icon name="chat" size={17} />
-            <h2>Latest result</h2>
-            {latest && <span className="chip">{MODE_LABELS[latest.mode].name}</span>}
+            <h2>{t("Latest result")}</h2>
+            {latest && <span className="chip">{t(MODE_LABELS[latest.mode].name)}</span>}
             {latest && (
               <span className="chip nums">
-                {latest.seconds.toFixed(1)}s
+                {t("{s}s", { s: latest.seconds.toFixed(1) })}
                 {latest.cost_usd > 0 && ` · $${latest.cost_usd.toFixed(5)}`}
               </span>
             )}
@@ -351,7 +363,7 @@ export default function Home({
               }}
             >
               <Icon name={copied ? "check" : "copy"} size={15} />
-              {copied ? "Copied" : "Copy"}
+              {copied ? t("Copied") : t("Copy")}
             </button>
             {/* The recording itself, same as a history row: the wave button
              * puts it on the clipboard as a file, ready for a chat. */}
@@ -360,10 +372,10 @@ export default function Home({
               disabled={!latest?.audio_file}
               title={
                 latest?.audio_file
-                  ? "Copy the recording as a file"
-                  : "This entry no longer has its recording"
+                  ? t("Copy the recording as a file")
+                  : t("This entry no longer has its recording")
               }
-              aria-label="Copy the recording as a file"
+              aria-label={t("Copy the recording as a file")}
               onClick={() => {
                 if (!latest) return;
                 void api
@@ -376,7 +388,7 @@ export default function Home({
               }}
             >
               <Icon name={copiedClip ? "check" : "wave"} size={15} />
-              {copiedClip ? "Copied" : "Audio"}
+              {copiedClip ? t("Copied") : t("Audio")}
             </button>
           </div>
 
@@ -390,8 +402,8 @@ export default function Home({
                 {latest.stt_model && (
                   <span className="hist-models">
                     {latest.stt_model}
-                    {latest.stt_via_backup ? " · backup" : ""}
-                    {latest.refine_model ? ` → ${latest.refine_model}` : " → raw"}
+                    {latest.stt_via_backup ? ` · ${t("backup")}` : ""}
+                    {latest.refine_model ? ` → ${latest.refine_model}` : ` → ${t("raw")}`}
                   </span>
                 )}
                 {latest.microphone && (
@@ -401,7 +413,7 @@ export default function Home({
             )}
 
             <div className={`result-text${latest ? "" : " empty-text"}`} dir="auto">
-              {latest ? latest.refined : "Your latest result will appear here."}
+              {latest ? latest.refined : t("Your latest result will appear here.")}
             </div>
           </div>
         </div>
@@ -430,7 +442,10 @@ export default function Home({
                   key={q.host}
                   title={
                     limit > 0
-                      ? `${pct.toFixed(1)}% of today's allowance · ${remaining} left right now · back to full in ${req?.reset}`
+                      ? t(
+                          "{pct}% of today's allowance · {left} left right now · back to full in {reset}",
+                          { pct: pct.toFixed(1), left: remaining, reset: req?.reset ?? "" },
+                        )
                       : undefined
                   }
                 >
@@ -438,28 +453,31 @@ export default function Home({
                   <span className="quota-host">{q.host}</span>
                   <span className="quota-sep">·</span>
                   <span>
-                    {used}
-                    {limit > 0 ? ` / ${limit}` : ""} today
+                    {t("{used} today", { used: limit > 0 ? `${used} / ${limit}` : used })}
                   </span>
                   <span className="quota-sep">·</span>
-                  <span>{formatDuration(usage.today_audio_seconds)} audio</span>
+                  <span>
+                    {t("{d} audio", { d: formatDuration(usage.today_audio_seconds) })}
+                  </span>
                   {q.at && (
                     <>
                       <span className="quota-sep">·</span>
-                      <span>reported {q.at}</span>
+                      <span>{t("reported {at}", { at: q.at })}</span>
                     </>
                   )}
                   {tight && limit > 0 && (
                     <>
                       <span
                         className="quota-bar"
-                        title={`${pct.toFixed(1)}% of today's allowance`}
+                        title={t("{pct}% of today's allowance", { pct: pct.toFixed(1) })}
                       >
                         <span style={{ width: `${Math.max(pct, 2)}%` }} />
                       </span>
                       <span className="quota-tight">
-                        only {remaining} left to send right now · back to full in{" "}
-                        {req?.reset}
+                        {t("only {left} left to send right now · back to full in {reset}", {
+                          left: remaining,
+                          reset: req?.reset ?? "",
+                        })}
                       </span>
                     </>
                   )}
