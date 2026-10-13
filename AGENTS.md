@@ -194,6 +194,21 @@ by rule:
 - **Rust tests touch the real config dir** (as the notes tests do), so a
   test never pins a thread - that would move the user's own pin.
 
+## Notifications
+
+- **Three levels, and the level is the message's meaning.** `emit_error`
+  (something did not happen), `emit_warning` (something may need the
+  user), `emit_notice` (worth knowing, needs nothing - grey, fades on its
+  own, never lights the rail dot). Red for "nothing was heard" is a bug.
+- **First paragraph = summary.** Write a message as one actionable
+  sentence, a blank line, then the details (provider reply, URL). The toast
+  shows only the summary.
+- **Transient is a type.** A failure that passes on its own is returned as
+  `net::Transient`; `with_second_round` retries a whole provider round once
+  for it. Never decide that by matching message text.
+- **The backup stepping in is a notice, said after it succeeded** - when it
+  fails too, the one error carries both reasons.
+
 ## Build & verify (Windows)
 
 - Dev run: `npm install` then `npm run tauri dev` (in `nutq/`).

@@ -348,6 +348,34 @@ mp3 - every chat accepts it, wav most refuse - named for what it is: the
 date and the first words said, so it introduces itself in the chat it
 lands in.
 
+### Notifications and the log
+
+Everything the app has to say lands in the sidebar's message slot and, for
+good, on the Logs page - at one of three levels, so the colour means
+something:
+
+- **Error** (red) - something did not happen: transcription failed on
+  every provider, the microphone could not open. Stays until dismissed.
+- **Warning** (amber) - something may need you: refinement failed and the
+  raw transcript was used, an idea's document fell behind.
+- **Notice** (grey, faded) - worth knowing, needs nothing: nothing was
+  heard, the recording was too short, the backup provider stepped in and
+  the dictation went through, a hotkey came back. It leaves on its own after
+  a few seconds and never lights the rail's dot.
+
+A message's first paragraph is its summary - all the toast shows; the
+provider's own reply and the URL called sit under it on the Logs page,
+behind **Show the details**. The page filters by level.
+
+**A blip is not a failure.** Before a dictation is called failed, the main
+provider and the backup are each tried; when both failed for a reason that
+passes on its own - a dropped connection, a timeout, an overloaded model
+(5xx), a rate limit that outlasted its retries - the whole round runs once
+more after three seconds. Those cases are a type (`net::Transient`), not a
+phrase matched in the message, so they work in Arabic too. A wrong key, a
+missing model or a bad URL is never retried that way: it would only fail
+again, slower.
+
 ### Updating
 
 From v0.3.0 on, the app updates itself. Releases live on GitHub, and on

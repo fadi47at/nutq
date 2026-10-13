@@ -252,7 +252,7 @@ pub async fn send_retrying(
         let resp = build()?
             .send()
             .await
-            .map_err(|e| anyhow!("{}", transport_error(stage, url, &e)))?;
+            .map_err(|e| anyhow::Error::new(Transient(transport_error(stage, url, &e))))?;
 
         let status = resp.status();
         // Recorded before anything can return: a 429 is exactly the reply that
@@ -268,13 +268,16 @@ pub async fn send_retrying(
         let text = resp
             .text()
             .await
-            .map_err(|e| anyhow!("{}", transport_error(stage, url, &e)))?;
+            .map_err(|e| anyhow::Error::new(Transient(transport_error(stage, url, &e))))?;
 
         if !status.is_success() {
-            return Err(anyhow!(
-                "{}",
-                http_error_for(stage, url, status.as_u16(), &text, url_is_users)
-            ));
+            let code = status.as_u16();
+            let message = http_error_for(stage, url, code, &text, url_is_users);
+            return Err(if code == 429 || code >= 500 {
+                anyhow::Error::new(Transient(message))
+            } else {
+                anyhow!("{message}")
+            });
         }
 
         if let Some(msg) = error_in_ok_body(&text) {
@@ -288,6 +291,30 @@ pub async fn send_retrying(
     }
 
     unreachable!("the last attempt returns instead of looping")
+}
+
+/// A failure that passes on its own: nothing reached the server (a dropped
+/// connection, a timeout), the provider said it is overloaded (5xx), or the
+/// rate limit outlasted its retries (429). The pipeline gives such a failure
+/// one more round after a short pause before it calls the dictation failed -
+/// a blip of a second used to park a recording that would have gone through.
+///
+/// A type rather than a phrase to look for: the message itself is
+/// translated, so matching its text would break in Arabic.
+#[derive(Debug)]
+pub struct Transient(pub String);
+
+impl std::fmt::Display for Transient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for Transient {}
+
+/// Whether an error is one of the kind that passes on its own.
+pub fn is_transient(e: &anyhow::Error) -> bool {
+    e.downcast_ref::<Transient>().is_some()
 }
 
 /// How long to wait before the next attempt: what the provider asked for via

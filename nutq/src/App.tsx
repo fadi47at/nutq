@@ -3,6 +3,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import {
   api,
   events,
+  logSummary,
   REFINE_KEY_SLOT,
   STT_KEY_SLOT,
   type HotkeySlot,
@@ -158,6 +159,20 @@ export default function App() {
     void refreshLogs();
   }, [refresh, refreshLogs]);
 
+  // A notice is news, not a problem: it shows quietly and goes on its own.
+  // Warnings and errors stay until dismissed, as before.
+  const newestPending = logs.find((l) => !dismissed.includes(l.id));
+  const latestId = newestPending?.id;
+  const latestIsNotice = newestPending?.level === "notice";
+  useEffect(() => {
+    if (!latestId || !latestIsNotice) return;
+    const timer = setTimeout(
+      () => setDismissed((d) => (d.includes(latestId) ? d : [...d, latestId])),
+      6000,
+    );
+    return () => clearTimeout(timer);
+  }, [latestId, latestIsNotice]);
+
   // The chosen theme is written on <html>, where the stylesheet's
   // [data-theme="dark"] block can see it. "system" follows Windows live, so
   // the app changes with it at sunset without a restart.
@@ -191,6 +206,7 @@ export default function App() {
       // before emitting it, so re-reading the log is the whole update.
       events.onWarning(() => void refreshLogs()),
       events.onError(() => void refreshLogs()),
+      events.onNotice(() => void refreshLogs()),
       events.onPendingChanged(() => {
         void api.getPending().then(setPending);
       }),
@@ -235,6 +251,9 @@ export default function App() {
    *  not dismissed yet. */
   const pendingLogs = logs.filter((l) => !dismissed.includes(l.id));
   const latestLog = pendingLogs[0];
+  /** What the rail's dot is for: something that may need the user. A notice
+   *  never lights it - it is news, not a problem. */
+  const alertLog = pendingLogs.find((l) => l.level !== "notice");
   /** The update notice is dismissed per version: putting v10 off does not
    *  hide v11 when it ships. */
   const updateNotice =
@@ -270,14 +289,14 @@ export default function App() {
                   {counts[id] !== undefined && (
                     <span className="nav-count nums">{counts[id]}</span>
                   )}
-                  {id === "logs" && latestLog && (
+                  {id === "logs" && alertLog && (
                     <span
                       className="nav-dot"
                       style={{
                         background:
-                          latestLog.level === "error" ? "var(--danger)" : "var(--warn)",
+                          alertLog.level === "error" ? "var(--danger)" : "var(--warn)",
                       }}
-                      title={latestLog.message}
+                      title={logSummary(alertLog.message).summary}
                     />
                   )}
                 </button>
@@ -325,8 +344,10 @@ export default function App() {
                 <span className="toast-kind">{t(latestLog.level)}</span>
                 <span className="log-time">{latestLog.at}</span>
               </div>
-              <div className="toast-text" dir="auto">
-                {latestLog.message}
+              {/* The first paragraph only: a provider's full reply and the URL
+                  it was sent to belong on the Logs page, not in a 230px rail. */}
+              <div className="toast-text" dir="auto" title={latestLog.message}>
+                {logSummary(latestLog.message).summary}
               </div>
               <div className="toast-actions">
                 <button onClick={() => void api.copyText(latestLog.message)}>

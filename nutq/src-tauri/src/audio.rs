@@ -44,6 +44,8 @@ pub const MIN_SPEECH_SECONDS: f32 = 0.4;
 pub enum Capture {
     /// A clip worth transcribing: a complete 16 kHz mono WAV.
     Ready(Vec<u8>),
+    /// The microphone delivered nothing at all before the recording ended.
+    Empty,
     /// Not one sample rose above the silence floor.
     Silent,
     /// Speech was found, but less of it than `MIN_SPEECH_SECONDS`.
@@ -165,7 +167,7 @@ fn audio_thread(rx: Receiver<Cmd>, level: Arc<AtomicU32>, device_name_out: Arc<M
                 level.store(0f32.to_bits(), Ordering::Relaxed);
                 let samples = buffer.lock().map(|b| b.clone()).unwrap_or_default();
                 let result = if samples.is_empty() {
-                    Err(anyhow!(tr("nothing was recorded")))
+                    Ok(Capture::Empty)
                 } else {
                     let mono = to_mono(&samples, channels);
                     let resampled = resample(&mono, source_rate, TARGET_RATE);

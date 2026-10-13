@@ -359,7 +359,7 @@ fn ensure_overlay_healthy(app: &AppHandle) {
     }
 
     if step == 2 {
-        emit_warning(
+        emit_notice(
             app,
             tr("The recording indicator stopped drawing and was rebuilt - no restart needed. \
                 The details are in the overlay log.")
@@ -974,28 +974,80 @@ pub(crate) async fn ask_with_failover(
     system: &str,
     input: &str,
 ) -> anyhow::Result<String> {
-    match run_ask(cfg, system, input, primary_retries(cfg.refine_backup_enabled)).await {
-        Ok(r) => Ok(r.text),
-        Err(primary) => {
-            if !cfg.refine_backup_enabled {
-                return Err(primary);
+    with_second_round(move || async move {
+        match run_ask(cfg, system, input, primary_retries(cfg.refine_backup_enabled)).await {
+            Ok(r) => Ok(r.text),
+            Err(primary) if !cfg.refine_backup_enabled => Err(primary),
+            Err(primary) => {
+                match run_ask(&refine_backup_cfg(cfg), system, input, net::MAX_RATE_LIMIT_RETRIES)
+                    .await
+                {
+                    Ok(r) => {
+                        note_backup_used(app, &primary);
+                        Ok(r.text)
+                    }
+                    Err(backup) => Err(both_failed(primary, backup)),
+                }
             }
-            emit_warning(
-                app,
-                trf(
-                    "The idea threads' provider failed, trying the backup: {e}",
-                    &[("e", &format!("{primary:#}"))],
-                ),
-            );
-            run_ask(&refine_backup_cfg(cfg), system, input, net::MAX_RATE_LIMIT_RETRIES)
-                .await
-                .map(|r| r.text)
-                .map_err(|backup| anyhow::anyhow!(trf(
-                    "primary: {primary} | backup: {backup}",
-                    &[("primary", &format!("{primary:#}")), ("backup", &format!("{backup:#}"))]
-                )))
         }
+    })
+    .await
+}
+
+/// How long to wait before the second round. Long enough for a dropped
+/// connection to come back or an overloaded model to shed a spike, short
+/// enough that the user is still watching the pill when the text arrives.
+const SECOND_ROUND_PAUSE: Duration = if cfg!(test) {
+    Duration::from_millis(5)
+} else {
+    Duration::from_secs(3)
+};
+
+/// Runs one full round of providers and, when every provider in it failed
+/// for a reason that passes on its own (`net::Transient`), one more after a
+/// short pause. A Wi-Fi blip plus an overloaded backup used to park a
+/// recording that would have gone through three seconds later.
+async fn with_second_round<T, F, Fut>(round: F) -> anyhow::Result<T>
+where
+    F: Fn() -> Fut,
+    Fut: std::future::Future<Output = anyhow::Result<T>>,
+{
+    match round().await {
+        Err(e) if net::is_transient(&e) => {
+            eprintln!("[nutq] every provider failed transiently, one more round: {e:#}");
+            tokio::time::sleep(SECOND_ROUND_PAUSE).await;
+            round().await
+        }
+        other => other,
     }
+}
+
+/// Both providers failed: one message naming each, kept transient only when
+/// both failures were, so the second round is spent where it can help.
+fn both_failed(primary: anyhow::Error, backup: anyhow::Error) -> anyhow::Error {
+    let transient = net::is_transient(&primary) && net::is_transient(&backup);
+    let message = trf(
+        "Main provider: {primary}\n\nBackup provider: {backup}",
+        &[("primary", &format!("{primary:#}")), ("backup", &format!("{backup:#}"))],
+    );
+    if transient {
+        anyhow::Error::new(net::Transient(message))
+    } else {
+        anyhow::anyhow!(message)
+    }
+}
+
+/// The backup stepped in and the job went through: worth a line in the log,
+/// not an alarm - nothing is left for the user to do. Said only after the
+/// backup succeeds; when it fails too, the error says everything at once.
+fn note_backup_used(app: &AppHandle, primary: &anyhow::Error) {
+    emit_notice(
+        app,
+        trf(
+            "The main provider did not answer, so the backup did the job.\n\n{e}",
+            &[("e", &format!("{primary:#}"))],
+        ),
+    );
 }
 
 /// How long the primary provider is allowed to keep retrying a rate limit.
@@ -1013,9 +1065,19 @@ fn primary_retries(has_backup: bool) -> u32 {
 }
 
 /// Primary provider first; on failure, the configured backup gets the exact
-/// same audio before the caller sees an error. Returns the result plus
-/// whether the backup produced it, so history can say who did the work.
+/// same audio before the caller sees an error - and when both failed for a
+/// reason that passes on its own, the whole round runs once more. Returns
+/// the result plus whether the backup produced it, so history can say who
+/// did the work.
 async fn transcribe_with_failover(
+    app: &AppHandle,
+    cfg: &Settings,
+    wav: &[u8],
+) -> anyhow::Result<(stt::Transcript, bool)> {
+    with_second_round(|| transcribe_round(app, cfg, wav)).await
+}
+
+async fn transcribe_round(
     app: &AppHandle,
     cfg: &Settings,
     wav: &[u8],
@@ -1037,18 +1099,9 @@ async fn transcribe_with_failover(
     .await
     {
         Ok(t) => Ok((t, false)),
+        Err(primary) if !has_backup => Err(primary),
         Err(primary) => {
-            if !has_backup {
-                return Err(primary);
-            }
             eprintln!("[nutq] stt primary failed, trying backup: {primary:#}");
-            emit_warning(
-                app,
-                trf(
-                    "Transcription failed, trying the backup provider: {e}",
-                    &[("e", &format!("{primary:#}"))],
-                ),
-            );
             // The backup is the last chance, so it gets the full retry ladder
             // and the full request timeout.
             match run_stt(
@@ -1059,11 +1112,11 @@ async fn transcribe_with_failover(
             )
             .await
             {
-                Ok(t) => Ok((t, true)),
-                Err(backup) => Err(anyhow::anyhow!(trf(
-                    "primary: {primary} | backup: {backup}",
-                    &[("primary", &format!("{primary:#}")), ("backup", &format!("{backup:#}"))]
-                ))),
+                Ok(t) => {
+                    note_backup_used(app, &primary);
+                    Ok((t, true))
+                }
+                Err(backup) => Err(both_failed(primary, backup)),
             }
         }
     }
@@ -1074,29 +1127,28 @@ async fn refine_with_failover(
     cfg: &Settings,
     transcript: &str,
 ) -> anyhow::Result<(refine::Refined, bool)> {
+    with_second_round(|| refine_round(app, cfg, transcript)).await
+}
+
+async fn refine_round(
+    app: &AppHandle,
+    cfg: &Settings,
+    transcript: &str,
+) -> anyhow::Result<(refine::Refined, bool)> {
     match run_refine(cfg, transcript, primary_retries(cfg.refine_backup_enabled)).await {
         Ok(r) => Ok((r, false)),
+        Err(primary) if !cfg.refine_backup_enabled => Err(primary),
         Err(primary) => {
-            if !cfg.refine_backup_enabled {
-                return Err(primary);
-            }
             eprintln!("[nutq] refine primary failed, trying backup: {primary:#}");
-            emit_warning(
-                app,
-                trf(
-                    "Refinement failed, trying the backup provider: {e}",
-                    &[("e", &format!("{primary:#}"))],
-                ),
-            );
             // Last chance, so the full retry ladder applies here.
             match run_refine(&refine_backup_cfg(cfg), transcript, net::MAX_RATE_LIMIT_RETRIES)
                 .await
             {
-                Ok(r) => Ok((r, true)),
-                Err(backup) => Err(anyhow::anyhow!(trf(
-                    "primary: {primary} | backup: {backup}",
-                    &[("primary", &format!("{primary:#}")), ("backup", &format!("{backup:#}"))]
-                ))),
+                Ok(r) => {
+                    note_backup_used(app, &primary);
+                    Ok((r, true))
+                }
+                Err(backup) => Err(both_failed(primary, backup)),
             }
         }
     }
@@ -1171,6 +1223,14 @@ fn file_note(app: &AppHandle, profile: &Profile, mode: Mode, text: &str) {
 pub(crate) fn emit_warning(app: &AppHandle, message: String) {
     logs::add("warning", &message);
     let _ = app.emit("warning", message);
+}
+
+/// A note, not a problem: something the user may want to know happened
+/// (nothing was heard, the backup stepped in, a hotkey came back) that needs
+/// nothing from them. Logged like the rest, shown quietly, gone on its own.
+pub(crate) fn emit_notice(app: &AppHandle, message: String) {
+    logs::add("notice", &message);
+    let _ = app.emit("notice", message);
 }
 
 /// Same for errors. They were already persistent in the UI, but nothing
@@ -1321,9 +1381,21 @@ async fn process(app: &AppHandle) -> anyhow::Result<()> {
     // no invented sentence pasted into whatever the user was typing in.
     let wav = match state.recorder.stop()? {
         audio::Capture::Ready(wav) => wav,
+        // A recording that ended before the microphone delivered anything -
+        // a double press, usually. Nothing went wrong, so it is a note.
+        audio::Capture::Empty => {
+            state.set_status(app, Status::Idle);
+            emit_notice(
+                app,
+                tr("Nothing was recorded - the recording ended before the microphone sent any \
+                    sound.")
+                    .to_string(),
+            );
+            return Ok(());
+        }
         audio::Capture::Silent => {
             state.set_status(app, Status::Idle);
-            emit_warning(
+            emit_notice(
                 app,
                 tr("Nothing was heard, so nothing was sent. If you did speak, check that the \
                     right microphone is selected in Settings and that it is not muted.")
@@ -1333,7 +1405,7 @@ async fn process(app: &AppHandle) -> anyhow::Result<()> {
         }
         audio::Capture::TooShort(secs) => {
             state.set_status(app, Status::Idle);
-            emit_warning(
+            emit_notice(
                 app,
                 trf(
                     "That recording was only {secs}s - too short to be speech, so it was \
@@ -1384,7 +1456,7 @@ async fn process(app: &AppHandle) -> anyhow::Result<()> {
             );
             return Err(anyhow::anyhow!(trf(
                 "Transcription failed on every provider. The recording was saved - retry it \
-                 from the Pending list on the Home page. ({e})",
+                 from the Pending list on the Home page.\n\n{e}",
                 &[("e", &format!("{e:#}"))]
             )));
         }
@@ -1433,7 +1505,7 @@ async fn process(app: &AppHandle) -> anyhow::Result<()> {
                     app,
                     trf(
                         "Refinement failed on every provider - the raw transcript was used, \
-                         and the job was saved to Pending for a retry. ({e})",
+                         and the job was saved to Pending for a retry.\n\n{e}",
                         &[("e", &format!("{e:#}"))],
                     ),
                 );
@@ -2316,3 +2388,56 @@ fn icon_with_update_badge(base: &tauri::image::Image<'_>) -> tauri::image::Image
     tauri::image::Image::new_owned(rgba, base.width(), base.height())
 }
 
+#[cfg(test)]
+mod failover_tests {
+    use super::{both_failed, with_second_round};
+    use crate::net::{is_transient, Transient};
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    fn transient(m: &str) -> anyhow::Error {
+        anyhow::Error::new(Transient(m.into()))
+    }
+
+    #[test]
+    fn both_failed_is_transient_only_when_both_were() {
+        assert!(is_transient(&both_failed(transient("a"), transient("b"))));
+        assert!(!is_transient(&both_failed(transient("a"), anyhow::anyhow!("401"))));
+        assert!(!is_transient(&both_failed(anyhow::anyhow!("401"), transient("b"))));
+    }
+
+    #[tokio::test]
+    async fn a_transient_failure_gets_one_more_round() {
+        let calls = AtomicU32::new(0);
+        let out: anyhow::Result<u32> = with_second_round(|| async {
+            if calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                Err(transient("blip"))
+            } else {
+                Ok(7)
+            }
+        })
+        .await;
+        assert_eq!(out.unwrap(), 7);
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn a_lasting_failure_is_not_retried_and_a_second_blip_is_final() {
+        let calls = AtomicU32::new(0);
+        let out: anyhow::Result<u32> = with_second_round(|| async {
+            calls.fetch_add(1, Ordering::SeqCst);
+            Err(anyhow::anyhow!("bad key"))
+        })
+        .await;
+        assert!(out.is_err());
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+        let calls = AtomicU32::new(0);
+        let out: anyhow::Result<u32> = with_second_round(|| async {
+            calls.fetch_add(1, Ordering::SeqCst);
+            Err(transient("still down"))
+        })
+        .await;
+        assert!(out.is_err());
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+    }
+}

@@ -1197,6 +1197,22 @@ h2 {
   color: var(--danger);
 }
 
+/* A notice: worth knowing, needs nothing. Muted - no colour that says
+ * "problem" - and it leaves on its own after a few seconds (App.tsx). */
+.toast.notice {
+  background: var(--surface-2);
+  border-color: var(--border);
+  opacity: 0.88;
+}
+
+.toast.notice .toast-kind {
+  color: var(--text-3);
+}
+
+.toast.notice .toast-text {
+  color: var(--text-3);
+}
+
 /* The update notice: good news, so accent rather than a warning colour. */
 .toast.info {
   background: var(--accent-soft);
@@ -2847,6 +2863,33 @@ h2 {
 
 .log-row.error {
   border-inline-start-color: var(--danger);
+}
+
+.log-row.notice {
+  border-inline-start-color: var(--border-strong);
+  background: var(--surface-2);
+  box-shadow: none;
+}
+
+.log-summary {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: var(--fs-md);
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.log-row.notice .log-summary {
+  color: var(--text-2);
+}
+
+.log-more {
+  margin-top: 6px;
+  font-size: var(--fs-xs);
+}
+
+.log-more + .log-msg {
+  margin-top: 6px;
 }
 
 .log-head {

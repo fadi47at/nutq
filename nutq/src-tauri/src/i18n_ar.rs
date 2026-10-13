@@ -6,10 +6,6 @@
 
 pub const AR: &[(&str, &str)] = &[
     (
-        "nothing was recorded",
-        "لم يُسجَّل شيء",
-    ),
-    (
         "no default microphone",
         "لا يوجد ميكروفون افتراضي",
     ),
@@ -178,22 +174,6 @@ pub const AR: &[(&str, &str)] = &[
         "انتهت مهلة الاختبار بعد {secs} ثانية دون رد. الخادم غير قابل للوصول، أو بطيء جدًا، أو محجوب قبل أن يجيب.",
     ),
     (
-        "The idea threads' provider failed, trying the backup: {e}",
-        "فشل مزوّد خيوط الأفكار، جارٍ تجربة الاحتياطي: {e}",
-    ),
-    (
-        "primary: {primary} | backup: {backup}",
-        "الأساسي: {primary} | الاحتياطي: {backup}",
-    ),
-    (
-        "Transcription failed, trying the backup provider: {e}",
-        "فشل التفريغ، جارٍ تجربة المزوّد الاحتياطي: {e}",
-    ),
-    (
-        "Refinement failed, trying the backup provider: {e}",
-        "فشل التنقيح، جارٍ تجربة المزوّد الاحتياطي: {e}",
-    ),
-    (
         "Could not file that thought in an idea thread: {e}",
         "تعذّر حفظ هذه الخاطرة في خيط أفكار: {e}",
     ),
@@ -204,14 +184,6 @@ pub const AR: &[(&str, &str)] = &[
     (
         "That recording was only {secs}s - too short to be speech, so it was discarded. Hold the hotkey session open a moment longer before ending it.",
         "كان التسجيل {secs} ث فقط - أقصر من أن يكون كلامًا، فتم تجاهله. أبقِ التسجيل مفتوحًا لحظة أطول قبل إنهائه.",
-    ),
-    (
-        "Transcription failed on every provider. The recording was saved - retry it from the Pending list on the Home page. ({e})",
-        "فشل التفريغ عند كل المزوّدين. حُفظ التسجيل - أعد المحاولة من قائمة «بانتظار إعادة المحاولة» في الصفحة الرئيسية. ({e})",
-    ),
-    (
-        "Refinement failed on every provider - the raw transcript was used, and the job was saved to Pending for a retry. ({e})",
-        "فشل التنقيح عند كل المزوّدين - استُخدم النص المفرَّغ الخام، وحُفظت المهمة لإعادة المحاولة لاحقًا. ({e})",
     ),
     (
         "still failing, the job stays pending: {e}",
@@ -444,5 +416,25 @@ pub const AR: &[(&str, &str)] = &[
     (
         "The thought was saved, but its idea's document could not be updated: {e}",
         "حُفظت الخاطرة، لكن تعذّر تحديث مستند فكرتها: {e}",
+    ),
+    (
+        "Main provider: {primary}\n\nBackup provider: {backup}",
+        "المزوّد الأساسي: {primary}\n\nالمزوّد الاحتياطي: {backup}",
+    ),
+    (
+        "The main provider did not answer, so the backup did the job.\n\n{e}",
+        "المزوّد الأساسي لم يُجب، فأنجز الاحتياطي المهمة.\n\n{e}",
+    ),
+    (
+        "Nothing was recorded - the recording ended before the microphone sent any sound.",
+        "لم يُسجَّل شيء - انتهى التسجيل قبل أن يصل أي صوت من الميكروفون.",
+    ),
+    (
+        "Transcription failed on every provider. The recording was saved - retry it from the Pending list on the Home page.\n\n{e}",
+        "فشل التفريغ عند كل المزوّدين. حُفظ التسجيل - أعد المحاولة من قائمة «بانتظار إعادة المحاولة» في الصفحة الرئيسية.\n\n{e}",
+    ),
+    (
+        "Refinement failed on every provider - the raw transcript was used, and the job was saved to Pending for a retry.\n\n{e}",
+        "فشل التنقيح عند كل المزوّدين - استُخدم النص المفرَّغ الخام، وحُفظت المهمة لإعادة المحاولة لاحقًا.\n\n{e}",
     ),
 ];

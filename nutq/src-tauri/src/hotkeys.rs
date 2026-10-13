@@ -3,7 +3,7 @@
 //! another app was holding at startup. Moved as-is from lib.rs.
 
 use crate::i18n::{tr, trf};
-use crate::{emit_warning, AppState, Status};
+use crate::{emit_notice, AppState, Status};
 use crate::settings::{default_profiles, save_settings};
 use serde::Serialize;
 use std::str::FromStr;
@@ -290,7 +290,7 @@ fn retry_unbound_hotkeys(app: &AppHandle) {
                 entry.state.error = String::new();
             }
         }
-        emit_warning(
+        emit_notice(
             app,
             trf(
                 "The shortcut {key} is registered now. Another app was holding it when nutq started.",

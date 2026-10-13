@@ -31,6 +31,8 @@ export const AR: Record<string, string> = {
   listening: "يستمع",
   warning: "تحذير",
   error: "خطأ",
+  // Not a problem, and not called one: a note the user may want to know.
+  notice: "ملاحظة",
   Update: "تحديث",
   "A new version is available: v{version}.": "يتوفر إصدار جديد: v{version}.",
   Details: "التفاصيل",
@@ -199,12 +201,15 @@ export const AR: Record<string, string> = {
 
   // ------------------------------------------------------------------ logs
   Diagnostics: "التشخيص",
-  "Warnings and errors this app has run into, newest first, kept on this machine only. The newest of these is what the sidebar shows.":
-    "التحذيرات والأخطاء التي واجهها التطبيق، الأحدث أولًا، محفوظة على هذا الجهاز فقط. أحدثها هو ما يظهر في الشريط الجانبي.",
   "Clear log": "امسح السجل",
-  "{n} entries": "الإدخالات: {n}",
-  "{n} errors": "الأخطاء: {n}",
-  "no errors": "لا أخطاء",
+  "What the app has run into, newest first, kept on this machine only: errors, warnings, and notices that need nothing from you. The newest of these is what the sidebar shows.":
+    "ما مرّ به التطبيق، الأحدث أولًا، محفوظ على هذا الجهاز فقط: أخطاء، وتحذيرات، وملاحظات لا تحتاج منك شيئًا. أحدثها هو ما يظهر في الشريط الجانبي.",
+  "All ({n})": "الكل ({n})",
+  "Errors ({n})": "الأخطاء ({n})",
+  "Warnings ({n})": "التحذيرات ({n})",
+  "Notices ({n})": "الملاحظات ({n})",
+  "Show the details": "اعرض التفاصيل",
+  "Hide the details": "أخفِ التفاصيل",
   "Nothing logged": "لا شيء مسجَّل",
   "Quiet is good. Anything that goes wrong with a provider, a key, or a hotkey lands here.":
     "الهدوء علامة جيدة. أي مشكلة في مزوّد أو مفتاح أو اختصار ستظهر هنا.",

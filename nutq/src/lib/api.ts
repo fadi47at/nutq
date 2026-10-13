@@ -315,12 +315,23 @@ export interface PendingEntry {
   transcript: string | null;
 }
 
-/** One filed warning or error, newest first in the list. */
+/** One filed event, newest first in the list. A "notice" needs nothing
+ *  from the user (nothing was heard, the backup stepped in); a "warning"
+ *  might; an "error" means something did not happen. */
 export interface LogEntry {
   id: string;
   at: string;
-  level: "warning" | "error";
+  level: "notice" | "warning" | "error";
   message: string;
+}
+
+/** A message's first paragraph - what a toast shows; the Logs page keeps
+ *  the rest (provider replies, URLs) under it. */
+export function logSummary(message: string): { summary: string; detail: string } {
+  const at = message.indexOf("\n\n");
+  return at < 0
+    ? { summary: message, detail: "" }
+    : { summary: message.slice(0, at), detail: message.slice(at + 2).trim() };
 }
 
 /** Credential slot name -> whether a key is saved for it. */
@@ -588,6 +599,8 @@ export const events = {
     listen<string>("error", (e) => fn(e.payload)),
   onWarning: (fn: (m: string) => void): Promise<UnlistenFn> =>
     listen<string>("warning", (e) => fn(e.payload)),
+  onNotice: (fn: (m: string) => void): Promise<UnlistenFn> =>
+    listen<string>("notice", (e) => fn(e.payload)),
   /** Live mic loudness (RMS 0..1), ~30 Hz while recording. */
   onLevel: (fn: (v: number) => void): Promise<UnlistenFn> =>
     listen<number>("level", (e) => fn(e.payload)),
