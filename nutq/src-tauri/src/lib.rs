@@ -13,6 +13,8 @@ mod notes;
 mod todos;
 mod threads;
 mod hotkeys;
+mod i18n;
+mod i18n_ar;
 
 use hotkeys::{
     arm_escape, disarm_escape, escape_shortcut, parse_hotkey, register_hotkeys,
@@ -21,6 +23,7 @@ use hotkeys::{
 
 use audio::Recorder;
 use base64::Engine;
+use i18n::{tr, trf};
 use serde::Serialize;
 use settings::{
     get_api_key, has_api_key, load_history, load_settings, save_history, save_settings, History,
@@ -358,8 +361,8 @@ fn ensure_overlay_healthy(app: &AppHandle) {
     if step == 2 {
         emit_warning(
             app,
-            "The recording indicator stopped drawing and was rebuilt - no restart needed. \
-             The details are in the overlay log."
+            tr("The recording indicator stopped drawing and was rebuilt - no restart needed. \
+                The details are in the overlay log.")
                 .to_string(),
         );
     }
@@ -375,7 +378,7 @@ fn ensure_overlay_healthy(app: &AppHandle) {
         if let Err(e) = build_overlay(&task) {
             emit_error(
                 &task,
-                format!("could not rebuild the recording indicator: {e}"),
+                trf("could not rebuild the recording indicator: {e}", &[("e", &e)]),
             );
         }
     });
@@ -513,15 +516,21 @@ fn update_settings(app: AppHandle, state: State<AppState>, next: Settings) -> Re
     // the bad one never bound, and the good one it replaced was already gone.
     for (i, p) in next.profiles.iter().enumerate() {
         parse_hotkey(&p.hotkey)
-            .map_err(|e| format!("Line {} ({}): {e}", i + 1, p.name))?;
+            .map_err(|e| {
+                trf("Line {n} ({name}): {e}", &[("n", &(i + 1)), ("name", &p.name), ("e", &e)])
+            })?;
     }
 
-    let hotkeys_changed = {
+    let (hotkeys_changed, language_changed) = {
         let current = state.settings.lock().unwrap();
-        current.profiles != next.profiles
+        (current.profiles != next.profiles, current.ui_language != next.ui_language)
     };
 
     save_settings(&next).map_err(|e| e.to_string())?;
+    if language_changed {
+        i18n::apply(&next.ui_language);
+        refresh_tray_language(&app);
+    }
     *state.settings.lock().unwrap() = next;
 
     if hotkeys_changed {
@@ -859,7 +868,7 @@ async fn list_models(app: AppHandle, stage: String) -> Result<Vec<String>, Strin
     match tokio::time::timeout(net::TEST_TIMEOUT, work).await {
         Ok(Ok(models)) => Ok(models),
         Ok(Err(e)) => Err(format!("{e:#}")),
-        Err(_) => Err("Timed out asking the provider for its model list.".into()),
+        Err(_) => Err(tr("Timed out asking the provider for its model list.").into()),
     }
 }
 
@@ -890,11 +899,11 @@ async fn test_provider(app: AppHandle, stage: String) -> TestResult {
 
     let outcome = match tokio::time::timeout(net::TEST_TIMEOUT, probe).await {
         Ok(r) => r,
-        Err(_) => Err(anyhow::anyhow!(
-            "The test timed out after {} seconds with no reply. The endpoint is unreachable, \
+        Err(_) => Err(anyhow::anyhow!(trf(
+            "The test timed out after {secs} seconds with no reply. The endpoint is unreachable, \
              very slow, or being blocked before it can answer.",
-            net::TEST_TIMEOUT.as_secs()
-        )),
+            &[("secs", &net::TEST_TIMEOUT.as_secs())]
+        ))),
     };
 
     match outcome {
@@ -973,12 +982,18 @@ pub(crate) async fn ask_with_failover(
             }
             emit_warning(
                 app,
-                format!("The idea threads' provider failed, trying the backup: {primary:#}"),
+                trf(
+                    "The idea threads' provider failed, trying the backup: {e}",
+                    &[("e", &format!("{primary:#}"))],
+                ),
             );
             run_ask(&refine_backup_cfg(cfg), system, input, net::MAX_RATE_LIMIT_RETRIES)
                 .await
                 .map(|r| r.text)
-                .map_err(|backup| anyhow::anyhow!("primary: {primary:#} | backup: {backup:#}"))
+                .map_err(|backup| anyhow::anyhow!(trf(
+                    "primary: {primary} | backup: {backup}",
+                    &[("primary", &format!("{primary:#}")), ("backup", &format!("{backup:#}"))]
+                )))
         }
     }
 }
@@ -1029,7 +1044,10 @@ async fn transcribe_with_failover(
             eprintln!("[nutq] stt primary failed, trying backup: {primary:#}");
             emit_warning(
                 app,
-                format!("Transcription failed, trying the backup provider: {primary:#}"),
+                trf(
+                    "Transcription failed, trying the backup provider: {e}",
+                    &[("e", &format!("{primary:#}"))],
+                ),
             );
             // The backup is the last chance, so it gets the full retry ladder
             // and the full request timeout.
@@ -1042,9 +1060,10 @@ async fn transcribe_with_failover(
             .await
             {
                 Ok(t) => Ok((t, true)),
-                Err(backup) => Err(anyhow::anyhow!(
-                    "primary: {primary:#} | backup: {backup:#}"
-                )),
+                Err(backup) => Err(anyhow::anyhow!(trf(
+                    "primary: {primary} | backup: {backup}",
+                    &[("primary", &format!("{primary:#}")), ("backup", &format!("{backup:#}"))]
+                ))),
             }
         }
     }
@@ -1064,16 +1083,20 @@ async fn refine_with_failover(
             eprintln!("[nutq] refine primary failed, trying backup: {primary:#}");
             emit_warning(
                 app,
-                format!("Refinement failed, trying the backup provider: {primary:#}"),
+                trf(
+                    "Refinement failed, trying the backup provider: {e}",
+                    &[("e", &format!("{primary:#}"))],
+                ),
             );
             // Last chance, so the full retry ladder applies here.
             match run_refine(&refine_backup_cfg(cfg), transcript, net::MAX_RATE_LIMIT_RETRIES)
                 .await
             {
                 Ok(r) => Ok((r, true)),
-                Err(backup) => Err(anyhow::anyhow!(
-                    "primary: {primary:#} | backup: {backup:#}"
-                )),
+                Err(backup) => Err(anyhow::anyhow!(trf(
+                    "primary: {primary} | backup: {backup}",
+                    &[("primary", &format!("{primary:#}")), ("backup", &format!("{backup:#}"))]
+                ))),
             }
         }
     }
@@ -1119,7 +1142,13 @@ fn file_thread(app: &AppHandle, profile: &Profile, cfg: &Settings, text: &str) {
     let cfg = cfg.clone();
     tauri::async_runtime::spawn(async move {
         if let Err(e) = threads::file_thought(&app, &cfg, entry).await {
-            emit_error(&app, format!("Could not file that thought in an idea thread: {e:#}"));
+            emit_error(
+                &app,
+                trf(
+                    "Could not file that thought in an idea thread: {e}",
+                    &[("e", &format!("{e:#}"))],
+                ),
+            );
         }
     });
 }
@@ -1156,7 +1185,7 @@ fn park(app: &AppHandle, entry: pending::PendingEntry, wav: Option<&[u8]>) {
     if let Err(e) = pending::add(entry, wav) {
         emit_warning(
             app,
-            format!("could not save the failed job for retry: {e:#}"),
+            trf("could not save the failed job for retry: {e}", &[("e", &format!("{e:#}"))]),
         );
         return;
     }
@@ -1296,7 +1325,8 @@ async fn process(app: &AppHandle) -> anyhow::Result<()> {
             state.set_status(app, Status::Idle);
             emit_warning(
                 app,
-                "Nothing was heard, so nothing was sent. If you did speak, check that the                  right microphone is selected in Settings and that it is not muted."
+                tr("Nothing was heard, so nothing was sent. If you did speak, check that the \
+                    right microphone is selected in Settings and that it is not muted.")
                     .to_string(),
             );
             return Ok(());
@@ -1305,8 +1335,10 @@ async fn process(app: &AppHandle) -> anyhow::Result<()> {
             state.set_status(app, Status::Idle);
             emit_warning(
                 app,
-                format!(
-                    "That recording was only {secs:.1}s - too short to be speech, so it was                      discarded. Hold the hotkey session open a moment longer before ending it."
+                trf(
+                    "That recording was only {secs}s - too short to be speech, so it was \
+                     discarded. Hold the hotkey session open a moment longer before ending it.",
+                    &[("secs", &format!("{secs:.1}"))],
                 ),
             );
             return Ok(());
@@ -1350,10 +1382,11 @@ async fn process(app: &AppHandle) -> anyhow::Result<()> {
                 },
                 Some(&wav),
             );
-            return Err(anyhow::anyhow!(
+            return Err(anyhow::anyhow!(trf(
                 "Transcription failed on every provider. The recording was saved - retry it \
-                 from the Pending list on the Home page. ({e:#})"
-            ));
+                 from the Pending list on the Home page. ({e})",
+                &[("e", &format!("{e:#}"))]
+            )));
         }
     };
 
@@ -1398,9 +1431,10 @@ async fn process(app: &AppHandle) -> anyhow::Result<()> {
                 );
                 emit_warning(
                     app,
-                    format!(
+                    trf(
                         "Refinement failed on every provider - the raw transcript was used, \
-                         and the job was saved to Pending for a retry. ({e:#})"
+                         and the job was saved to Pending for a retry. ({e})",
+                        &[("e", &format!("{e:#}"))],
                     ),
                 );
             }
@@ -1505,10 +1539,10 @@ async fn process(app: &AppHandle) -> anyhow::Result<()> {
 async fn retry_pending(app: AppHandle, id: String) -> Result<(), String> {
     let state = app.state::<AppState>();
     if state.status() != Status::Idle {
-        return Err("wait for the current dictation to finish first".into());
+        return Err(tr("wait for the current dictation to finish first").into());
     }
 
-    let entry = pending::get(&id).ok_or("this job is no longer pending")?;
+    let entry = pending::get(&id).ok_or(tr("this job is no longer pending"))?;
 
     // The retry runs under the line the job came from - its overrides, its
     // mode - falling back to the globals for a job that predates lines.
@@ -1534,7 +1568,10 @@ async fn retry_pending(app: AppHandle, id: String) -> Result<(), String> {
             Err(e) => {
                 state.set_status(&app, Status::Idle);
                 let _ = pending::update_error(&id, &format!("{e:#}"));
-                return Err(format!("still failing, the job stays pending: {e:#}"));
+                return Err(trf(
+                    "still failing, the job stays pending: {e}",
+                    &[("e", &format!("{e:#}"))],
+                ));
             }
         }
     };
@@ -1559,7 +1596,10 @@ async fn retry_pending(app: AppHandle, id: String) -> Result<(), String> {
                     pending::promote_to_refinement(&id, &transcript_text, &format!("{e:#}"))
                 };
                 let _ = app.emit("pending-changed", ());
-                return Err(format!("refinement failed again, kept pending: {e:#}"));
+                return Err(trf(
+                    "refinement failed again, kept pending: {e}",
+                    &[("e", &format!("{e:#}"))],
+                ));
             }
         }
     }
@@ -1661,7 +1701,7 @@ fn get_pending() -> Vec<pending::PendingEntry> {
 async fn regenerate_history_entry(app: AppHandle, id: String) -> Result<HistoryEntry, String> {
     let state = app.state::<AppState>();
     if state.status() != Status::Idle {
-        return Err("wait for the current dictation to finish first".into());
+        return Err(tr("wait for the current dictation to finish first").into());
     }
 
     let (mode, profile_id, mut raw, audio_file) = {
@@ -1712,8 +1752,9 @@ async fn regenerate_history_entry(app: AppHandle, id: String) -> Result<HistoryE
                 }
                 Err(e) => {
                     state.set_status(&app, Status::Idle);
-                    return Err(format!(
-                        "regeneration failed, the entry is unchanged: {e:#}"
+                    return Err(trf(
+                        "regeneration failed, the entry is unchanged: {e}",
+                        &[("e", &format!("{e:#}"))],
                     ));
                 }
             }
@@ -1722,7 +1763,7 @@ async fn regenerate_history_entry(app: AppHandle, id: String) -> Result<HistoryE
 
     if raw.trim().is_empty() {
         state.set_status(&app, Status::Idle);
-        return Err("this entry has no transcript to regenerate from".into());
+        return Err(tr("this entry has no transcript to regenerate from").into());
     }
 
     state.set_status(&app, Status::Refining);
@@ -1730,7 +1771,10 @@ async fn regenerate_history_entry(app: AppHandle, id: String) -> Result<HistoryE
         Ok(ok) => ok,
         Err(e) => {
             state.set_status(&app, Status::Idle);
-            return Err(format!("regeneration failed, the entry is unchanged: {e:#}"));
+            return Err(trf(
+                "regeneration failed, the entry is unchanged: {e}",
+                &[("e", &format!("{e:#}"))],
+            ));
         }
     };
     cost += r.cost_usd;
@@ -1739,7 +1783,7 @@ async fn regenerate_history_entry(app: AppHandle, id: String) -> Result<HistoryE
     let updated = {
         let mut h = state.history.lock().unwrap();
         let Some(e) = h.entries.iter_mut().find(|e| e.id == id) else {
-            return Err("this entry no longer exists".into());
+            return Err(tr("this entry no longer exists").into());
         };
         e.raw = raw;
         e.refined = r.text;
@@ -2121,6 +2165,9 @@ pub fn run() {
             app.set_activation_policy(tauri::ActivationPolicy::Regular);
 
             register_hotkeys(app.handle())?;
+            // The Rust side's words follow the saved language from the first
+            // tray label on.
+            i18n::apply(&app.state::<AppState>().settings.lock().unwrap().ui_language);
             build_tray(app.handle())?;
             build_overlay(app.handle())?;
             spawn_level_ticker(app.handle().clone());
@@ -2154,19 +2201,46 @@ pub fn run() {
 /// GitHub; `set_update_badge` swaps it in and out, so both variants come
 /// from this one string and cannot drift apart.
 const TRAY_ID: &str = "main";
-const TRAY_TOOLTIP: &str = "nutq - press your hotkey to dictate";
+/// Whether the tray currently wears the update badge, so a language switch
+/// can redraw the tooltip without dropping the "new version" part.
+static TRAY_BADGED: AtomicBool = AtomicBool::new(false);
+
+fn tray_tooltip() -> String {
+    let base = tr("nutq - press your hotkey to dictate");
+    if TRAY_BADGED.load(Ordering::Relaxed) {
+        trf("{tooltip} - new version available", &[("tooltip", &base)])
+    } else {
+        base.to_string()
+    }
+}
+
+fn tray_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
+    use tauri::menu::{Menu, MenuItem};
+    let show = MenuItem::with_id(app, "show", tr("Open nutq"), true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", tr("Quit"), true, None::<&str>)?;
+    Menu::with_items(app, &[&show, &quit])
+}
+
+/// Re-reads the tray's words after the interface language changed - the
+/// menu is built once at startup, so it would otherwise keep the old ones
+/// until a restart.
+fn refresh_tray_language(app: &AppHandle) {
+    if let Some(tray) = app.tray_by_id(TRAY_ID) {
+        if let Ok(menu) = tray_menu(app) {
+            let _ = tray.set_menu(Some(menu));
+        }
+        let _ = tray.set_tooltip(Some(tray_tooltip()));
+    }
+}
 
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
-    use tauri::menu::{Menu, MenuItem};
     use tauri::tray::TrayIconBuilder;
 
-    let show = MenuItem::with_id(app, "show", "Open nutq", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &quit])?;
+    let menu = tray_menu(app)?;
 
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(app.default_window_icon().unwrap().clone())
-        .tooltip(TRAY_TOOLTIP)
+        .tooltip(tray_tooltip())
         .menu(&menu)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show" => {
@@ -2202,12 +2276,8 @@ fn set_update_badge(app: AppHandle, active: bool) -> Result<(), String> {
         base
     };
     tray.set_icon(Some(icon)).map_err(|e| e.to_string())?;
-    tray.set_tooltip(if active {
-        Some(format!("{TRAY_TOOLTIP} - new version available"))
-    } else {
-        Some(TRAY_TOOLTIP.to_string())
-    })
-    .map_err(|e| e.to_string())
+    TRAY_BADGED.store(active, Ordering::Relaxed);
+    tray.set_tooltip(Some(tray_tooltip())).map_err(|e| e.to_string())
 }
 
 /// Draws the update badge into a fresh copy of the normal tray icon's pixel

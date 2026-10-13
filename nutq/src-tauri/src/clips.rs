@@ -10,6 +10,7 @@
 //! the list, they just lose their play button. The whole thing is opt-out in
 //! Settings for anyone who would rather nothing be written to disk.
 
+use crate::i18n::{tr, trf};
 use anyhow::{anyhow, Result};
 use std::collections::HashSet;
 use std::fs;
@@ -40,7 +41,7 @@ pub fn read(name: &str) -> Result<Vec<u8>> {
     if name.contains('/') || name.contains('\\') || name.contains("..") {
         return Err(anyhow!("bad clip name"));
     }
-    fs::read(dir()?.join(name)).map_err(|e| anyhow!("the audio for this entry is gone: {e}"))
+    fs::read(dir()?.join(name)).map_err(|e| anyhow!(trf("the audio for this entry is gone: {e}", &[("e", &e)])))
 }
 
 /// Copies a clip to `%TEMP%\nutq` under a name a person can read - the date
@@ -101,7 +102,7 @@ fn encode_mp3(wav: &[u8]) -> Result<Vec<u8>> {
         .collect::<std::result::Result<_, _>>()?;
 
     let mut encoder = Builder::new()
-        .ok_or_else(|| anyhow!("could not create the mp3 encoder"))?
+        .ok_or_else(|| anyhow!(tr("could not create the mp3 encoder")))?
         .with_num_channels(1)?
         .with_sample_rate(spec.sample_rate)?
         .with_brate(Bitrate::Kbps64)?

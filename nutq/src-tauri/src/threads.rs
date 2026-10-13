@@ -26,6 +26,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::sync::{Mutex, OnceLock};
 
+use crate::i18n::{tr, trf};
 use crate::settings::{config_dir, Mode, Settings};
 
 /// One spoken (or typed) thought, as it was added.
@@ -177,7 +178,7 @@ pub fn append(thread_id: &str, entry: Entry) -> Result<()> {
         let t = all
             .iter_mut()
             .find(|t| t.id == thread_id)
-            .ok_or_else(|| anyhow!("that thread no longer exists"))?;
+            .ok_or_else(|| anyhow!(tr("that thread no longer exists")))?;
         t.updated_at = entry.at.clone();
         t.entries.push(entry);
         Ok(())
@@ -416,7 +417,10 @@ async fn route(app: &tauri::AppHandle, cfg: &Settings, thought: &str) -> Option<
         Err(e) => {
             crate::emit_warning(
                 app,
-                format!("Could not decide which idea that thought belongs to, so it started a new one: {e:#}"),
+                trf(
+                    "Could not decide which idea that thought belongs to, so it started a new one: {e}",
+                    &[("e", &format!("{e:#}"))],
+                ),
             );
             None
         }
@@ -466,7 +470,7 @@ pub async fn grow(app: &tauri::AppHandle, cfg: &Settings, id: &str, thoughts: Op
         .await
         .and_then(|answer| {
             parse_grown(&answer).ok_or_else(|| {
-                anyhow!("the model's answer had no document in it, so the old one was kept")
+                anyhow!(tr("the model's answer had no document in it, so the old one was kept"))
             })
         });
     match outcome {
@@ -480,7 +484,10 @@ pub async fn grow(app: &tauri::AppHandle, cfg: &Settings, id: &str, thoughts: Op
             set_error(id, &msg);
             crate::emit_warning(
                 app,
-                format!("The thought was saved, but its idea's document could not be updated: {msg}"),
+                trf(
+                    "The thought was saved, but its idea's document could not be updated: {e}",
+                    &[("e", &msg)],
+                ),
             );
         }
     }

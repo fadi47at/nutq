@@ -2,6 +2,7 @@
 //! mid-recording Escape rescue key, and the slow retry that recovers a key
 //! another app was holding at startup. Moved as-is from lib.rs.
 
+use crate::i18n::{tr, trf};
 use crate::{emit_warning, AppState, Status};
 use crate::settings::{default_profiles, save_settings};
 use serde::Serialize;
@@ -23,13 +24,17 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 pub(crate) fn parse_hotkey(spec: &str) -> Result<Shortcut, String> {
     let trimmed = spec.trim();
     if trimmed.is_empty() {
-        return Err("No key is set.".into());
+        return Err(tr("No key is set.").into());
     }
     Shortcut::from_str(trimmed).map_err(|e| {
         let hint = if trimmed.contains("++") || trimmed.ends_with('+') || trimmed.starts_with('+') {
-            " \"+\" is the separator between a modifier and a key, so it cannot name a key by              itself. The plus on the numeric keypad is \"NumpadAdd\"; click the field and press              the key to have it filled in correctly."
+            tr(
+                " \"+\" is the separator between a modifier and a key, so it cannot name a key \
+                 by itself. The plus on the numeric keypad is \"NumpadAdd\"; click the field \
+                 and press the key to have it filled in correctly.",
+            )
         } else {
-            " Click the field and press the key you want, rather than typing its name."
+            tr(" Click the field and press the key you want, rather than typing its name.")
         };
         format!("{e}{hint}")
     })
@@ -223,8 +228,10 @@ fn bind(
     match gs.register(shortcut) {
         Ok(()) => report.bound = true,
         Err(e) => {
-            report.error = format!(
-                "Windows refused this key - another app is probably already using it                  globally. Pick a different one. ({e})"
+            report.error = trf(
+                "Windows refused this key - another app is probably already using it \
+                 globally. Pick a different one. ({e})",
+                &[("e", &e)],
             );
             eprintln!("[nutq] hotkey {spec:?} not bound: {}", report.error);
             // The shortcut is still returned so it can be retried: the spec
@@ -285,9 +292,9 @@ fn retry_unbound_hotkeys(app: &AppHandle) {
         }
         emit_warning(
             app,
-            format!(
-                "The shortcut {} is registered now. Another app was holding it when nutq started.",
-                slot.state.spec
+            trf(
+                "The shortcut {key} is registered now. Another app was holding it when nutq started.",
+                &[("key", &slot.state.spec)],
             ),
         );
     }

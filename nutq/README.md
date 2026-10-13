@@ -266,8 +266,19 @@ has no Arabic yet (and any Arabic nothing uses); it also runs in Windows CI and
 fails the build on a gap. To add a language, add a table next to the Arabic one
 and a branch in `i18n.ts`.
 
-Not yet translated: messages that come from the Rust side (provider errors,
-the warning log, the tray menu), which arrive as finished English text.
+The Rust side speaks the same language: provider diagnostics, the warnings
+and errors in the toasts and on the Logs page, and the tray menu go through
+`tr()`/`trf()` (`src-tauri/src/i18n.rs`), with the Arabic in
+`src-tauri/src/i18n_ar.rs`. A `cargo test` fails on any Rust string without
+Arabic, on Arabic nothing uses, and on a translation that drops a
+`{placeholder}`. Messages are translated when they are made, so a log entry
+written in English stays English after a switch. "Match Windows" reads the
+Windows display language directly, so the tray is right from launch.
+
+Not translated on purpose: the names of the default lines (Dictation,
+Proofread, ...) are your data, not the app's words - rename them in
+Settings › Lines - and raw text quoted from a provider or from Windows
+("It said: ...") stays as it was sent.
 
 ### What the pill says
 
@@ -374,6 +385,8 @@ build, `latest.json`, push, GitHub Release, in one command.
 | `src/views/ThreadsView.tsx` | The Idea threads page |
 | `src/lib/i18n.ts` | The interface language: `t()`, Arabic/English, right-to-left |
 | `src/lib/i18n.ar.ts` | The Arabic for every UI string, keyed by its English |
+| `src-tauri/src/i18n.rs` | The Rust side's language: `tr()`, `trf()`, Windows language detection |
+| `src-tauri/src/i18n_ar.rs` | The Arabic for every Rust message |
 | `scripts/check-i18n.mjs` | `npm run i18n:check`: strings with no Arabic yet |
 | `src/styles.css` | The design tokens and every component style, light and dark |
 

@@ -7,6 +7,7 @@
 //! message built here names the stage, the exact URL that was called, and what
 //! to go change.
 
+use crate::i18n::{tr, trf};
 use anyhow::{anyhow, Result};
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -46,18 +47,18 @@ pub enum Stage {
 impl Stage {
     pub fn label(self) -> &'static str {
         match self {
-            Stage::Transcription => "Stage 1 (transcription)",
-            Stage::Refinement => "Stage 2 (refinement)",
+            Stage::Transcription => tr("Stage 1 (transcription)"),
+            Stage::Refinement => tr("Stage 2 (refinement)"),
         }
     }
 
     /// The Settings field to send the user to, by name.
     pub fn key_field(self) -> &'static str {
         match self {
-            Stage::Transcription => "\"Transcription endpoint\" key",
+            Stage::Transcription => tr("\"Transcription endpoint\" key"),
             // Stage 2's key field is named after whichever provider is
             // selected, so name both instead of pointing at the wrong one.
-            Stage::Refinement => "\"Claude\" (or \"Refinement endpoint\") key",
+            Stage::Refinement => tr("\"Claude\" (or \"Refinement endpoint\") key"),
         }
     }
 }
@@ -210,7 +211,7 @@ pub fn client(timeout: Duration) -> Result<reqwest::Client> {
     reqwest::Client::builder()
         .timeout(timeout)
         .build()
-        .map_err(|e| anyhow!("could not start the HTTP client: {e}"))
+        .map_err(|e| anyhow!(trf("could not start the HTTP client: {e}", &[("e", &e)])))
 }
 
 pub fn api_client() -> Result<reqwest::Client> {
@@ -277,10 +278,10 @@ pub async fn send_retrying(
         }
 
         if let Some(msg) = error_in_ok_body(&text) {
-            return Err(anyhow!(
-                "{}: the endpoint returned an error.\n\nIt said: {msg}\n\nCalled: {url}",
-                stage.label()
-            ));
+            return Err(anyhow!(trf(
+                "{stage}: the endpoint returned an error.\n\nIt said: {msg}\n\nCalled: {url}",
+                &[("stage", &stage.label()), ("msg", &msg), ("url", &url)]
+            )));
         }
 
         return Ok(text);
@@ -314,10 +315,10 @@ pub fn normalize_base_url(raw: &str, stage: Stage) -> Result<String> {
     let mut s = raw.trim().to_string();
 
     if s.is_empty() {
-        return Err(anyhow!(
-            "{}: no endpoint base URL is set. Add one in Settings.",
-            stage.label()
-        ));
+        return Err(anyhow!(trf(
+            "{stage}: no endpoint base URL is set. Add one in Settings.",
+            &[("stage", &stage.label())]
+        )));
     }
 
     if !s.starts_with("http://") && !s.starts_with("https://") {
@@ -347,11 +348,11 @@ pub fn normalize_base_url(raw: &str, stage: Stage) -> Result<String> {
     }
 
     if s.len() < "https://a.b".len() || !s[8..].contains('.') && !s.contains("localhost") {
-        return Err(anyhow!(
-            "{}: \"{raw}\" does not look like a URL. It should be the API base, \
+        return Err(anyhow!(trf(
+            "{stage}: \"{raw}\" does not look like a URL. It should be the API base, \
              for example https://api.z.ai/api/paas/v4",
-            stage.label()
-        ));
+            &[("stage", &stage.label()), ("raw", &raw)]
+        )));
     }
 
     Ok(s)
@@ -362,18 +363,18 @@ pub fn normalize_base_url(raw: &str, stage: Stage) -> Result<String> {
 /// irrelevant - it is the URL or the network.
 pub fn transport_error(stage: Stage, url: &str, e: &reqwest::Error) -> String {
     let cause = if e.is_timeout() {
-        "the server did not respond in time. It may be slow, blocked, or unreachable from your network."
+        tr("the server did not respond in time. It may be slow, blocked, or unreachable from your network.")
     } else if e.is_connect() {
-        "the connection could not be opened. Check the host name, and whether a firewall, VPN, or regional block is in the way."
+        tr("the connection could not be opened. Check the host name, and whether a firewall, VPN, or regional block is in the way.")
     } else if e.is_request() {
-        "the request could not be built. The URL is probably malformed."
+        tr("the request could not be built. The URL is probably malformed.")
     } else {
-        "the request failed before a reply arrived."
+        tr("the request failed before a reply arrived.")
     };
 
-    format!(
-        "{} could not reach the endpoint - {cause}\n\nCalled: {url}\n\nNothing was sent, so this is not a key problem.",
-        stage.label()
+    trf(
+        "{stage} could not reach the endpoint - {cause}\n\nCalled: {url}\n\nNothing was sent, so this is not a key problem.",
+        &[("stage", &stage.label()), ("cause", &cause), ("url", &url)],
     )
 }
 
@@ -397,44 +398,59 @@ pub fn http_error_for(
     let stage_label = stage.label();
 
     if status == 404 && !url_is_users {
-        return format!(
-            "{stage_label}: that model does not exist on this provider, or your account cannot \
-             use it. Press \"Load available models\" next to the model field to see what this \
-             key can actually reach.\n\nIt said: {detail}\n\nCalled: {url}"
+        return trf(
+            "{stage}: that model does not exist on this provider, or your account cannot \
+             use it. Press \"Load list\" next to the model field to see what this \
+             key can actually reach.\n\nIt said: {detail}\n\nCalled: {url}",
+            &[("stage", &stage_label), ("detail", &detail), ("url", &url)],
         );
     }
 
     let explanation = match status {
-        400 => format!(
+        400 => trf(
             "the endpoint rejected the request as malformed. Usually the model name is wrong \
-             or unsupported.\n\nIt said: {detail}"
+             or unsupported.\n\nIt said: {detail}",
+            &[("detail", &detail)],
         ),
-        401 => format!(
+        401 => trf(
             "the endpoint is reachable but refused the key. This is a credential problem, not \
-             a URL problem - fix the {}.\n\nIt said: {detail}",
-            stage.key_field()
+             a URL problem - fix the {field}.\n\nIt said: {detail}",
+            &[("field", &stage.key_field()), ("detail", &detail)],
         ),
-        403 => format!(
+        403 => trf(
             "the key was accepted but is not allowed to use this model or endpoint. Check the \
-             plan or permissions on the provider account.\n\nIt said: {detail}"
+             plan or permissions on the provider account.\n\nIt said: {detail}",
+            &[("detail", &detail)],
         ),
-        404 => format!(
+        404 => trf(
             "nothing exists at that address. Either the base URL is wrong, or the model name \
-             does not exist on this provider.\n\nIt said: {detail}"
+             does not exist on this provider.\n\nIt said: {detail}",
+            &[("detail", &detail)],
         ),
-        422 => format!("the endpoint could not process the request.\n\nIt said: {detail}"),
-        429 => "the rate limit was hit. Wait a moment and try again.".to_string(),
-        402 => format!(
-            "the account is out of credit or has no active billing.\n\nIt said: {detail}"
+        422 => trf(
+            "the endpoint could not process the request.\n\nIt said: {detail}",
+            &[("detail", &detail)],
         ),
-        500..=599 => format!(
+        429 => tr("the rate limit was hit. Wait a moment and try again.").to_string(),
+        402 => trf(
+            "the account is out of credit or has no active billing.\n\nIt said: {detail}",
+            &[("detail", &detail)],
+        ),
+        500..=599 => trf(
             "the provider is having trouble on their side ({status}). Nothing here is \
-             misconfigured - try again.\n\nIt said: {detail}"
+             misconfigured - try again.\n\nIt said: {detail}",
+            &[("status", &status), ("detail", &detail)],
         ),
-        _ => format!("it returned {status}.\n\nIt said: {detail}"),
+        _ => trf(
+            "it returned {status}.\n\nIt said: {detail}",
+            &[("status", &status), ("detail", &detail)],
+        ),
     };
 
-    format!("{stage_label}: {explanation}\n\nCalled: {url}")
+    trf(
+        "{stage}: {explanation}\n\nCalled: {url}",
+        &[("stage", &stage_label), ("explanation", &explanation), ("url", &url)],
+    )
 }
 
 /// A few providers return an error body with HTTP 200. Detect that so the
@@ -470,7 +486,7 @@ pub fn extract_message(body: &str) -> String {
     }
     let trimmed = body.trim();
     if trimmed.is_empty() {
-        "(the response body was empty)".to_string()
+        tr("(the response body was empty)").to_string()
     } else {
         trimmed.chars().take(300).collect()
     }

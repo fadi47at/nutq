@@ -1540,7 +1540,7 @@ export default function SettingsView({
                             <button
                               key={th.id}
                               className={`theme-chip${on ? " on" : ""}`}
-                              title={`${th.name} · ${th.aura} / ${th.bg}`}
+                              title={`${t(th.name)} · ${th.aura} / ${th.bg}`}
                               onClick={() =>
                                 setDraft((d) => ({
                                   ...d,

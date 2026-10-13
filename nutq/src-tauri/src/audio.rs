@@ -7,6 +7,7 @@
 //! device native 48 kHz stereo. Whether the finished wav is then kept on disk
 //! is not decided here - see `clips`.
 
+use crate::i18n::{tr, trf};
 use anyhow::{anyhow, Result};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::io::Cursor;
@@ -164,7 +165,7 @@ fn audio_thread(rx: Receiver<Cmd>, level: Arc<AtomicU32>, device_name_out: Arc<M
                 level.store(0f32.to_bits(), Ordering::Relaxed);
                 let samples = buffer.lock().map(|b| b.clone()).unwrap_or_default();
                 let result = if samples.is_empty() {
-                    Err(anyhow!("nothing was recorded"))
+                    Err(anyhow!(tr("nothing was recorded")))
                 } else {
                     let mono = to_mono(&samples, channels);
                     let resampled = resample(&mono, source_rate, TARGET_RATE);
@@ -211,10 +212,10 @@ fn open_stream(
         Some(name) if name != "Default" => host
             .input_devices()?
             .find(|d| d.name().map(|n| &n == name).unwrap_or(false))
-            .ok_or_else(|| anyhow!("microphone not found: {name}"))?,
+            .ok_or_else(|| anyhow!(trf("microphone not found: {name}", &[("name", &name)])))?,
         _ => host
             .default_input_device()
-            .ok_or_else(|| anyhow!("no default microphone"))?,
+            .ok_or_else(|| anyhow!(tr("no default microphone")))?,
     };
 
     let opened_name = device.name().unwrap_or_else(|_| "unknown microphone".to_string());
@@ -272,30 +273,30 @@ fn open_stream(
 pub fn friendly_error(e: &anyhow::Error) -> String {
     let raw = format!("{e}");
     let hint = if raw.contains("0x8889000A") {
-        Some(
+        Some(tr(
             "The microphone is being held by another app right now - or a Bluetooth headset \
              just switched modes. Close the other app using the mic, or wait a couple of \
              seconds and press the hotkey again.",
-        )
+        ))
     } else if raw.contains("0x88890004") {
-        Some(
+        Some(tr(
             "The microphone disappeared mid-use - unplugged, disabled, or switched away. \
              Check that it is still selected in Settings.",
-        )
+        ))
     } else if raw.contains("0x88890008") {
-        Some(
+        Some(tr(
             "The microphone refuses this audio format. Try picking a different one in Settings.",
-        )
+        ))
     } else if raw.contains("0x8889000C") {
-        Some(
+        Some(tr(
             "The Windows audio service is not running. Start it (services.msc, \"Windows \
              Audio\") and try again.",
-        )
+        ))
     } else {
         None
     };
     match hint {
-        Some(h) => format!("Microphone error: {raw}\n\n{h}"),
+        Some(h) => trf("Microphone error: {raw}\n\n{hint}", &[("raw", &raw), ("hint", &h)]),
         None => raw,
     }
 }

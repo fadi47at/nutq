@@ -5,6 +5,7 @@
 //! Adding a provider means adding a match arm and a request builder - nothing
 //! above this module needs to know which one is in use.
 
+use crate::i18n::{tr, trf};
 use anyhow::{anyhow, Result};
 use base64::Engine;
 use serde::Deserialize;
@@ -136,24 +137,29 @@ async fn gemini(
         .await?;
 
     let parsed: GeminiResponse = serde_json::from_str(&text)
-        .map_err(|e| anyhow!("could not parse the Gemini response: {e}\n\nCalled: {url}"))?;
+        .map_err(|e| {
+            anyhow!(trf(
+                "could not parse the Gemini response: {e}\n\nCalled: {url}",
+                &[("e", &e), ("url", &url)]
+            ))
+        })?;
 
     if let Some(reason) = parsed.prompt_feedback.and_then(|f| f.block_reason) {
-        return Err(anyhow!("Gemini blocked the audio ({reason})"));
+        return Err(anyhow!(trf("Gemini blocked the audio ({reason})", &[("reason", &reason)])));
     }
 
     let candidate = parsed
         .candidates
         .into_iter()
         .next()
-        .ok_or_else(|| anyhow!("Gemini returned no transcript"))?;
+        .ok_or_else(|| anyhow!(tr("Gemini returned no transcript")))?;
 
     // MAX_TOKENS here means the transcript was cut off mid-sentence; better to
     // say so than to silently paste a truncated thought.
     if candidate.finish_reason.as_deref() == Some("MAX_TOKENS") {
-        return Err(anyhow!(
+        return Err(anyhow!(tr(
             "the recording was too long and the transcript was cut off"
-        ));
+        )));
     }
 
     let transcript = candidate
@@ -225,7 +231,7 @@ async fn eleven_labs(
     .await?;
 
     let parsed: TextResponse = serde_json::from_str(&body)
-        .map_err(|e| anyhow!("could not parse the ElevenLabs response: {e}"))?;
+        .map_err(|e| anyhow!(trf("could not parse the ElevenLabs response: {e}", &[("e", &e)])))?;
 
     Ok(Transcript {
         text: non_empty(parsed.text.unwrap_or_default())?,
@@ -293,7 +299,7 @@ fn wav_part(wav: &[u8]) -> Result<reqwest::multipart::Part> {
     reqwest::multipart::Part::bytes(wav.to_vec())
         .file_name("speech.wav")
         .mime_str("audio/wav")
-        .map_err(|e| anyhow!("could not build the audio upload: {e}"))
+        .map_err(|e| anyhow!(trf("could not build the audio upload: {e}", &[("e", &e)])))
 }
 
 // ---------------------------------------------------------------- shared
@@ -317,6 +323,13 @@ async fn post_json(
     .await
 }
 
+/// Also how the Test button recognises its own success case, so it is one
+/// function rather than two copies of a sentence that could drift apart.
+fn no_speech() -> &'static str {
+    tr("no speech was detected in the recording. The request itself succeeded, so check \
+        that the right microphone is selected in Settings.")
+}
+
 fn non_empty(text: String) -> Result<String> {
     let trimmed = text.trim();
     // Whisper-family models hallucinate on silence and noise - "!!!", "...",
@@ -325,10 +338,7 @@ fn non_empty(text: String) -> Result<String> {
     // paste punctuation into the user's document.
     let has_speech = trimmed.chars().any(|c| c.is_alphanumeric());
     if trimmed.is_empty() || !has_speech {
-        return Err(anyhow!(
-            "no speech was detected in the recording. The request itself succeeded, so check \
-             that the right microphone is selected in Settings."
-        ));
+        return Err(anyhow!(no_speech()));
     }
     Ok(trimmed.to_string())
 }
@@ -392,12 +402,12 @@ pub async fn test(api_key: &str, cfg: &Settings) -> Result<String> {
     };
 
     match outcome {
-        Ok(_) => Ok(format!("{} accepted the audio.", cfg.stt_model)),
+        Ok(_) => Ok(trf("{model} accepted the audio.", &[("model", &cfg.stt_model)])),
         // "no speech detected" means the round trip worked - that is a pass.
-        Err(e) if e.to_string().starts_with("no speech was detected") => Ok(format!(
-            "{} accepted the audio and returned an empty transcript, which is correct for \
+        Err(e) if e.to_string() == no_speech() => Ok(trf(
+            "{model} accepted the audio and returned an empty transcript, which is correct for \
              silence.",
-            cfg.stt_model
+            &[("model", &cfg.stt_model)],
         )),
         Err(e) => Err(e),
     }

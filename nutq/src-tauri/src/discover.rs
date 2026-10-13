@@ -7,6 +7,7 @@
 //! credentials - which also means it shows what *their* account can reach,
 //! not what some account somewhere can.
 
+use crate::i18n::{tr, trf};
 use anyhow::{anyhow, Result};
 use serde::Deserialize;
 
@@ -19,9 +20,9 @@ const ANTHROPIC_MODELS: &str = "https://api.anthropic.com/v1/models";
 pub async fn for_stt(api_key: &str, cfg: &Settings) -> Result<Vec<String>> {
     match cfg.stt_provider {
         SttProvider::Gemini => gemini(api_key, Stage::Transcription).await,
-        SttProvider::ElevenLabs => Err(anyhow!(
+        SttProvider::ElevenLabs => Err(anyhow!(tr(
             "ElevenLabs does not publish a model list here. Use scribe_v1."
-        )),
+        ))),
         SttProvider::OpenaiCompatible => {
             openai_compatible(api_key, &cfg.stt_base_url, Stage::Transcription).await
         }
@@ -73,7 +74,7 @@ async fn gemini(api_key: &str, stage: Stage) -> Result<Vec<String>> {
 
         let body = get(&client, &url, &[("x-goog-api-key", api_key)], stage).await?;
         let parsed: GeminiList = serde_json::from_str(&body)
-            .map_err(|e| anyhow!("could not read the Gemini model list: {e}"))?;
+            .map_err(|e| anyhow!(trf("could not read the Gemini model list: {e}", &[("e", &e)])))?;
 
         for m in parsed.models {
             // Only models that can answer a generateContent call are usable
@@ -125,7 +126,7 @@ async fn anthropic(api_key: &str, base_url: &str) -> Result<Vec<String>> {
     .await?;
 
     let parsed: AnthropicList = serde_json::from_str(&body)
-        .map_err(|e| anyhow!("could not read the Claude model list: {e}"))?;
+        .map_err(|e| anyhow!(trf("could not read the Claude model list: {e}", &[("e", &e)])))?;
 
     finish(parsed.data.into_iter().map(|m| m.id).collect(), &who)
 }
@@ -141,10 +142,11 @@ async fn openai_compatible(api_key: &str, base_url: &str, stage: Stage) -> Resul
     let body = get(&client, &url, &[("authorization", &bearer)], stage).await?;
 
     let parsed: AnthropicList = serde_json::from_str(&body).map_err(|e| {
-        anyhow!(
+        anyhow!(trf(
             "{url} did not return an OpenAI-style model list ({e}). Some endpoints do not \
-             expose one - type the model name in by hand instead."
-        )
+             expose one - type the model name in by hand instead.",
+            &[("url", &url), ("e", &e)]
+        ))
     })?;
 
     finish(parsed.data.into_iter().map(|m| m.id).collect(), &base)
@@ -191,9 +193,10 @@ fn finish(mut models: Vec<String>, who: &str) -> Result<Vec<String>> {
     models.dedup();
 
     if models.is_empty() {
-        return Err(anyhow!(
-            "{who} returned an empty model list for this key."
-        ));
+        return Err(anyhow!(trf(
+            "{who} returned an empty model list for this key.",
+            &[("who", &who)]
+        )));
     }
     Ok(models)
 }

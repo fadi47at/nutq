@@ -6,6 +6,7 @@
 //! carry no script information. So we go through the clipboard and send one
 //! Ctrl+V, then put the user clipboard back the way we found it.
 
+use crate::i18n::{tr, trf};
 use anyhow::{anyhow, Result};
 use std::thread::sleep;
 use std::time::Duration;
@@ -15,14 +16,14 @@ use std::time::Duration;
 /// had copied is a tool people stop trusting.
 pub fn paste(text: &str) -> Result<()> {
     let mut clipboard =
-        arboard::Clipboard::new().map_err(|e| anyhow!("could not open the clipboard: {e}"))?;
+        arboard::Clipboard::new().map_err(|e| anyhow!(trf("could not open the clipboard: {e}", &[("e", &e)])))?;
 
     // May legitimately fail: the clipboard can be empty or hold an image.
     let previous = clipboard.get_text().ok();
 
     clipboard
         .set_text(text.to_string())
-        .map_err(|e| anyhow!("could not write to the clipboard: {e}"))?;
+        .map_err(|e| anyhow!(trf("could not write to the clipboard: {e}", &[("e", &e)])))?;
 
     // Give the target app a moment to see the new clipboard contents before
     // the paste keystroke arrives.
@@ -45,7 +46,7 @@ pub fn paste(text: &str) -> Result<()> {
 pub fn copy_only(text: &str) -> Result<()> {
     arboard::Clipboard::new()
         .and_then(|mut c| c.set_text(text.to_string()))
-        .map_err(|e| anyhow!("could not write to the clipboard: {e}"))
+        .map_err(|e| anyhow!(trf("could not write to the clipboard: {e}", &[("e", &e)])))
 }
 
 /// Puts one file on the clipboard as a copied file, the way Explorer does,
@@ -82,10 +83,10 @@ fn copy_file_impl(path: &std::path::Path) -> Result<()> {
         // freed: windows 0.58 exposes no GlobalFree, and these paths are rare
         // errors costing at most a few hundred bytes until the app exits.
         let hglobal = GlobalAlloc(GMEM_MOVEABLE, total)
-            .map_err(|e| anyhow!("could not allocate clipboard memory: {e}"))?;
+            .map_err(|e| anyhow!(trf("could not allocate clipboard memory: {e}", &[("e", &e)])))?;
         let base = GlobalLock(hglobal);
         if base.is_null() {
-            return Err(anyhow!("could not lock clipboard memory"));
+            return Err(anyhow!(tr("could not lock clipboard memory")));
         }
         let base = base as *mut u8;
         std::ptr::write(
@@ -103,12 +104,12 @@ fn copy_file_impl(path: &std::path::Path) -> Result<()> {
         // The clipboard owns the memory once SetClipboardData succeeds; on
         // any failure it would still be ours, but see the note above.
         let placed = OpenClipboard(HWND(std::ptr::null_mut()))
-            .map_err(|e| anyhow!("could not open the clipboard: {e}"))
+            .map_err(|e| anyhow!(trf("could not open the clipboard: {e}", &[("e", &e)])))
             .and_then(|_| {
                 let _ = EmptyClipboard();
                 SetClipboardData(CF_HDROP, HANDLE(hglobal.0))
                     .map(|_| ())
-                    .map_err(|e| anyhow!("could not place the file on the clipboard: {e}"))
+                    .map_err(|e| anyhow!(trf("could not place the file on the clipboard: {e}", &[("e", &e)])))
             });
         let _ = CloseClipboard();
         placed
@@ -117,9 +118,9 @@ fn copy_file_impl(path: &std::path::Path) -> Result<()> {
 
 #[cfg(not(windows))]
 fn copy_file_impl(_path: &std::path::Path) -> Result<()> {
-    Err(anyhow!(
+    Err(anyhow!(tr(
         "copying a recording as a file is implemented for Windows so far"
-    ))
+    )))
 }
 
 #[cfg(windows)]
@@ -157,9 +158,9 @@ fn send_paste() -> Result<()> {
     if sent as usize != inputs.len() {
         // Blocked input usually means a UAC-elevated window has focus and our
         // process is not elevated. The text is on the clipboard either way.
-        return Err(anyhow!(
+        return Err(anyhow!(tr(
             "could not send the paste keystroke - the text is on your clipboard, press Ctrl+V"
-        ));
+        )));
     }
     Ok(())
 }
@@ -179,11 +180,11 @@ fn send_paste() -> Result<()> {
     // Without it the events post "successfully" but no app receives them, so
     // the clipboard fallback message below is what the user acts on.
     let source = CGEventSource::new(CGEventSourceStateID::CombinedSessionState)
-        .map_err(|_| anyhow!("could not create the event source"))?;
+        .map_err(|_| anyhow!(tr("could not create the event source")))?;
     let post = |source: &CGEventSource, key_down: bool| -> Result<()> {
         let ev = match CGEvent::new_keyboard_event(source.clone(), V_KEY, key_down) {
             Ok(ev) => ev,
-            Err(_) => return Err(anyhow!("could not create the paste event")),
+            Err(_) => return Err(anyhow!(tr("could not create the paste event"))),
         };
         ev.set_flags(CMD_FLAG);
         ev.post(CGEventTapLocation::Session);
@@ -198,5 +199,5 @@ fn send_paste() -> Result<()> {
 
 #[cfg(not(any(windows, target_os = "macos")))]
 fn send_paste() -> Result<()> {
-    Err(anyhow!("automatic pasting is only implemented on Windows and macOS"))
+    Err(anyhow!(tr("automatic pasting is only implemented on Windows and macOS")))
 }

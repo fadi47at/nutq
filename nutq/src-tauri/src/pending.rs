@@ -7,6 +7,7 @@
 //! Retry always uses the CURRENT settings, so "fix it in Settings, then hit
 //! retry" is the whole workflow.
 
+use crate::i18n::{tr, trf};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -97,11 +98,11 @@ pub fn get(id: &str) -> Option<PendingEntry> {
 /// Reads the parked audio without removing it - the job only leaves the list
 /// when a retry actually succeeds.
 pub fn read_wav(id: &str) -> Result<Vec<u8>> {
-    let entry = get(id).ok_or_else(|| anyhow!("pending job not found"))?;
+    let entry = get(id).ok_or_else(|| anyhow!(tr("pending job not found")))?;
     let name = entry
         .wav_file
-        .ok_or_else(|| anyhow!("this job has no audio to retry"))?;
-    fs::read(pending_dir()?.join(name)).map_err(|e| anyhow!("could not read the parked audio: {e}"))
+        .ok_or_else(|| anyhow!(tr("this job has no audio to retry")))?;
+    fs::read(pending_dir()?.join(name)).map_err(|e| anyhow!(trf("could not read the parked audio: {e}", &[("e", &e)])))
 }
 
 /// Replaces a transcription-stage job with a refinement-stage one: stage 1

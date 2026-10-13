@@ -166,6 +166,12 @@ by rule:
   `npm run i18n:check` lists it, and Windows CI fails on it. Write whole
   sentences with `{placeholders}` (`t("{n} open", { n })`), never English
   glued around a number - Arabic word order is not English word order.
+- **Rust's words go through `tr()`/`trf()`** (`src-tauri/src/i18n.rs`),
+  Arabic in `src-tauri/src/i18n_ar.rs`; `cargo test` fails on a gap. Pass the
+  literal straight to `tr("...")` - the test finds keys by reading the
+  sources, so a string held in a `const` is invisible to it - and never
+  match on a message's text (`starts_with("no speech")`): compare against
+  the same `tr()` call instead, or the check breaks in Arabic.
 - **Arabic is right-to-left, so direction is logical.** The language
   (`ui_language`: system/en/ar) writes `lang` and `dir` on `<html>`. Use
   `margin-inline-*`, `inset-inline-*`, `text-align: start` - never

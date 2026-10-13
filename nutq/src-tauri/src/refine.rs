@@ -3,6 +3,7 @@
 //! Three backends behind one function. The mode prompt is the same for all of
 //! them; only the request shape and where the system prompt goes differs.
 
+use crate::i18n::{tr, trf};
 use anyhow::{anyhow, Result};
 use serde::Deserialize;
 
@@ -166,14 +167,14 @@ async fn anthropic(
     let text = post_json(&url, &headers, &body, custom, retries).await?;
 
     let parsed: MessageResponse = serde_json::from_str(&text)
-        .map_err(|e| anyhow!("could not parse the Claude response: {e}"))?;
+        .map_err(|e| anyhow!(trf("could not parse the Claude response: {e}", &[("e", &e)])))?;
 
     // A refusal is an HTTP 200 with no usable content - check before reading it.
     if parsed.stop_reason.as_deref() == Some("refusal") {
         let why = parsed
             .stop_details
             .and_then(|d| d.explanation)
-            .unwrap_or_else(|| "the refinement request was declined".into());
+            .unwrap_or_else(|| tr("the refinement request was declined").into());
         return Err(anyhow!("{why}"));
     }
 
@@ -272,7 +273,7 @@ async fn gemini(
     let text = post_json(&url, &[("x-goog-api-key", api_key)], &body, false, retries).await?;
 
     let parsed: GeminiResponse = serde_json::from_str(&text)
-        .map_err(|e| anyhow!("could not parse the Gemini response: {e}"))?;
+        .map_err(|e| anyhow!(trf("could not parse the Gemini response: {e}", &[("e", &e)])))?;
 
     let out = parsed
         .candidates
@@ -341,10 +342,10 @@ async fn openai_compatible(
     let base = net::normalize_base_url(base_url, STAGE)?;
     let model = model.trim();
     if model.is_empty() {
-        return Err(anyhow!(
-            "{}: no model name is set. Add the one this endpoint expects in Settings.",
-            STAGE.label()
-        ));
+        return Err(anyhow!(trf(
+            "{stage}: no model name is set. Add the one this endpoint expects in Settings.",
+            &[("stage", &STAGE.label())]
+        )));
     }
 
     let body = serde_json::json!({
@@ -362,11 +363,11 @@ async fn openai_compatible(
     let text = post_json(&url, &[("authorization", &bearer)], &body, true, retries).await?;
 
     let parsed: ChatResponse = serde_json::from_str(&text).map_err(|e| {
-        anyhow!(
-            "{}: the reply was not the expected chat-completions shape ({e}). The URL may point \
-             at something that is not an OpenAI-compatible API.\n\nCalled: {url}",
-            STAGE.label()
-        )
+        anyhow!(trf(
+            "{stage}: the reply was not the expected chat-completions shape ({e}). The URL may \
+             point at something that is not an OpenAI-compatible API.\n\nCalled: {url}",
+            &[("stage", &STAGE.label()), ("e", &e), ("url", &url)]
+        ))
     })?;
 
     let out = parsed
@@ -403,11 +404,11 @@ pub async fn test(api_key: &str, cfg: &Settings) -> Result<String> {
                 tries,
             )
             .await?;
-            Ok(format!("Claude answered as {}.", cfg.refine_model))
+            Ok(trf("Claude answered as {model}.", &[("model", &cfg.refine_model)]))
         }
         RefineProvider::Gemini => {
             gemini(api_key, &cfg.refine_model, "Reply concisely.", probe, tries).await?;
-            Ok(format!("Gemini answered as {}.", cfg.refine_model))
+            Ok(trf("Gemini answered as {model}.", &[("model", &cfg.refine_model)]))
         }
         RefineProvider::OpenaiCompatible => {
             let base = net::normalize_base_url(&cfg.refine_base_url, STAGE)?;
@@ -420,9 +421,9 @@ pub async fn test(api_key: &str, cfg: &Settings) -> Result<String> {
                 tries,
             )
             .await?;
-            Ok(format!(
-                "{}/chat/completions answered as {}.",
-                base, cfg.refine_model
+            Ok(trf(
+                "{base}/chat/completions answered as {model}.",
+                &[("base", &base), ("model", &cfg.refine_model)],
             ))
         }
     }
@@ -454,11 +455,11 @@ async fn post_json(
 fn non_empty(text: String, url: &str) -> Result<String> {
     let trimmed = text.trim();
     if trimmed.is_empty() {
-        return Err(anyhow!(
-            "{}: the request succeeded but the reply had no text in it. The model may have \
+        return Err(anyhow!(trf(
+            "{stage}: the request succeeded but the reply had no text in it. The model may have \
              returned only a refusal or an empty completion.\n\nCalled: {url}",
-            STAGE.label()
-        ));
+            &[("stage", &STAGE.label()), ("url", &url)]
+        )));
     }
     Ok(trimmed.to_string())
 }

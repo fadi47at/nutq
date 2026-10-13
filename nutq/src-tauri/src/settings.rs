@@ -4,6 +4,7 @@
 //! deliberately NOT in that file - they go to the Windows Credential Manager
 //! via `keyring`, so a synced or shared config folder never leaks a paid key.
 
+use crate::i18n::{tr, trf};
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -692,26 +693,26 @@ fn slot_label(provider: &str) -> &str {
         PROVIDER_GEMINI => "Gemini",
         PROVIDER_ANTHROPIC => "Claude",
         PROVIDER_ELEVENLABS => "ElevenLabs",
-        PROVIDER_STT_CUSTOM => "Transcription endpoint",
-        PROVIDER_REFINE_CUSTOM => "Refinement endpoint",
+        PROVIDER_STT_CUSTOM => tr("Transcription endpoint"),
+        PROVIDER_REFINE_CUSTOM => tr("Refinement endpoint"),
         other => other,
     }
 }
 
 pub fn get_api_key(provider: &str) -> Result<String> {
     let key = entry(provider)?.get_password().map_err(|_| {
-        anyhow!(
-            "No API key is saved for \"{}\". Open Settings, put the key in that field, and \
+        anyhow!(trf(
+            "No API key is saved for \"{slot}\". Open Settings, put the key in that field, and \
              press Save changes.",
-            slot_label(provider)
-        )
+            &[("slot", &slot_label(provider))]
+        ))
     })?;
 
     if key.trim().is_empty() {
-        return Err(anyhow!(
-            "The saved \"{}\" key is blank. Re-enter it in Settings.",
-            slot_label(provider)
-        ));
+        return Err(anyhow!(trf(
+            "The saved \"{slot}\" key is blank. Re-enter it in Settings.",
+            &[("slot", &slot_label(provider))]
+        )));
     }
     Ok(key)
 }
