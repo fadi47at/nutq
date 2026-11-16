@@ -115,6 +115,24 @@ export default function Home({
         hero
         eyebrow={t("Voice workspace")}
         title={t("Ready when you are.")}
+        actions={
+          <div
+            className={
+              "state-pill" + (recording ? " live" : status === "idle" ? "" : " busy")
+            }
+            title={t(state.sub)}
+          >
+            <span
+              className={"dot" + (recording ? " rec" : status === "idle" ? "" : " busy")}
+            />
+            {t(state.name)}
+            <div className={`wave${recording ? " live" : ""}`}>
+              {Array.from({ length: 5 }, (_, i) => (
+                <i key={i} style={{ animationDelay: `${i * 0.09}s` }} />
+              ))}
+            </div>
+          </div>
+        }
         lede={
           lines.length
             ? t(
@@ -234,49 +252,35 @@ export default function Home({
           </div>
         )}
 
-        {/* The launcher.
+        {/* The lines.
          *
-         * The recording controls used to own half the window: a big headline, a
-         * centred mic, a waveform and a mode row stacked vertically beside a
-         * column of cards. But they are pressed by a global hotkey from other
-         * applications - this page is where the *text* is read. So the controls
-         * get one card, the figures a row, and everything saved goes to the
+         * The recording controls are pressed by a global hotkey from other
+         * applications - this page is where the *text* is read. So the lines
+         * are a row of tiles standing on the page, the microphone's state is
+         * the pill in the page head, and everything saved goes to the
          * result. */}
-        <div className="card launcher">
-          <div className="launcher-head">
-            <div>
-              <div className="launcher-state">
-                <span
-                  className={
-                    "dot" +
-                    (recording ? " rec" : status === "idle" ? "" : " busy")
-                  }
-                />
-                {t(state.name)}
-              </div>
-              <div className="launcher-sub">{t(state.sub)}</div>
-            </div>
-            <div className={`wave${recording ? " live" : ""}`}>
-              {Array.from({ length: 12 }, (_, i) => (
-                <i key={i} style={{ animationDelay: `${(i % 6) * 0.09}s` }} />
-              ))}
-            </div>
+        <section>
+          <div className="section-label">
+            <span className="label">{t("Lines")}</span>
+            <span className="section-label-note">{t(state.sub)}</span>
           </div>
 
           {lines.length === 0 ? (
-            <div className="card-body first-run">
-              <div className="first-run-copy">
-                <div className="first-run-title">{t("Make your first line")}</div>
-                <div className="hint">
-                  {t(
-                    "A line is one hotkey plus what it does with your voice - dictation, a note, a checklist, your own instructions. It becomes a button here and a key that works in any app.",
-                  )}
+            <div className="card">
+              <div className="card-body first-run">
+                <div className="first-run-copy">
+                  <div className="first-run-title">{t("Make your first line")}</div>
+                  <div className="hint">
+                    {t(
+                      "A line is one hotkey plus what it does with your voice - dictation, a note, a checklist, your own instructions. It becomes a button here and a key that works in any app.",
+                    )}
+                  </div>
                 </div>
+                <button className="btn primary" onClick={onOpenSettings}>
+                  <Icon name="plus" size={15} />
+                  {t("Add your first line")}
+                </button>
               </div>
-              <button className="btn primary" onClick={onOpenSettings}>
-                <Icon name="plus" size={15} />
-                {t("Add your first line")}
-              </button>
             </div>
           ) : (
             <div className="line-grid">
@@ -297,11 +301,11 @@ export default function Home({
                       void api.toggle(p.id);
                     }}
                   >
+                    {/* The same glyph the recording pill will show, so the
+                        button you press and the pill that appears are
+                        obviously the same thing. */}
+                    <Icon name={lineIcon(p)} size={16} className="line-ico" />
                     <span className="line-name">
-                      {/* The same glyph the recording pill will show, so the
-                          button you press and the pill that appears are
-                          obviously the same thing. */}
-                      <Icon name={lineIcon(p)} size={14} className="line-ico" />
                       {p.name}
                       {live && <span className="dot rec" />}
                     </span>
@@ -311,35 +315,7 @@ export default function Home({
               })}
             </div>
           )}
-        </div>
-
-        {/* The figures, as one small dim line instead of four cards. Every
-         *  number the stat row carried is still here. */}
-        <div className="home-info">
-          <span>
-            {lines.length === 1 ? t("1 line") : t("{n} lines", { n: lines.length })}
-          </span>
-          <span>
-            {t("{n} today ({d} audio)", {
-              n: usage.today_count,
-              d: formatDuration(usage.today_audio_seconds),
-            })}
-          </span>
-          <span>
-            {t("${cost} this month · {n} results", {
-              cost: usage.month_cost.toFixed(4),
-              n: usage.month_count,
-            })}
-            {!usage.cost_complete && ` · ${t("some providers untracked")}`}
-          </span>
-          <span className="home-chain">
-            {t("hear")} <b title={settings.sttModel}>{settings.sttModel}</b> {t("→")}{" "}
-            {t("write")}{" "}
-            <b title={settings.refineEnabled ? settings.refineModel : t("raw transcript")}>
-              {settings.refineEnabled ? settings.refineModel : t("raw transcript")}
-            </b>
-          </span>
-        </div>
+        </section>
 
         <div className="card">
           <div className="card-head">
@@ -419,14 +395,41 @@ export default function Home({
           </div>
         </div>
 
-        {/* Provider allowance, as one small dim line per provider at the very
-         *  bottom. Usage against the day's allowance, rather than the
+        {/* The page's small print: the figures as one dim line - every
+         *  number the stat row used to carry - then the provider allowance. Usage against the day's allowance, rather than the
          *  provider's own "remaining": Groq reports what is free to send *this
          *  instant* and refills one request every 43 seconds - so dictating
          *  any slower than that made it read 1999/2000 forever, no matter how
          *  much the day had actually consumed. The limit is theirs and real;
          *  the running total is ours. The warning bar only earns its space
          *  when the instantaneous figure is close enough to bite. */}
+        <div className="home-foot">
+          <div className="home-info">
+            <span>
+              {lines.length === 1 ? t("1 line") : t("{n} lines", { n: lines.length })}
+            </span>
+            <span>
+              {t("{n} today ({d} audio)", {
+                n: usage.today_count,
+                d: formatDuration(usage.today_audio_seconds),
+              })}
+            </span>
+            <span>
+              {t("${cost} this month · {n} results", {
+                cost: usage.month_cost.toFixed(4),
+                n: usage.month_count,
+              })}
+              {!usage.cost_complete && ` · ${t("some providers untracked")}`}
+            </span>
+            <span className="home-chain">
+              {t("hear")} <b title={settings.sttModel}>{settings.sttModel}</b> {t("→")}{" "}
+              {t("write")}{" "}
+              <b title={settings.refineEnabled ? settings.refineModel : t("raw transcript")}>
+                {settings.refineEnabled ? settings.refineModel : t("raw transcript")}
+              </b>
+            </span>
+          </div>
+
         {liveQuotas.length > 0 && (
           <div className="quota-strip">
             {liveQuotas.map((q) => {
@@ -487,6 +490,7 @@ export default function Home({
             })}
           </div>
         )}
+        </div>
       </div>
     </>
   );

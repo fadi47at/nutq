@@ -137,10 +137,20 @@ by rule:
 
 - **No component names a colour, a font size, or a radius.** They are tokens in
   `nutq/src/styles.css` (`--surface`, `--text-2`, `--fs-md`, `--r-lg`, ...).
-  The dark theme is the same names redefined under `[data-theme="dark"]`, and
-  the sidebar is the same names redefined again under `.zone-dark` - which is
-  why one stylesheet serves a dark rail on a light page and a fully dark app.
-  A hard-coded hex in a `.tsx` file is a bug.
+  The dark theme is the same names redefined under `[data-theme="dark"]`.
+  The sidebar follows the theme (it sits on `--bg-rail`, the page's paper one
+  step deeper) - it is not a dark slab on a light page any more; `.zone-dark`
+  stays only for pieces that are dark by nature. A hard-coded hex in a
+  `.tsx` file is a bug.
+- **One control height.** Buttons, inputs and the segmented control share
+  `--control-h` (`--control-h-sm` for `.btn.sm`), so a row of controls lines
+  up. A control that sets its own padding-based height breaks the row.
+- **Accent is for what you can act on.** Eyebrows, labels and idle status
+  are ink (`--text-3`); the active nav row is the page's surface lifted onto
+  the rail, with only its icon in accent.
+- **Home is: state pill in the page head, line tiles on the page, the latest
+  result, then the small print** (figures + provider allowance) under a
+  hairline in `.home-foot`. The tiles are not boxed in a card.
 - **Shared pieces live in `nutq/src/lib/ui.tsx`** - `PageHead`, `Field`,
   `Toggle`, `Empty`, `Kbd`, `Icon`. Every page opens with a `PageHead`; every
   hotkey is drawn by `Kbd`; every glyph comes from `Icon` (one 20px grid, 1.7

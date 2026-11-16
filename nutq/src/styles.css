@@ -15,24 +15,28 @@
 
 :root {
   /* ---- surfaces ---------------------------------------------------- */
-  --bg: #f4f6f8;
+  /* Warm paper rather than cool slate: the page is somewhere text is read,
+   * and a neutral with a little warmth in it is quieter behind ink. The
+   * rail is the same paper one step deeper - it follows the theme. */
+  --bg: #f7f6f3;
+  --bg-rail: #f0eee9;
   --surface: #ffffff;
-  --surface-2: #eff2f5;
-  --surface-3: #e5e9ef;
-  --border: #e2e7ed;
-  --border-strong: #cfd7e0;
+  --surface-2: #f3f1ed;
+  --surface-3: #e9e6e0;
+  --border: #e8e5df;
+  --border-strong: #d8d4cc;
 
   /* ---- ink --------------------------------------------------------- */
-  --text: #111720;
-  --text-2: #56616f;
-  --text-3: #6b7683;
+  --text: #1b1a18;
+  --text-2: #5c5953;
+  --text-3: #77736c;
 
   /* ---- accent ------------------------------------------------------ */
-  --accent: #0d9b73;
-  --accent-hover: #0b8462;
+  --accent: #0c7c5e;
+  --accent-hover: #0a6a50;
   --accent-ink: #ffffff;
-  --accent-soft: #e7f7f1;
-  --accent-line: #b6e5d4;
+  --accent-soft: #e7f3ee;
+  --accent-line: #bcdfd1;
 
   /* ---- states ------------------------------------------------------ */
   --danger: #c93a4b;
@@ -49,17 +53,28 @@
   --ok-text: #0a6d51;
 
   /* ---- elevation --------------------------------------------------- */
-  --shadow-1: 0 1px 2px rgba(16, 21, 28, 0.06);
-  --shadow-2: 0 1px 2px rgba(16, 21, 28, 0.05), 0 8px 22px rgba(16, 21, 28, 0.05);
-  --shadow-3: 0 24px 60px rgba(16, 21, 28, 0.22);
-  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  --shadow-1: 0 1px 2px rgba(27, 26, 24, 0.05);
+  --shadow-2: 0 1px 2px rgba(27, 26, 24, 0.04), 0 8px 24px rgba(27, 26, 24, 0.07);
+  --shadow-3: 0 24px 64px rgba(27, 26, 24, 0.2);
+  --ring: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
 
   /* ---- geometry ---------------------------------------------------- */
-  --r-sm: 6px;
-  --r-md: 9px;
-  --r-lg: 12px;
-  --r-xl: 16px;
+  --r-sm: 7px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 18px;
   --r-full: 999px;
+
+  /* One height for everything you click in a row: buttons, inputs, the
+   * segmented control. Controls of three different heights side by side is
+   * what "untidy" looks like. */
+  --control-h: 34px;
+  --control-h-sm: 28px;
+
+  /* The brand mark's own two greens - the only gradient in the app. */
+  --brand-a: #34e0ac;
+  --brand-b: #0f8a68;
+  --brand-ink: #04120d;
 
   /* ---- type -------------------------------------------------------- */
   --fs-micro: 10.5px;  /* all-caps labels */
@@ -68,9 +83,9 @@
   --fs-md: 13.5px;     /* body, controls */
   --fs-lg: 15px;       /* reading text */
   --fs-xl: 17px;       /* card titles */
-  --fs-2xl: 22px;      /* page title */
-  --fs-3xl: 26px;      /* figures */
-  --fs-display: 30px;  /* the Home page's opening line */
+  --fs-2xl: 24px;      /* page title */
+  --fs-3xl: 28px;      /* figures */
+  --fs-display: 34px;  /* the Home page's opening line */
 
   /* ---- chart palette ------------------------------------------------ */
   /* Handed out per model name (HistoryView's hash) — one source for the
@@ -107,7 +122,7 @@
 
   /* The content column. Text that runs the full width of a maximised window
    * is unreadable; every page centres itself in this. */
-  --measure: 1080px;
+  --measure: 1000px;
 
   color-scheme: light;
   /* Vazirmatn everywhere: it ships with the app (@fontsource), so text renders
@@ -119,22 +134,23 @@
 
 /* The dark theme. Same names, so nothing below this block knows about it. */
 [data-theme="dark"] {
-  --bg: #0d1117;
-  --surface: #161b23;
-  --surface-2: #1c222c;
-  --surface-3: #252d39;
-  --border: #242c37;
-  --border-strong: #35404f;
+  --bg: #111112;
+  --bg-rail: #0b0b0c;
+  --surface: #19191b;
+  --surface-2: #202023;
+  --surface-3: #2a2a2e;
+  --border: #27272b;
+  --border-strong: #3a3a40;
 
-  --text: #e9eef5;
-  --text-2: #9aa7b8;
-  --text-3: #8391a3;
+  --text: #ececed;
+  --text-2: #a4a4aa;
+  --text-3: #86868d;
 
-  --accent: #2fd6a5;
-  --accent-hover: #55e2bb;
+  --accent: #3ddbab;
+  --accent-hover: #62e6bf;
   --accent-ink: #06130e;
-  --accent-soft: rgba(47, 214, 165, 0.13);
-  --accent-line: rgba(47, 214, 165, 0.32);
+  --accent-soft: rgba(61, 219, 171, 0.12);
+  --accent-line: rgba(61, 219, 171, 0.3);
 
   --danger: #ef6b6b;
   --danger-ink: #1a0c0c;
@@ -156,23 +172,23 @@
   color-scheme: dark;
 }
 
-/* A dark island on a light page - the sidebar, and anything that belongs with
- * it. In the dark theme it simply sits one step deeper than the page, which is
- * how a rail reads as a rail without needing a border. */
+/* A dark island on a light page, for anything that wants to read dark in
+ * either theme. The sidebar used to be one; it now follows the theme
+ * (--bg-rail), so this is kept for pieces that are dark by nature. */
 .zone-dark {
-  --surface: #1a212b;
-  --surface-2: #222a36;
-  --surface-3: #2b3542;
-  --border: #262f3c;
-  --border-strong: #38434f;
-  --text: #e9eef5;
-  --text-2: #98a5b6;
-  --text-3: #8391a3;
-  --accent: #2fd6a5;
-  --accent-hover: #55e2bb;
+  --surface: #19191b;
+  --surface-2: #202023;
+  --surface-3: #2a2a2e;
+  --border: #27272b;
+  --border-strong: #3a3a40;
+  --text: #ececed;
+  --text-2: #a4a4aa;
+  --text-3: #86868d;
+  --accent: #3ddbab;
+  --accent-hover: #62e6bf;
   --accent-ink: #06130e;
-  --accent-soft: rgba(47, 214, 165, 0.14);
-  --accent-line: rgba(47, 214, 165, 0.3);
+  --accent-soft: rgba(61, 219, 171, 0.14);
+  --accent-line: rgba(61, 219, 171, 0.3);
   --danger: #ef6b6b;
   --danger-soft: rgba(239, 107, 107, 0.14);
   --danger-line: rgba(239, 107, 107, 0.36);
@@ -181,7 +197,7 @@
   --warn-soft: rgba(229, 176, 98, 0.14);
   --warn-line: rgba(229, 176, 98, 0.34);
   --warn-text: #edc68f;
-  --ring: 0 0 0 3px rgba(47, 214, 165, 0.25);
+  --ring: 0 0 0 3px rgba(61, 219, 171, 0.25);
 
   color-scheme: dark;
 }
@@ -287,9 +303,10 @@ textarea {
   background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: var(--r-md);
-  padding: 8px 11px;
+  min-height: var(--control-h);
+  padding: 6px 11px;
   outline: none;
-  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
 }
 
 textarea {
@@ -403,57 +420,55 @@ code {
 
 .shell {
   display: grid;
-  grid-template-columns: 236px 1fr;
+  grid-template-columns: 232px 1fr;
   height: 100%;
 }
 
+/* The rail is the page's own paper, one step deeper, behind a hairline. It
+ * follows the theme: a black slab beside a light page made the window read
+ * as two programs. */
 .sidebar {
-  background: #10151c;
+  background: var(--bg-rail);
   display: flex;
   flex-direction: column;
-  padding: 18px 12px 12px;
-  border-inline-end: 1px solid rgba(255, 255, 255, 0.04);
-}
-
-[data-theme="dark"] .sidebar {
-  background: #0a0e13;
+  padding: 20px 12px 12px;
+  border-inline-end: 1px solid var(--border);
+  min-height: 0;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 2px 8px 20px;
+  gap: 11px;
+  padding: 0 8px 22px;
 }
 
 .brand-mark {
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-  background: linear-gradient(145deg, #34e0ac, #0f8a68);
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-md);
+  background: linear-gradient(145deg, var(--brand-a), var(--brand-b));
   display: grid;
   place-items: center;
-  color: #04120d;
-  font-weight: 800;
+  color: var(--brand-ink);
+  font-weight: 700;
   font-size: var(--fs-lg);
-  box-shadow: 0 2px 10px rgba(47, 214, 165, 0.25);
+  box-shadow: var(--shadow-1);
   flex: none;
 }
 
 .brand-name {
-  font-size: var(--fs-xl);
+  font-size: var(--fs-lg);
   font-weight: 700;
   letter-spacing: var(--ls-tight);
-  line-height: 1.1;
+  line-height: 1.15;
   color: var(--text);
 }
 
 .brand-sub {
-  font-size: var(--fs-micro);
+  font-size: var(--fs-xs);
   color: var(--text-3);
-  letter-spacing: var(--ls-caps);
-  text-transform: var(--tt-caps);
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 .nav-label {
@@ -461,7 +476,7 @@ code {
   letter-spacing: var(--ls-caps);
   text-transform: var(--tt-caps);
   color: var(--text-3);
-  padding: 12px 10px 6px;
+  padding: 16px 10px 7px;
   font-weight: 600;
 }
 
@@ -471,46 +486,42 @@ code {
   gap: 10px;
   position: relative;
   width: 100%;
+  height: var(--control-h);
   text-align: start;
-  padding: 8px 12px;
+  padding: 0 10px;
   border-radius: var(--r-md);
   color: var(--text-2);
   font-size: var(--fs-md);
   font-weight: 500;
   margin-bottom: 2px;
-  transition: background 0.12s ease, color 0.12s ease;
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease;
 }
 
 .nav-ico {
   width: 17px;
   height: 17px;
   flex: none;
-  opacity: 0.9;
+  color: var(--text-3);
+  transition: color var(--dur-fast) ease;
 }
 
 .nav-item:hover {
-  background: var(--surface);
+  background: var(--surface-3);
   color: var(--text);
 }
 
-/* Active is a tinted row with an accent edge, not a solid slab: the rail is
- * chrome, and chrome that shouts competes with the page it frames. */
+/* Active is the row lifted onto the page's own surface: the place you are is
+ * a piece of the page that has come to the rail, not a coloured slab. */
 .nav-item.active {
-  background: var(--accent-soft);
-  color: #5ee3bb;
+  background: var(--surface);
+  color: var(--text);
   font-weight: 600;
+  box-shadow: var(--shadow-1);
 }
 
-.nav-item.active::before {
-  content: "";
-  position: absolute;
-  inset-inline-start: -12px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 18px;
-  border-radius: 0 3px 3px 0;
-  background: var(--accent);
+.nav-item.active .nav-ico {
+  color: var(--accent);
 }
 
 .nav-count {
@@ -518,14 +529,13 @@ code {
   font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
   color: var(--text-3);
-  background: var(--surface);
+  background: var(--surface-3);
   border-radius: var(--r-full);
   padding: 1px 7px;
 }
 
 .nav-item.active .nav-count {
-  color: var(--accent);
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--surface-2);
 }
 
 /* Unseen-log signal for the folded rail; hidden while the toast that carries
@@ -540,19 +550,30 @@ code {
   border-radius: 50%;
 }
 
+.nav-dot.error {
+  background: var(--danger);
+}
+
+.nav-dot.warning {
+  background: var(--warn);
+}
+
 .sidebar-foot {
   margin-top: auto;
   padding-top: 10px;
+  border-top: 1px solid var(--border);
 }
 
+/* Idle, the status is a quiet line of text; it only becomes a coloured chip
+ * when something is actually happening. */
 .status-chip {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 9px 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
   border-radius: var(--r-md);
+  transition: background var(--dur-med) ease, border-color var(--dur-med) ease;
 }
 
 .status-chip.live {
@@ -594,6 +615,7 @@ code {
   font-size: var(--fs-sm);
   text-transform: capitalize;
   color: var(--text);
+  line-height: 1.3;
 }
 
 .status-sub {
@@ -608,11 +630,11 @@ code {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 10px;
-  padding: 0 12px 2px;
+  margin-top: 4px;
+  padding: 0 10px 2px;
   font-size: var(--fs-micro);
   color: var(--text-3);
-  letter-spacing: calc(var(--ls-caps) * 0.6);
+  font-variant-numeric: tabular-nums;
 }
 
 .foot-version .up {
@@ -625,7 +647,7 @@ code {
 .main {
   overflow-y: auto;
   background: var(--bg);
-  padding: 26px 32px 44px;
+  padding: 40px 44px 56px;
 }
 
 .page {
@@ -638,8 +660,8 @@ code {
 .page-head {
   display: flex;
   align-items: flex-end;
-  gap: 16px;
-  margin-bottom: 20px;
+  gap: 20px;
+  margin-bottom: 28px;
 }
 
 .page-head-text {
@@ -655,19 +677,21 @@ code {
   padding-bottom: 2px;
 }
 
+/* The eyebrow places the page; it does not announce it. Ink, not accent -
+ * accent is kept for things you can act on. */
 .eyebrow {
   font-size: var(--fs-micro);
   letter-spacing: var(--ls-caps);
   text-transform: var(--tt-caps);
-  color: var(--accent);
-  font-weight: 700;
+  color: var(--text-3);
+  font-weight: 600;
 }
 
 h1 {
   font-size: var(--fs-2xl);
-  font-weight: 700;
-  margin: 5px 0 0;
-  letter-spacing: calc(var(--ls-tight) * 2.1);
+  font-weight: 650;
+  margin: 6px 0 0;
+  letter-spacing: calc(var(--ls-tight) * 2.2);
   line-height: 1.2;
 }
 
@@ -675,15 +699,16 @@ h1 {
  * settings page's label. No other page passes hero. */
 h1.hero {
   font-size: var(--fs-display);
-  letter-spacing: calc(var(--ls-tight) * 2.5);
+  letter-spacing: calc(var(--ls-tight) * 2.8);
+  line-height: 1.15;
 }
 
 .lede {
   color: var(--text-2);
-  font-size: var(--fs-sm);
+  font-size: var(--fs-md);
   line-height: 1.6;
-  margin: 5px 0 0;
-  max-width: 78ch;
+  margin: 8px 0 0;
+  max-width: 66ch;
 }
 
 h2 {
@@ -691,6 +716,22 @@ h2 {
   font-weight: 650;
   margin: 0;
   letter-spacing: calc(var(--ls-tight) * 1.4);
+}
+
+/* A small heading over a group that is not a card: label at the start, an
+ * optional dim note at the end of the same line. */
+.section-label {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding: 0 2px;
+}
+
+.section-label-note {
+  margin-inline-start: auto;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
 }
 
 /* ---- primitives ----------------------------------------------------- */
@@ -711,11 +752,13 @@ h2 {
   align-items: center;
   justify-content: center;
   gap: 7px;
-  padding: 7px 13px;
+  min-height: var(--control-h);
+  padding: 0 14px;
   border-radius: var(--r-md);
   background: var(--surface);
   border: 1px solid var(--border-strong);
-  font-weight: 600;
+  box-shadow: var(--shadow-1);
+  font-weight: 550;
   font-size: var(--fs-md);
   color: var(--text);
   white-space: nowrap;
@@ -763,6 +806,7 @@ h2 {
 .btn.ghost {
   background: transparent;
   border-color: transparent;
+  box-shadow: none;
   color: var(--text-2);
   font-weight: 550;
 }
@@ -774,7 +818,8 @@ h2 {
 }
 
 .btn.sm {
-  padding: 5px 10px;
+  min-height: var(--control-h-sm);
+  padding: 0 10px;
   font-size: var(--fs-sm);
   border-radius: var(--r-sm);
 }
@@ -923,7 +968,8 @@ h2 {
 }
 
 .segmented button {
-  padding: 5px 12px;
+  min-height: 26px;
+  padding: 0 12px;
   border-radius: var(--r-sm);
   font-size: var(--fs-sm);
   font-weight: 600;
@@ -948,7 +994,8 @@ h2 {
 }
 
 .segmented.small button {
-  padding: 4px 10px;
+  min-height: 22px;
+  padding: 0 10px;
   font-size: var(--fs-xs);
 }
 
@@ -1006,7 +1053,7 @@ h2 {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 13px 16px;
+  padding: 14px 18px;
   border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
 }
@@ -1017,11 +1064,11 @@ h2 {
 }
 
 .card-body {
-  padding: 16px;
+  padding: 18px;
 }
 
 .card-foot {
-  padding: 11px 16px;
+  padding: 12px 18px;
   border-top: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -1032,7 +1079,7 @@ h2 {
 .stack {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
 /* ---- banners --------------------------------------------------------- */
@@ -1251,12 +1298,38 @@ h2 {
 
 /* ------------------------------------------------------------ home page */
 
-/* The launcher: one tile per dictation line, plus the live state of the
- * microphone. The controls are pressed by a global hotkey from other
- * applications, so this is a mirror and a fallback, not the main event - it
- * gets one card, not half the window. */
-.launcher {
-  overflow: hidden;
+/* The microphone's state, worn at the head of the page: one pill that is
+ * quiet while idle and takes the state's colour while something is live.
+ * The controls themselves are pressed by a global hotkey from other
+ * applications, so this is a mirror, not the main event. */
+.state-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: var(--control-h);
+  padding: 0 14px;
+  border-radius: var(--r-full);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  transition: background var(--dur-med) ease, border-color var(--dur-med) ease,
+    color var(--dur-med) ease;
+}
+
+.state-pill.live {
+  border-color: var(--danger-line);
+  background: var(--danger-soft);
+  color: var(--danger-text);
+}
+
+.state-pill.busy {
+  border-color: var(--warn-line);
+  background: var(--warn-soft);
+  color: var(--warn-text);
 }
 
 /* The no-lines-yet body: say what a line is before asking for one. */
@@ -1278,55 +1351,37 @@ h2 {
   margin-bottom: 3px;
 }
 
-.launcher-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
-}
-
-.launcher-state {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: var(--fs-sm);
-  font-weight: 650;
-}
-
-.launcher-sub {
-  font-size: var(--fs-xs);
-  color: var(--text-3);
-  font-weight: 500;
-  margin-top: 1px;
-}
-
+/* One tile per dictation line, standing on the page itself rather than
+ * boxed inside a card: they are the product's buttons. Wide enough that a
+ * line's name is read, not guessed from its first six letters. */
 .line-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 6px;
-  padding: 10px 12px 12px;
+  grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+  gap: 10px;
 }
 
-/* One compact row per line: glyph + name, hotkey at the end. What the line
- * does with the text lives in the button's tooltip now, not on the tile. */
+/* Glyph, name, hotkey. What the line does with the text lives in the
+ * button's tooltip, not on the tile. */
 .line-btn {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
+  gap: 10px;
+  min-height: 52px;
+  padding: 9px 12px;
   border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-lg);
   background: var(--surface);
+  box-shadow: var(--shadow-1);
   color: var(--text);
   text-align: start;
-  transition: border-color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
+  transition: border-color var(--dur-fast) ease, background var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease;
 }
 
 .line-btn:hover:not(:disabled) {
-  border-color: var(--accent);
-  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  box-shadow: var(--shadow-2);
 }
 
 .line-btn.live {
@@ -1341,11 +1396,11 @@ h2 {
 }
 
 .line-name {
-  font-size: var(--fs-sm);
-  font-weight: 650;
+  font-size: var(--fs-md);
+  font-weight: 600;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -1357,35 +1412,42 @@ h2 {
   flex: none;
 }
 
+/* The glyph sits in its own soft square - the same picture the pill wears. */
 .line-ico {
-  color: var(--text-3);
+  box-sizing: content-box;
+  width: 16px;
+  height: 16px;
+  padding: 7px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-2);
   flex: none;
+  transition: background var(--dur-fast) ease, color var(--dur-fast) ease;
 }
 
 .line-btn:hover:not(:disabled) .line-ico {
+  background: var(--accent-soft);
   color: var(--accent);
 }
 
 .line-btn.live .line-ico {
+  background: var(--surface);
   color: var(--danger);
 }
 
-/* The live level meter. Idle it is a flat line of ticks; recording it dances.
- * It lives in the launcher header so the card has one obvious "am I live?". */
+/* The live level meter inside the state pill. Idle it is a few flat ticks;
+ * recording it dances. */
 .wave {
   display: flex;
   align-items: center;
   gap: 3px;
   height: 14px;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  justify-content: flex-end;
+  flex: none;
 }
 
 .wave i {
   width: 2px;
-  height: 2px;
+  height: 4px;
   border-radius: 2px;
   background: var(--border-strong);
   display: block;
@@ -1398,24 +1460,36 @@ h2 {
 
 @keyframes bounce {
   50% {
-    height: 12px;
+    height: 14px;
   }
 }
 
 /* ---- home figures ----------------------------------------------------- */
 
-/* The launcher's figures as one small dim line under the card. Same numbers
- * the four stat cards used to carry, one row of text tall. */
+/* The page's small print, under a hairline at the very bottom: the day's
+ * figures, the model chain, and each provider's allowance. */
+.home-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 14px 2px 0;
+  border-top: 1px solid var(--border);
+}
+
 .home-info {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  column-gap: 14px;
+  column-gap: 16px;
   row-gap: 2px;
-  padding: 0 4px;
   font-size: var(--fs-xs);
   color: var(--text-2);
   font-variant-numeric: tabular-nums;
+}
+
+.home-chain {
+  margin-inline-start: auto;
 }
 
 .home-chain b {
@@ -1427,15 +1501,14 @@ h2 {
 
 /* ---- provider allowance ----------------------------------------------- */
 
-/* One small dim line per provider, last thing on the page. It carries the
- * day's running total against the provider's limit; the warning bits (bar +
- * remaining) only appear when the instantaneous allowance is close enough to
- * bite, and the whole line warms up with them. */
+/* One small dim line per provider. It carries the day's running total
+ * against the provider's limit; the warning bits (bar + remaining) only
+ * appear when the instantaneous allowance is close enough to bite, and the
+ * whole line warms up with them. */
 .quota-strip {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  padding: 0 4px;
 }
 
 .quota-line {
@@ -1730,8 +1803,8 @@ h2 {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
-  padding: 0 18px;
-  margin-bottom: 14px;
+  padding: 0 20px;
+  margin-bottom: 16px;
   box-shadow: var(--shadow-1);
 }
 
@@ -2572,6 +2645,7 @@ h2 {
   font: inherit;
   font-size: var(--fs-xs);
   font-weight: 600;
+  min-height: 0;
   padding-block: 2px;
   padding-inline: 9px 24px;
   background-position: calc(100% - 12px) calc(50% + 1px), calc(100% - 8px) calc(50% + 1px);
@@ -3302,10 +3376,6 @@ body.overlay-mode {
 }
 
 @media (max-width: 900px) {
-  .stats {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
   .field {
     grid-template-columns: 1fr;
     gap: 8px;
@@ -3351,11 +3421,7 @@ body.overlay-mode {
 
   .nav-item {
     justify-content: center;
-    padding: 9px 0;
-  }
-
-  .nav-item.active::before {
-    inset-inline-start: -9px;
+    padding: 0;
   }
 
   .nav-dot {
@@ -3368,7 +3434,7 @@ body.overlay-mode {
   }
 
   .main {
-    padding: 18px 16px 34px;
+    padding: 24px 18px 36px;
   }
 
   .page-head {

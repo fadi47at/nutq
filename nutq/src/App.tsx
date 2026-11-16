@@ -264,7 +264,7 @@ export default function App() {
 
   return (
     <div className="shell">
-      <aside className="sidebar zone-dark">
+      <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">N</div>
           <div className="brand-text">
@@ -291,11 +291,7 @@ export default function App() {
                   )}
                   {id === "logs" && alertLog && (
                     <span
-                      className="nav-dot"
-                      style={{
-                        background:
-                          alertLog.level === "error" ? "var(--danger)" : "var(--warn)",
-                      }}
+                      className={`nav-dot ${alertLog.level === "error" ? "error" : "warning"}`}
                       title={logSummary(alertLog.message).summary}
                     />
                   )}

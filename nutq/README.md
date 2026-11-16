@@ -225,9 +225,10 @@ saying what the latest thought added.
 
 One stylesheet, one token vocabulary. `src/styles.css` defines the palette,
 the type scale, the spacing and the shadows once as CSS variables;
-`[data-theme="dark"]` redefines the same names, and `.zone-dark` redefines
-them again for the sidebar, so a component reads `--text` and `--surface` and
-gets whichever zone it is sitting in. Nothing outside that file names a
+`[data-theme="dark"]` redefines the same names, so a component reads `--text`
+and `--surface` and gets whichever theme is on. The palette is warm paper and
+ink with one emerald accent; the sidebar follows the theme (`--bg-rail`)
+rather than being a dark slab. Nothing outside that file names a
 colour. **Settings › Appearance** switches between Light, Dark, and
 following Windows; the choice is stored like any other setting and applies the
 moment it is picked.
